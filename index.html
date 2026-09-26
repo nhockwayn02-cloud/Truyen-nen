@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1015">
+<title>Muses V7 Professional — Công Cụ Viết Tiểu Thuyết Tiếng Việt</title>
+<style>
+:root{--bg:#0d1015;--p:#171b23;--p2:#1e2430;--line:#303746;--txt:#eef2f7;--mut:#9ba6b6;--acc:#8ab4ff;--ok:#78d79b;--warn:#e7bd68;--danger:#ff9d9d}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--txt);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}button,input,textarea,select{font:inherit}button{border:1px solid var(--line);background:var(--p2);color:var(--txt);border-radius:10px;padding:10px 13px;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}button.primary{background:var(--acc);color:#08101c;border-color:var(--acc);font-weight:700}button.ok{border-color:#386347;color:#c9f5d7}button.warn{border-color:#6c5729;color:#ffe8a9}button.danger{color:#ffcaca;border-color:#633d3d}input,textarea,select{width:100%;background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:11px}textarea{min-height:110px;resize:vertical}.app{display:flex;min-height:100vh}.side{width:245px;background:#11141a;border-right:1px solid var(--line);padding:14px;position:sticky;top:0;height:100vh;overflow:auto}.brand{font-size:20px;font-weight:800;margin-bottom:13px}.version{font-size:11px;color:var(--mut);margin-top:-9px;margin-bottom:12px}.nav button{display:block;width:100%;text-align:left;margin:6px 0}.nav button.active{border-color:var(--acc);background:#192337}.main{flex:1;max-width:1180px;width:100%;margin:auto;padding:16px}.status{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#11151c;margin-bottom:14px;position:sticky;top:8px;z-index:5}.top{display:flex;justify-content:space-between;gap:10px;align-items:center}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{background:var(--p);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}.card h2,.card h3{margin:0 0 12px}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.actions button{flex:0 0 auto}.muted{color:var(--mut)}.small{font-size:12px}.item{background:#13171e;border:1px solid var(--line);border-radius:11px;padding:12px;margin:8px 0}.item strong{display:block;margin-bottom:5px}.tag{display:inline-block;padding:4px 8px;border:1px solid var(--line);border-radius:99px;color:var(--mut);margin:2px}.hidden{display:none!important}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:14px}.tabs button{white-space:nowrap}.hint{background:#151c28;border-left:3px solid var(--acc);padding:10px 12px;border-radius:8px}.warnbox{background:#211c12;border-left:3px solid var(--warn);padding:10px 12px;border-radius:8px}.okbox{background:#132019;border-left:3px solid var(--ok);padding:10px 12px;border-radius:8px}.chapter{white-space:pre-wrap;line-height:1.78}.footer{font-size:12px;color:var(--mut);padding:15px 0}.label{display:block;margin:10px 0}.label>span{display:block;margin-bottom:5px}.proposal{border-color:#4a5d85;background:#111827}.manual{border-color:#3c4858}.meter{font-size:12px;color:var(--mut);margin-top:5px}.kbd{font-size:11px;border:1px solid var(--line);border-radius:5px;padding:2px 5px;color:var(--mut)}
+@media(max-width:760px){.app{display:block}.side{width:100%;height:auto;position:relative;border-right:0;border-bottom:1px solid var(--line);padding:10px}.brand{margin-bottom:4px}.version{margin-bottom:8px}.nav{display:flex;gap:5px;overflow:auto}.nav button{width:auto;white-space:nowrap;margin:0}.main{padding:10px}.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.status{top:4px}.card{padding:12px;border-radius:12px}button{min-height:42px}.actions button{flex:1;min-width:120px}}
+
+/* ===== Muses V6: Long-form Vietnamese Novel Engine ===== */
+.v6bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.v6grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.v6grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.v6pill{display:inline-block;padding:3px 8px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--mut)}
+.v6ok{color:var(--ok)}.v6warn{color:var(--warn)}.v6danger{color:var(--danger)}
+.v6table{width:100%;border-collapse:collapse}.v6table th,.v6table td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.v6mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.v6diff{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;white-space:pre-wrap;line-height:1.65}
+.v6add{background:rgba(80,180,100,.16);border-left:3px solid #55b96d;padding:3px 6px}
+.v6del{background:rgba(220,80,80,.14);border-left:3px solid #d66;padding:3px 6px;text-decoration:line-through}
+.v6same{padding:3px 6px;color:var(--mut)}
+.v6sticky{position:sticky;top:8px}
+@media(max-width:760px){.v6grid,.v6grid3{grid-template-columns:1fr}.v6table{font-size:13px}.v6table th,.v6table td{padding:6px}}
+
+
+/* ===== Muses V7 Professional ===== */
+.v7grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.v7grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.v7score{font-size:28px;font-weight:800}.v7badge{display:inline-block;padding:4px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;margin:2px}.v7good{color:var(--ok)}.v7bad{color:var(--danger)}.v7warn{color:var(--warn)}
+.v7issue{border-left:4px solid var(--danger);background:#211719;padding:10px;border-radius:8px;margin:7px 0}.v7warnissue{border-left:4px solid var(--warn);background:#211c12;padding:10px;border-radius:8px;margin:7px 0}.v7okissue{border-left:4px solid var(--ok);background:#132019;padding:10px;border-radius:8px;margin:7px 0}
+.v7meter{height:9px;background:#0d1015;border:1px solid var(--line);border-radius:999px;overflow:hidden}.v7meter>span{display:block;height:100%;background:var(--acc)}
+@media(max-width:760px){.v7grid,.v7grid3{grid-template-columns:1fr}}
+
+/* ===== Muses V8 ===== */
+.v8projectbar{background:#151a23;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:10px}
+.v8projectbar select{font-size:13px}
+.v8projectbar .row button{font-size:12px;padding:7px 8px}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div class="brand">📚 Muses V8 Professional</div><div class="version">Chỉ cần GitHub Pages • IndexedDB • Đa dự án • Tự nhập API key</div>
+  <div class="v8projectbar"><label class="label" style="margin:4px 0 8px"><span>Dự án</span><select id="projectSwitcher"></select></label><div class="row"><button onclick="createProject()">➕ Mới</button><button class="danger" onclick="deleteCurrentProject()">🗑️ Xóa</button></div></div>
+  <div class="nav">
+    <button data-page="dashboard">🏠 Tổng quan</button><button data-page="bible">📖 Bible</button><button data-page="characters">👤 Nhân vật</button><button data-page="world">🌍 Thế giới</button><button data-page="timeline">🕐 Timeline</button><button data-page="threads">🧵 Tuyến truyện</button><button data-page="chapters">✍️ Viết truyện</button><button data-page="review" id="navReview">🔎 Duyệt thay đổi</button><button data-page="memory">🧠 Bộ nhớ</button><button data-page="settings">⚙️ Cài đặt</button><button data-page="v6canon">🧬 Sơ đồ Canon</button><button data-page="v6state">👤 Trạng thái NV</button><button data-page="v6context">🧠 Ngữ cảnh</button><button data-page="v6diff">📝 So sánh (Diff)</button><button data-page="v7pro">🛡️ Kiểm tra chuyên nghiệp</button><button data-page="v7arc">🏗️ Kiến trúc truyện</button><button data-page="v7prose">📝 Phòng TN Văn phong</button><button data-page="v7versions">🕘 Phiên bản</button>
+  </div>
+</aside>
+<main class="main">
+<div id="status" class="status">Sẵn sàng.</div>
+
+<section id="dashboard" class="page">
+  <div class="top"><div><h1 id="title">Muses</h1><div class="muted">Bộ máy viết tiểu thuyết dài kỳ tiếng Việt — V8 Professional</div></div><div class="actions"><button onclick="exportDB()">⬇️ Backup</button><button onclick="document.getElementById('import').click()">⬆️ Restore</button><input id="import" class="hidden" type="file" accept=".json"></div></div>
+  <div id="v8BackupHint"></div>
+  <div class="grid"><div class="card"><h3>Thống kê</h3><div id="stats"></div></div><div class="card"><h3>Pipeline V8 Professional</h3><div class="hint">Bible → Kiến trúc → Scene Contract → Context → Bản nháp → Văn phong tiếng Việt → Continuity → So sánh (Diff) → Tác giả duyệt → Lưu chương → AI tự đọc & đề xuất → Duyệt thay đổi → Version/Canon/Memory chính thức.</div></div></div><div class="card"><h3>🛡️ Tiền kiểm (Preflight)</h3><div id="v7DashboardHealth" class="muted">Chưa kiểm tra.</div><div class="actions"><button class="primary" onclick="v7RunChecks()">Kiểm tra dự án</button><button onclick="v7LocalProseCheck()">Kiểm tra văn bản hiện tại</button></div></div>
+  <div class="card"><h3>Thông tin dự án</h3><label class="label"><span>Tên truyện</span><input id="projectName"></label><label class="label"><span>Ghi chú chung <span class="small muted">(được đưa vào context AI như một phần cốt truyện)</span></span><textarea id="projectNotes"></textarea></label><button class="primary" onclick="saveProject()">Lưu</button></div>
+  <div class="card"><h3>📦 Backup nội bộ tự động (IndexedDB)</h3><div class="hint">Muses tự lưu snapshot định kỳ (mỗi ~10 phút có thay đổi, và sau khi lưu chương) vào IndexedDB của chính trình duyệt này. Đây KHÔNG thay thế Backup JSON thủ công — chỉ giúp khôi phục nhanh nếu vừa gặp lỗi, và mất nếu bạn xóa dữ liệu trình duyệt.</div><div id="v8AutoBackupList"></div></div>
+</section>
+
+<section id="bible" class="page hidden"><h1>📖 Story Bible</h1><div class="card"><label class="label"><span>Phong cách / POV / Tense</span><textarea id="style"></textarea></label><label class="label"><span>Luật không được phá</span><textarea id="rules"></textarea></label><label class="label"><span>Plot tổng thể</span><textarea id="plot"></textarea></label><button class="primary" onclick="saveBible()">Lưu Bible</button></div></section>
+
+<section id="characters" class="page hidden"><div class="top"><h1>👤 Nhân vật</h1><button class="primary" onclick="addChar()">+ Thêm</button></div><div id="chars"></div></section>
+<section id="world" class="page hidden"><h1>🌍 Thế giới</h1><div class="card"><label class="label"><span>World Bible</span><textarea id="worldText" style="min-height:300px"></textarea></label><button class="primary" onclick="saveWorld()">Lưu</button></div></section>
+<section id="timeline" class="page hidden"><div class="top"><h1>🕐 Timeline</h1><button class="primary" onclick="addEvent()">+ Sự kiện</button></div><div id="events"></div></section>
+<section id="threads" class="page hidden"><div class="top"><h1>🧵 Tuyến Truyện (Plot Threads)</h1><button class="primary" onclick="addThread()">+ Thêm tuyến truyện</button></div><div class="card"><div class="hint">Theo dõi tuyến chính, tuyến phụ, bí mật, lời hứa và foreshadowing. Thread chưa hoàn thành không tự biến thành canon.</div></div><div id="threadsList"></div></section>
+
+<section id="chapters" class="page hidden">
+<div class="tabs"><button onclick="tab('write',this)" class="active">✍️ Viết</button><button onclick="tab('next',this)">🤖 Chương sau</button><button onclick="tab('check',this)">🔍 Kiểm tra</button><button onclick="tab('library',this)">📚 Thư viện</button></div>
+<div id="twrite">
+  <div class="card"><h2>Chương mới</h2><div class="grid"><label class="label"><span>Tiêu đề</span><input id="ctitle"></label><label class="label"><span>Độ dài mục tiêu</span><input id="words" type="number" min="300" max="30000" value="5000"></label></div><label class="label"><span>Mục tiêu chương</span><textarea id="goal"></textarea></label>
+  <div class="hint">⚡ Cách nhanh nhất: chỉ cần điền <b>Mục tiêu chương</b> rồi bấm nút dưới đây — AI tự lập outline, tự lên 1–3 scene, tự điền Scene Contract, rồi viết luôn bản thảo đầy đủ vào ô nội dung. Bạn chỉ cần đọc/sửa rồi bấm "Lưu chương".</div>
+  <div class="actions"><button class="primary" style="flex:1 1 100%;font-size:16px;padding:14px" onclick="v8AutoWriteChapter()">⚡ Viết truyện (Tự động)</button></div>
+  <details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Làm từng bước thủ công thay vì tự động</summary>
+  <label class="label"><span>Outline đã duyệt / chỉnh sửa</span><textarea id="outline"></textarea></label><div class="actions"><button onclick="makeOutline()">🧠 Lập outline</button><button onclick="makeScenes()">🎬 Scene Planner</button></div>
+  </details></div>
+  <div class="card"><h3>Scene Planner</h3><div id="scenes" class="muted">Chưa có.</div></div>
+  <div class="card"><h3>✍️ Nội dung thủ công</h3><div class="hint">Đây là vùng canon/draft do bạn kiểm soát. Bạn có thể tự viết, dán nội dung, hoặc dùng bản AI đã sửa.</div><textarea id="manualContent" class="manual" style="min-height:360px;margin-top:10px" placeholder="Tự viết hoặc dán nội dung chương tại đây..."></textarea><div id="manualMeter" class="meter">0 từ</div><div class="actions"><button class="ok" onclick="saveDraft()">💾 Lưu nháp</button><button class="primary" onclick="saveChapter()">📚 Lưu chương</button><button class="danger" onclick="clearManual()">🗑️ Xóa nội dung</button></div></div>
+  <div class="card proposal"><h3>🤖 AI đề xuất riêng</h3><div class="hint">AI chỉ tạo đề xuất ở ô này. Bạn được quyền sửa trực tiếp trước khi dùng. Đề xuất chưa được dùng/lưu sẽ không trở thành canon.</div><textarea id="aiProposal" style="min-height:360px;margin-top:10px" placeholder="Bản đề xuất AI sẽ xuất hiện ở đây..."></textarea><div id="proposalMeter" class="meter">0 từ</div><div class="actions"><button class="primary" onclick="generateAI(false)">✨ Tạo</button><button class="warn" onclick="generateAI(true)">🔄 Tạo lại</button><button class="ok" onclick="useProposal()">✓ Dùng nội dung</button><button class="danger" onclick="clearProposal()">🗑️ Xóa</button></div></div>
+  <div class="card"><div class="card">
+<h3>🧩 Scene Contract</h3>
+<div class="grid2">
+<label class="label"><span>POV</span><input id="scenePOV" placeholder="Nhân vật / ngôi kể"></label>
+<label class="label"><span>Địa điểm & thời gian</span><input id="sceneSetting" placeholder="Ở đâu? Khi nào?"></label>
+<label class="label"><span>Mục tiêu scene</span><input id="sceneGoal" placeholder="Nhân vật muốn đạt gì?"></label>
+<label class="label"><span>Xung đột</span><input id="sceneConflict" placeholder="Điều gì cản trở?"></label>
+<label class="label"><span>Thông tin/reveal</span><input id="sceneReveal" placeholder="Điều gì mới được hé lộ?"></label>
+<label class="label"><span>Điểm chuyển / hook</span><input id="sceneTurn" placeholder="Scene thay đổi thế nào?"></label>
+</div>
+</div>
+<h3>🎬 Scene Draft Engine</h3><div class="hint">Viết từng scene giúp giảm drift. Chọn scene trong planner rồi yêu cầu AI viết riêng; kết quả chỉ nằm ở ô AI đề xuất.</div><label class="label"><span>Scene đang chọn</span><select id="sceneSelect"><option value="">Chưa có scene</option></select></label><div class="actions"><button class="primary" onclick="writeSelectedScene()">✍️ Viết scene</button><button onclick="appendProposalToManual()">＋ Thêm vào draft</button></div></div><div class="card"><h3>🛠️ Revision Pass</h3><label class="label"><span>Yêu cầu chỉnh sửa</span><input id="revisionInstruction" placeholder="Ví dụ: tăng tension, tự nhiên hóa hội thoại, giữ nguyên sự kiện..." /></label><div class="actions"><button class="primary" onclick="reviseDraft()">✨ Đề xuất bản sửa</button></div></div><div class="card"><h3>Bản chương đang lưu</h3><div id="output" class="chapter muted">Chưa có.</div></div>
+<div class="card">
+<h3>🧪 Phòng Thí Nghiệm Văn Phong</h3>
+<div class="hint">Chạy các pass biên tập riêng trên bản chương. Kết quả luôn nằm ở AI đề xuất, không tự ghi đè canon.</div>
+<div class="actions">
+<button onclick="editorPass('prose')">✨ Làm mượt văn Việt</button>
+<button onclick="editorPass('dialogue')">💬 Sửa hội thoại</button>
+<button onclick="editorPass('pacing')">⚡ Kiểm tra nhịp</button>
+<button onclick="editorPass('cliche')">🧹 Lọc sáo/lặp</button>
+<button onclick="editorPass('continuity')">🧭 Soát continuity</button>
+</div>
+<div id="editorReport" class="item muted" style="margin-top:10px">Chưa chạy.</div>
+</div>
+
+</div>
+<div id="tnext" class="hidden"><div class="card"><h2>🤖 AI gợi ý chương tiếp theo</h2><div class="hint">Tạo nhiều hướng để tham khảo. Bạn có thể sửa toàn bộ trước khi đưa vào mục tiêu chương.</div><div class="actions"><button class="primary" onclick="suggest()">🔄 Tạo 3 hướng</button><button class="ok" onclick="approveNext()">✓ Dùng làm mục tiêu</button><button class="danger" onclick="clearNext()">🗑️ Xóa</button></div><textarea id="nextText" style="min-height:330px;margin-top:10px" placeholder="Gợi ý sẽ xuất hiện ở đây..."></textarea></div></div>
+<div id="tcheck" class="hidden"><div class="card"><h2>🔍 Continuity Checker</h2><button class="primary" onclick="checkContinuity()">Kiểm tra chương gần nhất</button><div id="checkResult" style="margin-top:12px"></div></div></div>
+<div id="tlibrary" class="hidden"><div id="library"></div></div>
+</section>
+
+<section id="review" class="page hidden">
+  <div class="top"><div><h1>🔎 Duyệt Thay Đổi Continuity</h1><div class="muted" id="v8ReviewMeta">Không có đề xuất nào đang chờ.</div></div>
+  <div class="actions"><button class="primary" onclick="v8ApplyReview()">✅ Áp dụng mục đã chọn</button><button class="danger" onclick="v8DiscardReview()">🗑️ Bỏ qua toàn bộ</button></div></div>
+  <div class="hint">Sau khi bạn lưu chương, AI tự đọc lại chương vừa lưu và đề xuất cập nhật <b>Character State</b>, <b>Canon</b>, <b>Timeline</b> và <b>Plot Thread</b> ở đây. Không có gì được ghi vào dữ liệu chính thức cho tới khi bạn bấm "Áp dụng mục đã chọn". Mục có dấu ⚠ nghĩa là mâu thuẫn với một canon node đã khóa 🔒 — kiểm tra kỹ trước khi duyệt.</div>
+  <div id="v8ReviewBox"><div class="muted">Không có đề xuất nào đang chờ duyệt.</div></div>
+</section>
+
+
+<section id="v6canon" class="page hidden">
+  <div class="top"><div><h1>🧬 Sơ Đồ Canon</h1><div class="muted">Bản đồ sự thật đã được tác giả chấp nhận. AI proposal không được tính là canon.</div></div>
+  <div class="actions"><button class="primary" onclick="v6AddNode()">+ Node</button><button onclick="v6AddEdge()">+ Quan hệ</button><button onclick="v6RefreshCanon()">↻ Làm mới</button></div></div>
+  <div class="card">
+    <div class="v6grid3">
+      <label class="label"><span>Loại node</span><select id="v6NodeType"><option value="CHARACTER">Nhân vật</option><option value="LOCATION">Địa điểm</option><option value="ITEM">Vật phẩm</option><option value="EVENT">Sự kiện</option><option value="FACTION">Phe phái</option><option value="LORE">Bối cảnh / Lore</option><option value="SECRET">Bí mật</option></select></label>
+      <label class="label"><span>Tên node</span><input id="v6NodeName" placeholder="Ví dụ: Thanh Kiếm Đen"></label>
+      <label class="label"><span>Trạng thái</span><select id="v6NodeStatus"><option value="CANON">Canon (chính thức)</option><option value="PROVISIONAL">Tạm thời</option><option value="RETIRED">Đã loại bỏ</option></select></label>
+    </div>
+    <label class="label"><span>Mô tả / sự thật</span><textarea id="v6NodeText" placeholder="Sự thật canon về node..."></textarea></label>
+    <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="v6NodeLocked"><span>🔒 Khóa node này — tự động cảnh báo nếu nội dung/đề xuất sau này mâu thuẫn</span></label>
+    <div id="v6CanonGraph" style="margin:10px 0"></div>
+    <div id="v6CanonNodes"></div>
+  </div>
+  <div class="card"><h3>Quan hệ Canon</h3><div class="v6grid3">
+    <label class="label"><span>Từ</span><select id="v6EdgeFrom"></select></label>
+    <label class="label"><span>Quan hệ</span><input id="v6EdgeRel" placeholder="owns / hates / located_at / knows..."></label>
+    <label class="label"><span>Đến</span><select id="v6EdgeTo"></select></label>
+  </div><div id="v6CanonEdges"></div></div>
+</section>
+
+<section id="v6state" class="page hidden">
+  <div class="top"><div><h1>👤 Sơ Đồ Trạng Thái Nhân Vật</h1><div class="muted">Trạng thái nhân vật theo từng mốc truyện, tránh “reset” tính cách/kiến thức.</div></div>
+  <button class="primary" onclick="v6SnapshotCharacters()">📌 Chụp trạng thái hiện tại</button></div>
+  <div class="card"><div class="v6grid3">
+    <label class="label"><span>Nhân vật</span><select id="v6StateChar"></select></label>
+    <label class="label"><span>Mốc / chương</span><input id="v6StateChapter" placeholder="Chương 27"></label>
+    <label class="label"><span>Cảm xúc</span><input id="v6StateEmotion" placeholder="Căng thẳng, nghi ngờ..."></label>
+  </div>
+  <div class="v6grid">
+    <label class="label"><span>Kiến thức hiện có</span><textarea id="v6StateKnowledge"></textarea></label>
+    <label class="label"><span>Quan hệ hiện tại</span><textarea id="v6StateRelations"></textarea></label>
+  </div>
+  <label class="label"><span>Trạng thái / mục tiêu / vết thương / vật sở hữu</span><textarea id="v6StateStatus"></textarea></label>
+  <button class="ok" onclick="v6SaveState()">Lưu snapshot</button></div>
+  <div class="card"><h3>Lịch sử trạng thái</h3><div id="v6StateList"></div></div>
+</section>
+
+<section id="v6context" class="page hidden">
+  <div class="top"><div><h1>🧠 Công Cụ Ngữ Cảnh (Context)</h1><div class="muted">Chọn context có liên quan thay vì gửi cả kho truyện vào mỗi request.</div></div><button class="primary" onclick="v6BuildContext()">🔎 Truy xuất context</button></div>
+  <div class="card"><label class="label"><span>Query / Scene đang viết</span><textarea id="v6ContextQuery" placeholder="Ví dụ: Minh gặp Lan tại nhà kho sau khi phát hiện chiếc nhẫn..."></textarea></label>
+  <div class="v6grid3"><label class="label"><span>Số nhân vật</span><input id="v6ContextChars" type="number" value="8" min="1" max="30"></label><label class="label"><span>Số memory</span><input id="v6ContextMem" type="number" value="16" min="1" max="60"></label><label class="label"><span>Số chapter gần</span><input id="v6ContextChapters" type="number" value="3" min="1" max="10"></label></div>
+  <div id="v6ContextReport" class="v6mono item">Chưa truy xuất.</div></div>
+</section>
+
+<section id="v6diff" class="page hidden">
+  <div class="top"><div><h1>📝 So Sánh Bản Sửa (Diff)</h1><div class="muted">So sánh draft canon với bản AI sửa trước khi chấp nhận.</div></div></div>
+  <div class="card"><div class="actions"><button class="primary" onclick="v6ShowDiff()">🔍 So sánh</button><button class="ok" onclick="v6AcceptProposal()">✓ Dùng toàn bộ bản sửa</button><button class="danger" onclick="v6RejectProposal()">✕ Giữ bản gốc</button></div><div id="v6DiffStats" class="meter"></div><div id="v6DiffView" class="v6diff item">Chưa có diff.</div></div>
+  <div class="card"><h3>Nguyên tắc merge</h3><div class="hint">Diff Editor không tự cập nhật Canon Graph. Sau khi bạn chấp nhận bản sửa và lưu chương, Muses mới coi nội dung đó là canon và chạy bước cập nhật memory/state.</div></div>
+</section>
+
+
+<section id="v7pro" class="page hidden">
+  <div class="top"><div><h1>🛡️ Kiểm Tra Continuity & Tiền Kiểm Chuyên Nghiệp</h1><div class="muted">Kiểm tra cục bộ trước khi AI viết và trước khi chương trở thành canon.</div></div><button class="primary" onclick="v7RunChecks()">🔍 Chạy kiểm tra</button></div>
+  <div class="grid"><div class="card"><h3>Điểm an toàn dữ liệu</h3><div id="v7HealthScore" class="v7score">—</div><div class="v7meter"><span id="v7HealthBar" style="width:0%"></span></div></div><div class="card"><h3>Phạm vi kiểm tra</h3><div class="small muted">POV • scene contract • nhân vật • knowledge • quan hệ • canon graph • timeline • plot threads • foreshadowing • chapter version • văn phong.</div></div></div>
+  <div class="card"><h3>Kết quả</h3><div id="v7CheckResult" class="muted">Chưa chạy.</div></div>
+  <div class="card"><h3>🔮 Foreshadowing Manager</h3><div class="v7grid3"><label class="label"><span>Setup</span><input id="v7FsTitle" placeholder="Ví dụ: Chiếc nhẫn có dấu máu"></label><label class="label"><span>Chương setup</span><input id="v7FsSetup" type="number" min="1" placeholder="12"></label><label class="label"><span>Trạng thái</span><select id="v7FsStatus"><option value="OPEN">Đang mở</option><option value="PAID">Đã payoff</option><option value="RETIRED">Đã loại bỏ</option></select></label></div><label class="label"><span>Payoff dự kiến</span><textarea id="v7FsPayoff" placeholder="Payoff ở chương/arc nào? Ý nghĩa gì?"></textarea></label><button class="ok" onclick="v7AddForeshadowing()">Lưu foreshadowing</button><div id="v7FsList"></div></div>
+</section>
+
+<section id="v7arc" class="page hidden">
+  <div class="top"><div><h1>🏗️ Kiến Trúc Truyện</h1><div class="muted">Quyển → Arc → Tuyến truyện → Chương → Scene. Đây là cấu trúc kế hoạch, không tự biến thành canon.</div></div><button class="primary" onclick="v7AddArc()">+ Thêm Arc</button></div>
+  <div class="card"><div class="v7grid3"><label class="label"><span>Quyển</span><input id="v7Book" placeholder="Quyển 1"></label><label class="label"><span>Arc</span><input id="v7ArcName" placeholder="Arc: Trở về"></label><label class="label"><span>Mục tiêu</span><input id="v7ArcGoal" placeholder="Nhân vật phải đạt điều gì?"></label></div><div class="v7grid"><label class="label"><span>Điểm đầu → cuối</span><textarea id="v7ArcChange" placeholder="Trạng thái trước và sau arc"></textarea></label><label class="label"><span>Điều kiện kết thúc</span><textarea id="v7ArcExit" placeholder="Arc chỉ hoàn thành khi..."></textarea></label></div><div id="v7ArcList"></div></div>
+  <div class="card"><h3>Character Arc</h3><div class="v7grid3"><label class="label"><span>Nhân vật</span><select id="v7ArcChar"></select></label><label class="label"><span>Want</span><input id="v7Want"></label><label class="label"><span>Need</span><input id="v7Need"></label></div><div class="v7grid"><label class="label"><span>Fear / Flaw / Belief</span><textarea id="v7FearFlaw"></textarea></label><label class="label"><span>Change / Crisis / Resolution</span><textarea id="v7Change"></textarea></label></div><button class="ok" onclick="v7SaveCharacterArc()">Lưu Character Arc</button><div id="v7CharArcList"></div></div>
+</section>
+
+<section id="v7prose" class="page hidden">
+  <div class="top"><div><h1>📝 Phòng Thí Nghiệm Văn Phong Tiếng Việt</h1><div class="muted">Phân tích cục bộ, không cần API: lặp từ, câu, hội thoại, sáo ngữ và dấu câu cơ bản.</div></div><button class="primary" onclick="v7LocalProseCheck()">🔎 Phân tích</button></div>
+  <div class="card"><div id="v7ProseStats" class="grid"></div><div id="v7ProseIssues"></div></div>
+</section>
+
+<section id="v7versions" class="page hidden">
+  <div class="top"><div><h1>🕘 Lịch Sử Phiên Bản</h1><div class="muted">Mỗi lần lưu lại chương đã tồn tại sẽ tạo một version; có thể xem và khôi phục bản trước.</div></div></div>
+  <div class="card"><div id="v7VersionList" class="muted">Chưa có version.</div></div>
+</section>
+
+<section id="memory" class="page hidden"><h1>🧠 Bộ Nhớ Truyện (Memory)</h1><div class="card"><h3>Thay đổi gần đây</h3><div id="memoryList"></div></div><div class="card"><h3>Nguyên tắc</h3><div class="hint">Memory chỉ được trích xuất từ chương đã lưu. Gợi ý AI chưa được dùng không phải canon.</div></div></section>
+
+<section id="settings" class="page hidden"><h1>⚙️ Cài đặt</h1><div class="card"><h3>AI — Chỉ chạy trên GitHub Pages / Tự nhập API Key (BYOK)</h3><div class="warnbox">GitHub Pages chỉ phục vụ file tĩnh. Không có server riêng để giấu API key. Vì vậy Muses yêu cầu bạn nhập API key trên trình duyệt. Key chỉ được lưu trong localStorage của trình duyệt và <b>không được đưa vào file backup</b>.</div><label class="label"><span>OpenRouter API Key</span><input id="apiKey" type="password" autocomplete="off" placeholder="sk-or-..."></label><label class="label"><span>Model</span><input id="model" placeholder="deepseek/deepseek-v4-flash"></label>
+<label class="label"><span>Thể loại</span><input id="genre" placeholder="Ví dụ: tiên hiệp / huyền huyễn / tình cảm / trinh thám..."></label>
+<label class="label"><span>Ngôi kể & thì</span><input id="narrative" placeholder="Ví dụ: ngôi 3 hạn chế, quá khứ; POV Minh"></label>
+<label class="label"><span>Giọng văn</span><textarea id="styleGuide" placeholder="Ví dụ: tiếng Việt tự nhiên, giàu hình ảnh nhưng tiết chế, câu văn biến nhịp, hội thoại đời, tránh văn dịch..."></textarea></label>
+<label class="label"><span>Nguyên tắc bắt buộc</span><textarea id="writingRules" placeholder="Ví dụ: không sáo ngữ; không lặp ý; không tự thêm cảnh nóng; giữ xưng hô; không thay đổi canon..."></textarea></label>
+<label class="label"><span>API endpoint</span><input id="endpoint" value="https://openrouter.ai/api/v1/chat/completions"></label><div class="actions"><button class="primary" onclick="saveSettings()">Lưu cài đặt</button><button class="danger" onclick="clearKey()">Xóa API key khỏi trình duyệt</button></div><p class="muted small">Không commit API key vào GitHub. Không gửi file backup chứa secret. Nếu dùng máy công cộng, hãy xóa key sau khi sử dụng.</p></div></section>
+<div class="footer">Muses V7 Professional • Công cụ viết tiểu thuyết dài kỳ tiếng Việt • Chỉ cần GitHub Pages • Chạy toàn bộ trong trình duyệt • Không Netlify / KV / DB / queue • Backup JSON không chứa API key.</div>
+</main></div>
+<script>
+const K="muses_v5"; // legacy localStorage key, used only for one-time migration into IndexedDB
+const DEFAULT={version:8,id:"",updatedAt:"",project:{name:"KẺ TRỞ VỀ",notes:""},bible:{style:"Ngôi 3 giới hạn, thì quá khứ.",rules:"",plot:""},world:"",characters:[],timeline:[],plotThreads:[],chapters:[],memory:[],nextSuggestion:"",draft:{title:"",words:5000,goal:"",outline:"",scenes:"",manual:"",proposal:"",sceneIndex:"",sceneContract:{}},settings:{model:"deepseek/deepseek-v4-flash",endpoint:"https://openrouter.ai/api/v1/chat/completions",genre:"",narrative:"",styleGuide:"Tiếng Việt tự nhiên, giàu hình ảnh vừa đủ, tránh văn dịch.",writingRules:"Giữ canon, xưng hô và POV nhất quán."},canon:{nodes:[],edges:[]},characterStates:[],sceneObjects:[],revisionLog:[],contextLog:[],v7:{arcs:[],characterArcs:[],chapterVersions:[],foreshadowing:[]},v8:{pendingReview:null,lastExportAt:"",autoBackupAt:""}};
+let db=structuredClone(DEFAULT);
+const $=id=>document.getElementById(id);
+function merge(a,b){const x=structuredClone(a);for(const k of Object.keys(b||{})){if(b[k]&&typeof b[k]==="object"&&!Array.isArray(b[k])&&x[k]&&typeof x[k]==="object")x[k]=merge(x[k],b[k]);else x[k]=b[k]}return x}
+
+/* ================= V8: Storage Engine — IndexedDB, multi-project, auto-backup ================= */
+const IDB_NAME="muses_idb", IDB_VER=1, STORE_PROJECTS="projects", STORE_META="meta", STORE_BACKUPS="backups";
+let idbInstance=null;
+function idbOpen(){
+  if(idbInstance) return Promise.resolve(idbInstance);
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(IDB_NAME,IDB_VER);
+    req.onupgradeneeded=()=>{
+      const d=req.result;
+      if(!d.objectStoreNames.contains(STORE_PROJECTS)) d.createObjectStore(STORE_PROJECTS,{keyPath:"id"});
+      if(!d.objectStoreNames.contains(STORE_META)) d.createObjectStore(STORE_META,{keyPath:"key"});
+      if(!d.objectStoreNames.contains(STORE_BACKUPS)) d.createObjectStore(STORE_BACKUPS,{keyPath:"id"});
+    };
+    req.onsuccess=()=>{idbInstance=req.result;resolve(idbInstance)};
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function idbTx(store,mode){const d=await idbOpen();return d.transaction(store,mode).objectStore(store)}
+async function idbPutRecord(store,record){const s=await idbTx(store,"readwrite");return new Promise((res,rej)=>{const r=s.put(record);r.onsuccess=()=>res(record);r.onerror=()=>rej(r.error)})}
+async function idbGetRecord(store,key){const s=await idbTx(store,"readonly");return new Promise((res,rej)=>{const r=s.get(key);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+async function idbAllRecords(store){const s=await idbTx(store,"readonly");return new Promise((res,rej)=>{const r=s.getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+async function idbDeleteRecord(store,key){const s=await idbTx(store,"readwrite");return new Promise((res,rej)=>{const r=s.delete(key);r.onsuccess=()=>res(true);r.onerror=()=>rej(r.error)})}
+
+async function listProjects(){return (await idbAllRecords(STORE_PROJECTS)).sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""))}
+async function loadActiveProjectId(){const m=await idbGetRecord(STORE_META,"activeProjectId");return m?.id||null}
+async function setActiveProjectId(id){await idbPutRecord(STORE_META,{key:"activeProjectId",id})}
+function newProjectData(name){const d=structuredClone(DEFAULT);d.id=crypto.randomUUID();d.project.name=name||"Truyện mới";d.updatedAt=new Date().toISOString();return d}
+async function migrateLegacyLocalStorage(){
+  try{
+    const raw=localStorage.getItem(K);
+    if(!raw) return null;
+    const x=JSON.parse(raw);
+    const merged=merge(DEFAULT,x);
+    merged.id=crypto.randomUUID(); merged.updatedAt=new Date().toISOString();
+    await idbPutRecord(STORE_PROJECTS,merged);
+    localStorage.removeItem(K);
+    return merged;
+  }catch{return null}
+}
+async function bootstrapDB(){
+  await idbOpen();
+  let list=await listProjects();
+  let migrated=null;
+  if(!list.length){ migrated=await migrateLegacyLocalStorage(); list=await listProjects(); }
+  if(!list.length){ const p=newProjectData("Muses"); await idbPutRecord(STORE_PROJECTS,p); list=[p]; }
+  const activeId=await loadActiveProjectId();
+  const active=list.find(p=>p.id===activeId)||migrated||list[0];
+  db=merge(DEFAULT,active);
+  await setActiveProjectId(db.id);
+}
+let persistTimer=null;
+function persist(){
+  db.updatedAt=new Date().toISOString();
+  clearTimeout(persistTimer);
+  persistTimer=setTimeout(async()=>{
+    try{ await idbPutRecord(STORE_PROJECTS,db); maybeAutoBackup(); }catch(e){console.error("persist lỗi",e)}
+  },250);
+}
+async function saveInternalBackup(){
+  try{
+    const rec={id:crypto.randomUUID(),projectId:db.id,at:new Date().toISOString(),data:structuredClone(db)};
+    await idbPutRecord(STORE_BACKUPS,rec);
+    const all=(await idbAllRecords(STORE_BACKUPS)).filter(r=>r.projectId===db.id).sort((a,b)=>a.at.localeCompare(b.at));
+    if(all.length>15){ for(const old of all.slice(0,all.length-15)) await idbDeleteRecord(STORE_BACKUPS,old.id); }
+    db.v8=db.v8||{}; db.v8.autoBackupAt=rec.at;
+    v8RenderAutoBackupList();
+  }catch(e){console.error("auto-backup lỗi",e)}
+}
+function maybeAutoBackup(){
+  db.v8=db.v8||{};
+  const last=db.v8.autoBackupAt?new Date(db.v8.autoBackupAt).getTime():0;
+  if(Date.now()-last>10*60*1000) saveInternalBackup();
+}
+async function refreshProjectSwitcherUI(){
+  const list=await listProjects(); const sel=$("projectSwitcher"); if(!sel)return;
+  sel.innerHTML=list.map(p=>`<option value="${p.id}" ${p.id===db.id?"selected":""}>${esc(p.project?.name||"Không tên")}</option>`).join("");
+}
+async function switchProject(id){
+  if(id===db.id)return;
+  const rec=await idbGetRecord(STORE_PROJECTS,id); if(!rec)return;
+  db=merge(DEFAULT,rec); await setActiveProjectId(db.id);
+  v6Ensure();v7Ensure();v8Ensure();
+  render();renderThreads();refreshSceneSelect();loadSceneContract();nav("dashboard");v7OpenPageHook();
+  status(`Đã chuyển sang dự án "${db.project.name}".`);
+}
+async function createProject(){
+  const name=prompt("Tên dự án mới:"); if(!name)return;
+  const p=newProjectData(name); await idbPutRecord(STORE_PROJECTS,p); await setActiveProjectId(p.id);
+  await refreshProjectSwitcherUI(); await switchProject(p.id);
+}
+async function deleteCurrentProject(){
+  const list=await listProjects();
+  if(list.length<=1){status("Không thể xóa dự án duy nhất còn lại.",true);return}
+  if(!confirm(`Xóa hẳn dự án "${db.project.name}" khỏi trình duyệt? Nên Backup JSON trước. Không thể hoàn tác.`))return;
+  const oldId=db.id;
+  await idbDeleteRecord(STORE_PROJECTS,oldId);
+  const remaining=await listProjects();
+  await setActiveProjectId(remaining[0].id);
+  await refreshProjectSwitcherUI(); await switchProject(remaining[0].id);
+}
+function v8Ensure(){db.v8=db.v8||{};db.v8.pendingReview=db.v8.pendingReview||null;db.v8.lastExportAt=db.v8.lastExportAt||"";db.v8.autoBackupAt=db.v8.autoBackupAt||"";}
+function v8BackupReminder(){
+  v8Ensure(); const el=$("v8BackupHint"); if(!el)return;
+  const last=db.v8.lastExportAt?new Date(db.v8.lastExportAt):null;
+  const days=last?Math.floor((Date.now()-last.getTime())/86400000):null;
+  if(!last) el.innerHTML=`<div class="warnbox">⚠ Bạn chưa từng Backup (tải file JSON) dự án này. Nên Backup định kỳ để đề phòng mất dữ liệu trình duyệt.</div>`;
+  else if(days>=3) el.innerHTML=`<div class="warnbox">⚠ Đã ${days} ngày kể từ lần Backup JSON gần nhất (${esc(last.toLocaleString("vi-VN"))}). Hãy tải file Backup mới.</div>`;
+  else el.innerHTML=`<div class="okbox">✓ Backup JSON gần nhất: ${esc(last.toLocaleString("vi-VN"))}.</div>`;
+}
+async function v8RenderAutoBackupList(){
+  const box=$("v8AutoBackupList"); if(!box)return;
+  const all=(await idbAllRecords(STORE_BACKUPS)).filter(r=>r.projectId===db.id).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,15);
+  box.innerHTML=all.length?all.map(r=>`<div class="item"><strong>${esc(new Date(r.at).toLocaleString("vi-VN"))}</strong><div class="actions"><button class="ok" onclick="v8RestoreInternalBackup('${r.id}')">↺ Khôi phục</button></div></div>`).join(""):"<div class='muted'>Chưa có auto-backup nội bộ nào.</div>";
+}
+async function v8RestoreInternalBackup(id){
+  const rec=await idbGetRecord(STORE_BACKUPS,id); if(!rec)return;
+  if(!confirm(`Khôi phục dự án về thời điểm ${new Date(rec.at).toLocaleString("vi-VN")}? Thay đổi sau thời điểm đó sẽ mất nếu chưa Backup JSON.`))return;
+  const keepId=db.id;
+  db=merge(DEFAULT,rec.data); db.id=keepId; await idbPutRecord(STORE_PROJECTS,db);
+  v6Ensure();v7Ensure();v8Ensure();
+  render();renderThreads();refreshSceneSelect();loadSceneContract();v7OpenPageHook();
+  status("Đã khôi phục từ auto-backup nội bộ.");
+}
+function save(){persist();render(false)}
+function status(x,bad=false){$("status").textContent=x;$("status").style.borderColor=bad?"#703d3d":"var(--line)"}
+function esc(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+const VN_LABELS={CHARACTER:"Nhân vật",LOCATION:"Địa điểm",ITEM:"Vật phẩm",EVENT:"Sự kiện",FACTION:"Phe phái",LORE:"Bối cảnh / Lore",SECRET:"Bí mật",CANON:"Canon (chính thức)",PROVISIONAL:"Tạm thời",RETIRED:"Đã loại bỏ",OPEN:"Đang mở",RESOLVED:"Đã xong",PAID:"Đã payoff",RELATIONSHIP:"Quan hệ",KNOWLEDGE:"Kiến thức",STATE:"Trạng thái",PLOT:"Plot",FORESHADOWING:"Foreshadowing",SUMMARY:"Tóm tắt",CHAPTER_SUMMARY:"Tóm tắt chương"};
+function L(x){return VN_LABELS[x]||x}
+function wordCount(s){return String(s||"").trim()?String(s).trim().split(/\s+/).length:0}
+function setDraftInputs(){loadSceneContract();
+ $("ctitle").value=db.draft.title;$("words").value=db.draft.words;$("goal").value=db.draft.goal;$("outline").value=db.draft.outline;$("manualContent").value=db.draft.manual;$("aiProposal").value=db.draft.proposal;$("scenes").innerHTML=db.draft.scenes?`<div class="item" style="white-space:pre-wrap">${esc(db.draft.scenes)}</div>`:"<span class='muted'>Chưa có.</span>";updateMeters()
+}
+function bindDraft(){["ctitle","words","goal","outline","manualContent","aiProposal"].forEach(id=>{$(id).addEventListener("input",()=>{const map={ctitle:"title",words:"words",goal:"goal",outline:"outline",manualContent:"manual",aiProposal:"proposal"};db.draft[map[id]]=$(id).value;updateMeters();debouncedSaveDraft()})})}
+let saveTimer;function debouncedSaveDraft(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{persist()},400)}
+function updateMeters(){$("manualMeter").textContent=wordCount($("manualContent").value)+" từ";$ ("proposalMeter").textContent=wordCount($("aiProposal").value)+" từ"}
+function render(restoreDraft=true){
+ $("title").textContent=db.project.name;$("projectName").value=db.project.name;$("projectNotes").value=db.project.notes;$("style").value=db.bible.style;$("rules").value=db.bible.rules;$("plot").value=db.bible.plot;$("worldText").value=db.world;$("model").value=db.settings.model;$("endpoint").value=db.settings.endpoint;
+ $("stats").innerHTML=`Chương <b>${db.chapters.length}</b> · Nhân vật <b>${db.characters.length}</b> · Sự kiện <b>${db.timeline.length}</b> · Memory <b>${db.memory.length}</b>`;
+ $("chars").innerHTML=db.characters.map((c,i)=>`<div class="item"><strong>${esc(c.name)} <span class="tag">${esc(c.role)}</span></strong><div class="small muted">Hồ sơ: ${esc(c.profile)}</div><div class="small">Trạng thái: ${esc(c.state)}</div><div class="small">Kiến thức: ${esc(c.knowledge)}</div><div class="small">Quan hệ: ${esc(c.relationships)}</div><button onclick="editChar(${i})">✏️ Sửa</button> <button class="danger" onclick="delChar(${i})">Xóa</button></div>`).join("")||"<p class='muted'>Chưa có.</p>";
+ $("events").innerHTML=db.timeline.map((e,i)=>`<div class="item"><strong>${esc(e.date)} — ${esc(e.title)}</strong><div>${esc(e.detail)}</div><button class="danger" onclick="delEvent(${i})">Xóa</button></div>`).join("")||"<p class='muted'>Chưa có.</p>";
+ $("library").innerHTML=db.chapters.slice().reverse().map((c,ri)=>{const i=db.chapters.length-1-ri;return `<div class="item"><strong>${esc(c.title)}</strong><div class="small muted">${esc(c.createdAt)} · ${wordCount(c.text)} từ</div><div>${esc(c.text).slice(0,450)}${c.text.length>450?"…":""}</div><button onclick="loadChapter(${i})">Mở</button> <button class="danger" onclick="deleteChapter(${i})">Xóa</button></div>`}).join("")||"<p class='muted'>Chưa có chương.</p>";
+ $("memoryList").innerHTML=db.memory.slice().reverse().slice(0,50).map(m=>`<div class="item"><strong>${esc(L(m.type))}</strong><div>${esc(m.text)}</div><div class="small muted">${esc(m.source||"")}</div></div>`).join("")||"<p class='muted'>Chưa có.</p>";
+ if(restoreDraft)setDraftInputs();
+}
+function nav(p){document.querySelectorAll(".page").forEach(x=>x.classList.add("hidden"));$(p).classList.remove("hidden");document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===p));window.scrollTo({top:0,behavior:"smooth"})}
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{nav(b.dataset.page);v7OpenPageHook();});
+function saveProject(){db.project.name=$("projectName").value.trim()||"Muses";db.project.notes=$("projectNotes").value;save();status("Đã lưu dự án.")}
+function saveBible(){db.bible.style=$("style").value;db.bible.rules=$("rules").value;db.bible.plot=$("plot").value;save();status("Đã lưu Bible.")}
+function saveWorld(){db.world=$("worldText").value;save();status("Đã lưu World Bible.")}
+function saveSettings(){db.settings=db.settings||{};["genre","narrative","styleGuide","writingRules"].forEach(id=>db.settings[id]=$(id)?.value||"");db.settings.model=$("model").value.trim()||DEFAULT.settings.model;db.settings.endpoint=$("endpoint").value.trim()||DEFAULT.settings.endpoint;persist();const key=$("apiKey").value.trim();if(key)localStorage.setItem("muses_api_key",key);localStorage.removeItem("muses_v3_api_key");status("Đã lưu cài đặt AI.")}
+function clearKey(){localStorage.removeItem("muses_api_key");localStorage.removeItem("muses_v5_api_key");localStorage.removeItem("muses_v6_api_key");localStorage.removeItem("muses_v3_api_key");$("apiKey").value="";status("Đã xóa API key khỏi trình duyệt.")}
+function addChar(){let n=prompt("Tên nhân vật:");if(!n)return;db.characters.push({name:n,role:prompt("Vai trò:")||"",profile:prompt("Hồ sơ:")||"",state:prompt("Trạng thái hiện tại:")||"",knowledge:prompt("Đang biết gì?")||"",relationships:prompt("Quan hệ:")||""});save();status("Đã thêm nhân vật.")}
+function editChar(i){let c=db.characters[i];const name=prompt("Tên:",c.name)??c.name;const role=prompt("Vai trò:",c.role)??c.role;const profile=prompt("Hồ sơ:",c.profile)??c.profile;const state=prompt("Trạng thái:",c.state)??c.state;const knowledge=prompt("Kiến thức:",c.knowledge)??c.knowledge;const relationships=prompt("Quan hệ:",c.relationships)??c.relationships;
+  const conflicts=v8DetectConflicts(c.name,[state,knowledge,relationships].filter(Boolean).join(" "));
+  if(conflicts.length&&!confirm("⚠ Phát hiện khả năng mâu thuẫn với canon đã khóa:\n\n• "+conflicts.join("\n• ")+"\n\nVẫn lưu thay đổi này?"))return;
+  c.name=name;c.role=role;c.profile=profile;c.state=state;c.knowledge=knowledge;c.relationships=relationships;save()}
+function delChar(i){if(confirm("Xóa nhân vật?")){db.characters.splice(i,1);save()}}
+function addEvent(){let t=prompt("Tên sự kiện:");if(!t)return;db.timeline.push({date:prompt("Thời điểm:")||"",title:t,detail:prompt("Chi tiết:")||""});save()}
+function delEvent(i){if(confirm("Xóa sự kiện?")){db.timeline.splice(i,1);save()}}
+function contextText(extra=""){const q=(extra||"").toLowerCase();const hit=o=>[o.name,o.role,o.profile,o.state,o.knowledge,o.relationships].filter(Boolean).join(" ").toLowerCase();const chars=(db.characters||[]).filter(c=>!q||hit(c).split(/\s+/).some(w=>w.length>3&&q.includes(w))).slice(0,12);const threads=(db.plotThreads||[]).filter(t=>t.status==="OPEN"||!q||[t.title,t.goal,t.clues,t.progress].join(" ").toLowerCase().split(/\s+/).some(w=>w.length>3&&q.includes(w))).slice(0,20);const mem=(db.memory||[]).filter(m=>!q||[m.text,m.source,m.type].join(" ").toLowerCase().split(/\s+/).some(w=>w.length>3&&q.includes(w))).slice(-50);return {project:db.project,bible:db.bible,world:db.world,characters:chars.length?chars:db.characters.slice(0,12),timeline:db.timeline.slice(-30),plotThreads:threads,memory:mem,recentChapters:db.chapters.slice(-3).map(c=>({title:c.title,goal:c.goal,text:c.text.slice(-9000)}))}}
+function ctx(extra=""){return JSON.stringify(contextText(extra),null,2)}
+async function ai(action,data={}){const key=localStorage.getItem("muses_api_key")||localStorage.getItem("muses_v6_api_key")||localStorage.getItem("muses_v5_api_key")||localStorage.getItem("muses_v3_api_key");if(!key){nav("settings");status("Chưa có OpenRouter API key. Nhập key trong Cài đặt.",true);throw Error("Chưa có API key")};status("AI đang xử lý...");try{const body={action,model:db.settings.model,context:ctx([data.title,data.goal,data.outline,data.manual,data.chapter,data.scene,data.instruction].filter(Boolean).join("\n")),...data};const r=await fetch(db.settings.endpoint,{method:"POST",headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json","HTTP-Referer":location.href,"X-Title":"Muses V3"},body:JSON.stringify({model:body.model,messages:[{role:"system",content:SYSTEM},{role:"user",content:promptFor(body)}],temperature:action==="write"?0.82:0.55})});const j=await r.json();if(!r.ok)throw Error(j?.error?.message||`OpenRouter HTTP ${r.status}`);status("AI hoàn thành.");return {text:j?.choices?.[0]?.message?.content||""}}catch(e){status(e.message||"AI lỗi",true);throw e}}
+const SYSTEM=`Bạn là Muses, một novel engine chuyên viết và biên tập TIỂU THUYẾT DÀI BẰNG TIẾNG VIỆT. Ưu tiên tuyệt đối: continuity và nhân quả trước văn hoa; tiếng Việt tự nhiên trước cấu trúc dịch máy; POV/tense ổn định; xưng hô nhất quán; tính cách và knowledge của nhân vật; timeline; plot threads; foreshadowing; nhịp scene; mục tiêu và turning point của scene. Không tự ý tạo canon mới để vá lỗ hổng. Nếu dữ liệu mâu thuẫn hoặc thiếu, ghi rõ giả định/điểm cần người viết quyết định. AI proposal chưa được người dùng chấp nhận/lưu KHÔNG phải canon. Không tự ý sửa Bible. Khi viết văn xuôi, chỉ trả tác phẩm, không nói về prompt, AI hay quy trình. Tránh văn dịch, sáo ngữ, lặp cấu trúc câu, lặp tính từ, giải thích cảm xúc thay cho hành động, dialogue info-dump, nhân vật nói những điều họ đã biết chỉ để báo cho độc giả. Không dùng dấu gạch ngang kiểu hội thoại nếu dự án đang dùng kiểu ngoặc kép; hãy tuân theo styleGuide của dự án.`;
+function projectStyle(){return `THỂ LOẠI: ${db.settings.genre||""}
+NGÔI KỂ/THÌ: ${db.settings.narrative||""}
+GIỌNG VĂN: ${db.settings.styleGuide||"Tiếng Việt tự nhiên, giàu hình ảnh vừa đủ, không văn dịch."}
+NGUYÊN TẮC BẮT BUỘC: ${db.settings.writingRules||""}`;}
+function promptFor(b){const c=(b.context||"")+`\\n\\nGHI CHÚ DỰ ÁN (coi là một phần cốt truyện/canon nếu không mâu thuẫn dữ liệu khác):\\n${db.project.notes||"(không có)"}`+`\\n\\nSTYLE CONTRACT:\\n${projectStyle()}`;if(b.action==="suggest-next")return `Phân tích truyện và tạo 3 hướng khác nhau cho chương kế tiếp. Mỗi hướng gồm: tiêu đề tạm, mục tiêu, 5-7 diễn biến, nhân vật, plot thread/foreshadowing liên quan, cliffhanger và rủi ro continuity. Không chọn thay người dùng.\nDỮ LIỆU:\n${c}`;if(b.action==="outline")return `Lập outline chi tiết cho chương "${b.title||""}". Mục tiêu: ${b.goal||""}. Độ dài: ${b.words||5000}. Chia scene; mỗi scene có mục tiêu, POV, nhân vật, xung đột, thông tin mới, điểm chuyển và kết thúc. Không phá continuity.\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan-json")return `Từ mục tiêu chương và outline sau, lập kế hoạch scene NGẮN GỌN cho một chương: tự quyết định số lượng scene hợp lý (tối thiểu 1, tối đa 3 — không chia vụn nếu mục tiêu đơn giản). Với mỗi scene xác định: POV (ưu tiên khớp tên nhân vật đã có trong Bible/Context), Bối cảnh (địa điểm + thời gian), Mục tiêu scene, Xung đột, Reveal (thông tin mới hé lộ), Turning point/hook kết scene, và một câu tóm tắt ngắn. CHỈ trả về JSON hợp lệ DUY NHẤT, không kèm giải thích, không kèm markdown fence, đúng schema: {"scenes":[{"pov":"","setting":"","goal":"","conflict":"","reveal":"","turn":"","summary":""}]}.\nMỤC TIÊU CHƯƠNG: ${b.goal||""}\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan")return `Từ outline sau, thiết kế Scene Planner: thứ tự scene, mục tiêu, POV, nhân vật, địa điểm, conflict, turning point, kết thúc scene. Không viết văn xuôi.\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="write")return `Tạo một bản đề xuất văn xuôi cho chương "${b.title||""}" khoảng ${b.words||5000} từ. Mục tiêu: ${b.goal||""}. Outline: ${b.outline||""}. Nội dung thủ công/người dùng cung cấp (nếu có) là chỉ dẫn ưu tiên: ${b.manual||""}. Dữ liệu continuity: ${c}`;if(b.action==="scene-write")return `Viết riêng scene sau thành văn xuôi hoàn chỉnh. Giữ nguyên canon, POV, tense, character knowledge và mục tiêu scene. Không tự thêm lore trái Bible. Chỉ trả văn xuôi.\nCHAPTER: ${b.title||""}\nOUTLINE: ${b.outline||""}\nSCENE: ${b.scene||""}\nCONTEXT:\n${c}`;if(b.action==="revise")return `Chỉnh sửa bản thảo theo yêu cầu nhưng KHÔNG thay đổi sự kiện canon, nhân vật, timeline hoặc POV nếu yêu cầu không nói rõ. Chỉ trả bản văn đã sửa.\nYÊU CẦU: ${b.instruction||""}\nBẢN THẢO:\n${b.chapter||""}\nCONTEXT:\n${c}`;if(b.action==="continuity")return `Đóng vai continuity editor. Kiểm tra 5 chương gần nhất và Bible. Tìm: nhân vật biết sai, tuổi/ngoại hình sai, địa điểm/thời gian mâu thuẫn, vật phẩm sai, năng lực sai, quan hệ sai, plot/foreshadowing mâu thuẫn. Phân loại CRITICAL/WARNING/OK và nêu bằng chứng cụ thể. Không tự sửa canon.\n${c}`;if(b.action==="extract-memory")return `Đọc kỹ chương vừa viết và đề xuất các thay đổi CANON thật sự đã xảy ra trong chương (không suy đoán, không đề xuất điều chưa xảy ra). Đây CHỈ LÀ ĐỀ XUẤT để tác giả tự duyệt, chưa phải canon chính thức — không tự quyết định thay tác giả. Trả về JSON hợp lệ DUY NHẤT, đúng schema sau, mảng nào không có thay đổi thì để rỗng:\n{"memory":[{"type":"EVENT|RELATIONSHIP|KNOWLEDGE|STATE|ITEM|PLOT|FORESHADOWING|SUMMARY","text":"...","source":"${b.title||"chapter"}"}],"character_updates":[{"name":"Tên nhân vật (đã có trong Bible hoặc mới xuất hiện)","state":"trạng thái mới nếu đổi","knowledge":"kiến thức mới nếu đổi","relationships":"quan hệ mới nếu đổi"}],"canon_updates":[{"op":"add|update|retire","name":"Tên node canon","type":"CHARACTER|LOCATION|ITEM|EVENT|FACTION|LORE|SECRET","text":"sự thật canon ngắn gọn, cụ thể"}],"timeline_events":[{"date":"mốc thời gian trong truyện nếu có","title":"tên sự kiện","detail":"chi tiết ngắn"}],"thread_updates":[{"title":"tên plot thread đã có hoặc mới","progress":"tiến triển mới trong chương này","status":"OPEN|RESOLVED"}]}\nCHƯƠNG:\n${b.chapter||""}`;return ""}
+async function suggest(){try{const j=await ai("suggest-next");$("nextText").value=j.text||"";db.nextSuggestion=$("nextText").value;debouncedSaveDraft()}catch{}}
+function approveNext(){db.nextSuggestion=$("nextText").value;db.draft.goal=db.nextSuggestion;persist();$("goal").value=db.draft.goal;status("Đã đưa gợi ý vào mục tiêu chương. Bạn vẫn có thể sửa.");tab("write",document.querySelector(".tabs button"))}
+function clearNext(){$("nextText").value="";db.nextSuggestion="";persist();status("Đã xóa gợi ý chương sau.")}
+async function makeOutline(){try{syncDraft();const j=await ai("outline",{title:db.draft.title,goal:db.draft.goal,words:db.draft.words});db.draft.outline=j.text||"";$("outline").value=db.draft.outline;persist();status("Đã tạo outline. Bạn có thể sửa trước khi dùng.")}catch{}}
+async function makeScenes(){try{syncDraft();const j=await ai("scene-plan",{title:db.draft.title,outline:db.draft.outline});db.draft.scenes=j.text||"";persist();$("scenes").innerHTML=`<div class="item" style="white-space:pre-wrap">${esc(db.draft.scenes)}</div>`;status("Đã tạo Scene Planner.");refreshSceneSelect()}catch{}}
+/* V8: one-click pipeline — goal in → outline → 1-3 scene plan → auto-fill Scene Contract → full prose out. */
+async function v8AutoWriteChapter(){
+  syncDraft();
+  if(!db.draft.goal.trim()){status('Nhập Mục tiêu chương trước khi bấm Viết truyện (Tự động).',true);return}
+  if(!db.draft.title.trim()){db.draft.title=`Chương ${db.chapters.length+1}`;$('ctitle').value=db.draft.title;}
+  try{
+    status('Bước 1/3 — Đang lập outline...');
+    const jo=await ai('outline',{title:db.draft.title,goal:db.draft.goal,words:db.draft.words});
+    db.draft.outline=jo.text||''; $('outline').value=db.draft.outline; persist();
+
+    status('Bước 2/3 — Đang lên Scene Plan...');
+    const js=await ai('scene-plan-json',{title:db.draft.title,goal:db.draft.goal,outline:db.draft.outline,words:db.draft.words});
+    let scenes=[];
+    try{const parsed=JSON.parse((js.text||'').replace(/```json|```/g,'').trim());scenes=(parsed.scenes||[]).filter(Boolean).slice(0,3)}catch{scenes=[]}
+    if(!scenes.length) scenes=[{pov:'',setting:'',goal:db.draft.goal,conflict:'',reveal:'',turn:'',summary:(db.draft.outline||'').slice(0,300)}];
+
+    db.draft.scenes=scenes.map((s,i)=>`Scene ${i+1}: ${s.summary||s.goal||''}\nPOV: ${s.pov||''} · Bối cảnh: ${s.setting||''}\nXung đột: ${s.conflict||''} · Reveal: ${s.reveal||''} · Turn: ${s.turn||''}`).join('\n\n');
+    $('scenes').innerHTML=`<div class="item" style="white-space:pre-wrap">${esc(db.draft.scenes)}</div>`;
+    refreshSceneSelect();
+
+    const povs=[...new Set(scenes.map(s=>s.pov).filter(Boolean))];
+    db.draft.sceneContract={
+      pov:povs[0]||db.draft.sceneContract?.pov||'',
+      setting:scenes[0]?.setting||'',
+      goal:db.draft.goal,
+      conflict:scenes.map(s=>s.conflict).filter(Boolean).join(' · '),
+      reveal:scenes.map(s=>s.reveal).filter(Boolean).join(' · '),
+      turn:scenes[scenes.length-1]?.turn||''
+    };
+    loadSceneContract();
+
+    status(`Bước 3/3 — Đang viết chương (${scenes.length} scene)...`);
+    const scenesPlanText=scenes.map((s,i)=>`Scene ${i+1}: POV ${s.pov||'?'}; Bối cảnh ${s.setting||'?'}; Mục tiêu ${s.goal||'?'}; Xung đột ${s.conflict||'?'}; Reveal ${s.reveal||'?'}; Turn ${s.turn||'?'}; Tóm tắt: ${s.summary||''}`).join('\n');
+    const jw=await ai('write',{title:db.draft.title,goal:db.draft.goal,outline:(db.draft.outline||'')+'\n\nSCENE PLAN CHI TIẾT (bám sát, không tự thêm scene khác):\n'+scenesPlanText,words:db.draft.words,manual:''});
+    db.draft.proposal=jw.text||''; $('aiProposal').value=db.draft.proposal;
+    // Tự động đưa bản AI vào ô nội dung thủ công để sẵn sàng đọc/sửa — vẫn CHƯA phải canon tới khi bạn bấm "Lưu chương".
+    db.draft.manual=db.draft.proposal; $('manualContent').value=db.draft.manual;
+    updateMeters(); v7Save(); render(false);
+    status(`Đã tự động xong: outline → ${scenes.length} scene → bản thảo ${v6Words(db.draft.manual)} từ, đã đưa vào ô nội dung. Đọc/sửa rồi bấm "Lưu chương" khi ưng.`);
+  }catch(e){ status(e.message||'Lỗi khi tự động viết chương.',true); }
+}
+function renderThreads(){const el=$("threadsList");if(!el)return;el.innerHTML=(db.plotThreads||[]).map((t,i)=>`<div class="card"><div class="top"><h3>${esc(t.title)}</h3><span class="tag">${esc(L(t.status||"OPEN"))}</span></div><label class="label"><span>Mục tiêu / câu hỏi</span><textarea onchange="db.plotThreads[${i}].goal=this.value;save()">${esc(t.goal||"")}</textarea></label><label class="label"><span>Clues / foreshadowing</span><textarea onchange="db.plotThreads[${i}].clues=this.value;save()">${esc(t.clues||"")}</textarea></label><label class="label"><span>Tiến triển</span><textarea onchange="db.plotThreads[${i}].progress=this.value;save()">${esc(t.progress||"")}</textarea></label><div class="actions"><button onclick="toggleThread(${i})">${t.status==='OPEN'?'Đánh dấu hoàn tất':'Mở lại'}</button><button class="danger" onclick="delThread(${i})">Xóa</button></div></div>`).join('')||'<div class="card muted">Chưa có plot thread.</div>'}
+function addThread(){const title=prompt("Tên plot thread:");if(!title)return;db.plotThreads.push({title,goal:prompt("Mục tiêu/câu hỏi:")||"",clues:prompt("Clues/foreshadowing:")||"",progress:"",status:"OPEN"});save();renderThreads()}
+function toggleThread(i){db.plotThreads[i].status=db.plotThreads[i].status==='OPEN'?'RESOLVED':'OPEN';save();renderThreads()}
+function delThread(i){if(confirm("Xóa plot thread?")){db.plotThreads.splice(i,1);save();renderThreads()}}
+function refreshSceneSelect(){const s=$("sceneSelect");if(!s)return;const lines=(db.draft.scenes||"").split(/\n+/).filter(x=>/scene|cảnh/i.test(x));s.innerHTML='<option value="">Chọn scene</option>'+lines.map((x,i)=>`<option value="${i}">${esc(x.replace(/^[-*#\d.\s]+/,"").slice(0,100))}</option>`).join("")}
+async function writeSelectedScene(){const s=$("sceneSelect");if(!s||!s.value){status("Hãy chọn scene.",true);return}const lines=(db.draft.scenes||"").split(/\n+/).filter(x=>/scene|cảnh/i.test(x));const scene=lines[Number(s.value)]||"";try{const j=await ai("scene-write",{title:db.draft.title,scene,outline:db.draft.outline,words:Math.min(5000,Math.max(800,Math.round(db.draft.words/Math.max(1,lines.length))))});$("aiProposal").value=j.text||"";db.draft.proposal=$("aiProposal").value;save();updateMeters();status("Đã viết scene vào ô AI đề xuất; chưa phải canon.")}catch{}}
+function appendProposalToManual(){const p=$("aiProposal").value.trim();if(!p)return;const m=$("manualContent");m.value=m.value.trim()?m.value.trim()+"\n\n"+p:p;db.draft.manual=m.value;save();updateMeters();status("Đã thêm scene/đề xuất vào draft.")}
+async function reviseDraft(){const instruction=$("revisionInstruction").value.trim();const text=$("manualContent").value.trim();if(!text||!instruction){status("Cần draft và yêu cầu chỉnh sửa.",true);return}try{const j=await ai("revise",{chapter:text,instruction});$("aiProposal").value=j.text||"";db.draft.proposal=$("aiProposal").value;save();updateMeters();status("Đã tạo bản sửa trong ô AI đề xuất.")}catch{}}
+function syncDraft(){db.draft.title=$("ctitle").value;db.draft.words=Number($("words").value)||5000;db.draft.goal=$("goal").value;db.draft.outline=$("outline").value;db.draft.manual=$("manualContent").value;db.draft.proposal=$("aiProposal").value;db.draft.scenes=db.draft.scenes||"";syncSceneContract()}
+async function generateAI(regen){try{syncDraft();if(regen&&!db.draft.proposal)status("Chưa có bản cũ; đang tạo bản đầu tiên.");const j=await ai("write",{title:db.draft.title,goal:db.draft.goal,outline:db.draft.outline,words:db.draft.words,manual:db.draft.manual,regenerate:regen});db.draft.proposal=j.text||"";$("aiProposal").value=db.draft.proposal;persist();updateMeters();status(regen?"Đã tạo lại đề xuất AI.":"Đã tạo đề xuất AI. Hãy sửa trước khi dùng.")}catch{}}
+function useProposal(){const p=$("aiProposal").value.trim();if(!p){status("Ô AI đề xuất đang trống.",true);return}$("manualContent").value=p;db.draft.manual=p;persist();updateMeters();status("Đã dùng nội dung AI. Bạn có thể sửa tiếp trước khi lưu chương.")}
+function clearProposal(){if(!confirm("Xóa bản đề xuất AI hiện tại?"))return;$("aiProposal").value="";db.draft.proposal="";persist();updateMeters();status("Đã xóa đề xuất AI.")}
+function clearManual(){if(!confirm("Xóa nội dung thủ công/draft hiện tại?"))return;$("manualContent").value="";db.draft.manual="";persist();updateMeters();status("Đã xóa nội dung draft.")}
+function saveDraft(){syncDraft();persist();status("Đã lưu nháp trên trình duyệt.")}
+async function saveChapter(){syncDraft();const text=db.draft.manual.trim();if(!text){status("Chưa có nội dung để lưu chương.",true);return}const title=db.draft.title||`Chương ${db.chapters.length+1}`;const c={id:crypto.randomUUID(),title,createdAt:new Date().toLocaleString("vi-VN"),goal:db.draft.goal,outline:db.draft.outline,scenes:db.draft.scenes,text,wordCount:text.trim().split(/\s+/).filter(Boolean).length};db.chapters.push(c);$("output").textContent=text;try{const m=await ai("extract-memory",{chapter:text,title});try{const x=JSON.parse(m.text);db.memory.push(...(x.memory||[]));applyCharacterUpdates(x.character_updates||[])}catch{db.memory.push({type:"CHAPTER_SUMMARY",text:m.text,source:title})}}catch{db.memory.push({type:"SUMMARY",text:"Chương đã lưu; chưa trích xuất Memory do AI lỗi.",source:title})}persist();render(false);renderThreads();refreshSceneSelect();status("Đã lưu chương và cập nhật Memory.")}
+function applyCharacterUpdates(updates){for(const u of updates){const c=db.characters.find(x=>x.name===u.name);if(!c)continue;if(u.state)c.state=u.state;if(u.knowledge)c.knowledge=u.knowledge;if(u.relationships)c.relationships=u.relationships}}
+async function checkContinuity(){try{const j=await ai("continuity");$("checkResult").innerHTML=`<div class="item" style="white-space:pre-wrap">${esc(j.text||"")}</div>`}catch{}}
+function loadChapter(i){const c=db.chapters[i];db.draft.title=c.title;db.draft.goal=c.goal||"";db.draft.outline=c.outline||"";db.draft.manual=c.text;db.draft.proposal="";db.draft.scenes="";setDraftInputs();$("output").textContent=c.text;tab("write",document.querySelector(".tabs button"));status(`Đã mở ${c.title}.`)}
+function deleteChapter(i){if(!confirm("Xóa chương này? Memory đã trích xuất cũng sẽ không tự động hoàn tác."))return;db.chapters.splice(i,1);save();status("Đã xóa chương.")}
+function tab(t,b){["twrite","tnext","tcheck","tlibrary"].forEach(x=>$(x).classList.add("hidden"));$(t==="write"?"twrite":t==="next"?"tnext":t==="check"?"tcheck":"tlibrary").classList.remove("hidden");document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));if(b)b.classList.add("active")}
+function exportDB(){
+  const safe=structuredClone(db);
+  const b=new Blob([JSON.stringify(safe,null,2)],{type:"application/json"}),a=document.createElement("a");
+  const stamp=new Date().toISOString().slice(0,10), slug=(db.project.name||"muses").replace(/[^\p{L}\p{N}]+/gu,"-");
+  a.href=URL.createObjectURL(b);a.download=`muses-backup-${slug}-${stamp}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  v8Ensure();db.v8.lastExportAt=new Date().toISOString();persist();v8BackupReminder();
+  status("Đã tạo backup JSON (không chứa API key).");
+}
+$("import").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);const keepId=db.id;db=merge(DEFAULT,x);db.id=keepId;persist();v6Ensure();v7Ensure();v8Ensure();render();renderThreads();refreshSceneSelect();loadSceneContract();v7OpenPageHook();refreshProjectSwitcherUI();status("Đã restore dữ liệu vào dự án hiện tại.")}catch{status("JSON không hợp lệ.",true)}};r.readAsText(f)};
+
+async function editorPass(kind){
+  syncDraft();
+  const text=db.draft.manual.trim();
+  if(!text){status("Chưa có bản thảo để biên tập.",true);return}
+  const instructions={
+    prose:"Biên tập văn phong tiếng Việt tự nhiên. Giữ nguyên sự kiện/canon. Sửa câu gượng, văn dịch, lặp cấu trúc, lạm dụng tính từ/trạng từ; tăng hình ảnh cụ thể vừa đủ. Không làm văn quá hoa mỹ.",
+    dialogue:"Biên tập hội thoại tiếng Việt. Giữ nguyên ý định và thông tin canon; làm lời thoại có cá tính, hàm ý và nhịp tự nhiên; kiểm tra xưng hô. Không để nhân vật giải thích điều họ đã biết.",
+    pacing:"Phân tích nhịp chương. Chỉ ra đoạn chậm, đoạn nhảy cóc, exposition dài, scene thiếu mục tiêu hoặc hook. Sau đó tạo bản sửa đề xuất, nhưng không xóa sự kiện canon.",
+    cliche:"Tìm và sửa sáo ngữ, từ/cụm từ lặp, mô tả khuôn mẫu, cảm xúc bị giải thích quá trực tiếp. Giữ giọng văn và sự kiện.",
+    continuity:"Đóng vai continuity editor. Tìm mâu thuẫn POV, timeline, knowledge, xưng hô, vật phẩm, quan hệ, động cơ và plot threads. Không tự sửa canon."
+  };
+  const j=await ai("revise",{chapter:text,instruction:instructions[kind]||instructions.prose});
+  $("aiProposal").value=j.text||""; db.draft.proposal=$("aiProposal").value; save();
+  $("editorReport").textContent=kind==="continuity"?"Đã tạo báo cáo/đề xuất continuity. Hãy xem ở ô AI đề xuất.":"Đã tạo bản biên tập đề xuất ở ô AI đề xuất.";
+  status("Pass biên tập hoàn tất; chưa thay đổi canon.");
+}
+function syncSceneContract(){
+  db.draft.sceneContract={
+    pov:$("scenePOV")?.value||"",
+    setting:$("sceneSetting")?.value||"",
+    goal:$("sceneGoal")?.value||"",
+    conflict:$("sceneConflict")?.value||"",
+    reveal:$("sceneReveal")?.value||"",
+    turn:$("sceneTurn")?.value||""
+  };
+}
+function loadSceneContract(){
+  const x=db.draft.sceneContract||{};
+  for(const [id,key] of [["scenePOV","pov"],["sceneSetting","setting"],["sceneGoal","goal"],["sceneConflict","conflict"],["sceneReveal","reveal"],["sceneTurn","turn"]]){
+    if($(id)) $(id).value=x[key]||"";
+  }
+}
+
+/* ================= V6 LONG-FORM ENGINE ================= */
+const V6_DEFAULT = {
+  canon:{nodes:[],edges:[]},
+  characterStates:[],
+  sceneObjects:[],
+  revisionLog:[],
+  contextLog:[]
+};
+
+function v6Ensure(){
+  db.canon=db.canon||structuredClone(V6_DEFAULT.canon);
+  db.canon.nodes=db.canon.nodes||[]; db.canon.edges=db.canon.edges||[];
+  db.characterStates=db.characterStates||[];
+  db.sceneObjects=db.sceneObjects||[];
+  db.revisionLog=db.revisionLog||[];
+  db.contextLog=db.contextLog||[];
+  db.version=Math.max(Number(db.version||5),6);
+}
+function v6Now(){return new Date().toISOString();}
+/* V8: local heuristic conflict detector against locked canon nodes. Not NLP — a cue-based safety net, not a substitute for the AI continuity check. */
+const V8_OPPOSITES=[["còn sống","đã chết"],["còn sống","qua đời"],["yêu","ghét"],["yêu","căm"],["tin tưởng","phản bội"],["đồng minh","kẻ thù"],["kết hôn","ly hôn"],["còn nguyên vẹn","đã mất"],["nam","nữ"],["sống","chết"]];
+function v8DetectConflicts(name,newText){
+  v6Ensure();
+  if(!name||!newText)return [];
+  const lockedNodes=(db.canon.nodes||[]).filter(n=>n.locked&&n.name&&n.name.toLowerCase()===String(name).toLowerCase());
+  const hits=[]; const nt=String(newText).toLowerCase();
+  for(const n of lockedNodes){
+    const ot=String(n.text||"").toLowerCase();
+    for(const [a,b] of V8_OPPOSITES){
+      if(ot.includes(a)&&nt.includes(b)) hits.push(`Canon đã khóa "${n.name}" ghi "${a}" nhưng nội dung mới có "${b}".`);
+      if(ot.includes(b)&&nt.includes(a)) hits.push(`Canon đã khóa "${n.name}" ghi "${b}" nhưng nội dung mới có "${a}".`);
+    }
+    const oAge=(ot.match(/(\d{1,3})\s*tuổi/)||[])[1], nAge=(nt.match(/(\d{1,3})\s*tuổi/)||[])[1];
+    if(oAge&&nAge&&oAge!==nAge) hits.push(`Canon đã khóa "${n.name}" ghi ${oAge} tuổi nhưng nội dung mới ghi ${nAge} tuổi.`);
+  }
+  return hits;
+}
+function v6Words(s){return String(s||"").trim().split(/\s+/).filter(Boolean).length;}
+function v6Tokens(s){return new Set((String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").match(/[\p{L}\p{N}\p{M}]{3,}/gu)||[]));}
+function v6Score(q,text){
+  const qt=v6Tokens(q), tt=v6Tokens(text), overlap=[...qt].filter(x=>tt.has(x)).length;
+  const exact=String(text||"").toLowerCase().includes(String(q||"").toLowerCase())?4:0;
+  return overlap*2+exact;
+}
+function v6SmartContext(query=""){
+  v6Ensure();
+  const q=query||[db.draft.title,db.draft.goal,db.draft.outline,db.draft.manual,db.draft.sceneContract?.pov,db.draft.sceneContract?.setting].filter(Boolean).join("\n");
+  const scoreSort=(arr,textFn,limit)=>arr.map((x,i)=>({x,s:v6Score(q,textFn(x)),i})).sort((a,b)=>b.s-a.s||b.i-a.i).slice(0,limit).map(z=>z.x);
+  const chars=scoreSort(db.characters,c=>[c.name,c.role,c.profile,c.state,c.knowledge,c.relationships].join(" "),8);
+  const threads=scoreSort(db.plotThreads,t=>[t.title,t.goal,t.clues,t.progress,t.status].join(" "),12);
+  const memories=scoreSort(db.memory,m=>[m.text,m.source,m.type].join(" "),18);
+  const events=scoreSort(db.timeline,e=>[e.title,e.date,e.text,e.detail].join(" "),18);
+  const scenes=scoreSort(db.sceneObjects,s=>[s.chapter,s.title,s.pov,s.setting,s.goal,s.conflict,s.reveal,s.turn].join(" "),12);
+  const nodes=scoreSort(db.canon.nodes,n=>[n.name,n.type,n.text,n.status].join(" "),20);
+  const edges=db.canon.edges.filter(e=>{
+    const names=[db.canon.nodes.find(n=>n.id===e.from)?.name,db.canon.nodes.find(n=>n.id===e.to)?.name].filter(Boolean).join(" ");
+    return v6Score(q,names+" "+e.rel)>0;
+  }).slice(0,30);
+  const states=scoreSort(db.characterStates,s=>[s.name,s.chapter,s.emotion,s.knowledge,s.relationships,s.status].join(" "),16);
+  return {
+    project:db.project,bible:db.bible,world:db.world,style:projectStyle(),
+    characters:chars,characterStates:states,plotThreads:threads,timeline:events,
+    canonNodes:nodes,canonEdges:edges,memory:memories,scenes,
+    recentChapters:db.chapters.slice(-3).map(c=>({title:c.title,goal:c.goal,text:c.text.slice(-7000)}))
+  };
+}
+function v6ContextText(query=""){return JSON.stringify(v6SmartContext(query),null,2);}
+function v6RenderCanon(){
+  v6Ensure();
+  $("v6CanonNodes").innerHTML=db.canon.nodes.length?`<table class="v6table"><thead><tr><th>Tên</th><th>Loại</th><th>Trạng thái</th><th>Sự thật</th><th></th></tr></thead><tbody>${db.canon.nodes.map((n,i)=>`<tr><td><b>${n.locked?'🔒 ':''}${esc(n.name)}</b></td><td><span class="v6pill">${esc(L(n.type))}</span></td><td>${esc(L(n.status))}</td><td>${esc(n.text)}</td><td><button onclick="v6ToggleLock(${i})">${n.locked?'🔓 Mở khóa':'🔒 Khóa'}</button> <button class="danger" onclick="v6DeleteNode(${i})">Xóa</button></td></tr>`).join("")}</tbody></table>`:"<div class='muted'>Chưa có node canon.</div>";
+  const opts=db.canon.nodes.map(n=>`<option value="${n.id}">${esc(n.name)}</option>`).join("");
+  $("v6EdgeFrom").innerHTML=opts;$("v6EdgeTo").innerHTML=opts;
+  $("v6CanonEdges").innerHTML=db.canon.edges.length?`<table class="v6table"><thead><tr><th>Từ</th><th>Quan hệ</th><th>Đến</th><th></th></tr></thead><tbody>${db.canon.edges.map((e,i)=>{const a=db.canon.nodes.find(n=>n.id===e.from)?.name||"?";const b=db.canon.nodes.find(n=>n.id===e.to)?.name||"?";return `<tr><td>${esc(a)}</td><td><span class="v6pill">${esc(e.rel)}</span></td><td>${esc(b)}</td><td><button class="danger" onclick="v6DeleteEdge(${i})">Xóa</button></td></tr>`}).join("")}</tbody></table>`:"<div class='muted'>Chưa có quan hệ.</div>";
+  v6RenderCanonGraph();
+}
+function v6RenderCanonGraph(){
+  const box=$("v6CanonGraph"); if(!box)return;
+  const nodes=db.canon.nodes||[], edges=db.canon.edges||[];
+  if(!nodes.length){box.innerHTML="<div class='muted'>Chưa có node để vẽ sơ đồ.</div>";return}
+  const W=Math.max(560,nodes.length*72), H=Math.max(420,nodes.length*42), cx=W/2, cy=H/2, R=Math.max(120,Math.min(W,H)/2-70);
+  const pos={};
+  nodes.forEach((n,i)=>{const a=(2*Math.PI*i)/nodes.length-Math.PI/2; pos[n.id]={x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)}});
+  const typeColor={CHARACTER:"#8ab4ff",LOCATION:"#78d79b",ITEM:"#e7bd68",EVENT:"#ff9d9d",FACTION:"#c58aff",LORE:"#9ba6b6",SECRET:"#ff7ab8"};
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;min-height:340px;background:#0d1015;border:1px solid var(--line);border-radius:12px">`;
+  svg+=`<defs><marker id="v8arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#5a6478"/></marker></defs>`;
+  for(const e of edges){
+    const a=pos[e.from], b=pos[e.to]; if(!a||!b)continue;
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    svg+=`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#3a4254" stroke-width="1.4" marker-end="url(#v8arrow)"/>`;
+    svg+=`<text x="${mx.toFixed(1)}" y="${my.toFixed(1)}" fill="#9ba6b6" font-size="10" text-anchor="middle">${esc(e.rel)}</text>`;
+  }
+  for(const n of nodes){
+    const p=pos[n.id], color=typeColor[n.type]||"#8ab4ff";
+    svg+=`<g>
+      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${n.locked?28:24}" fill="${n.status==='RETIRED'?'#20242c':'#171b23'}" stroke="${color}" stroke-width="${n.locked?3:2}" stroke-dasharray="${n.locked?'0':'0'}"/>
+      <text x="${p.x.toFixed(1)}" y="${(p.y+4).toFixed(1)}" fill="${color}" font-size="9" text-anchor="middle">${n.locked?'🔒':esc((n.type||'').slice(0,3))}</text>
+      <text x="${p.x.toFixed(1)}" y="${(p.y+42).toFixed(1)}" fill="var(--txt)" font-size="11" text-anchor="middle">${esc(n.name.length>14?n.name.slice(0,13)+'…':n.name)}</text>
+    </g>`;
+  }
+  svg+="</svg>";
+  box.innerHTML=svg;
+}
+function v6ToggleLock(i){db.canon.nodes[i].locked=!db.canon.nodes[i].locked;persist();v6RenderCanon();status(db.canon.nodes[i].locked?"Đã khóa canon node.":"Đã mở khóa canon node.");}
+function v6AddNode(){
+  const name=$("v6NodeName").value.trim(); if(!name){status("Nhập tên node canon.",true);return}
+  db.canon.nodes.push({id:crypto.randomUUID(),type:$("v6NodeType").value,name,status:$("v6NodeStatus").value,text:$("v6NodeText").value.trim(),locked:$("v6NodeLocked")?.checked||false,createdAt:v6Now()});
+  $("v6NodeName").value="";$("v6NodeText").value="";if($("v6NodeLocked"))$("v6NodeLocked").checked=false;persist();v6RenderCanon();status("Đã thêm canon node.");
+}
+function v6DeleteNode(i){if(!confirm("Xóa node này và các quan hệ liên quan?"))return;const id=db.canon.nodes[i].id;db.canon.nodes.splice(i,1);db.canon.edges=db.canon.edges.filter(e=>e.from!==id&&e.to!==id);persist();v6RenderCanon();}
+function v6AddEdge(){
+  const from=$("v6EdgeFrom").value,to=$("v6EdgeTo").value,rel=$("v6EdgeRel").value.trim();
+  if(!from||!to||!rel){status("Chọn đủ node và quan hệ.",true);return}
+  db.canon.edges.push({id:crypto.randomUUID(),from,to,rel,createdAt:v6Now()});$("v6EdgeRel").value="";persist();v6RenderCanon();
+}
+function v6DeleteEdge(i){db.canon.edges.splice(i,1);persist();v6RenderCanon();}
+function v6RefreshCanon(){v6Ensure();v6RenderCanon();status("Canon Graph đã làm mới.");}
+
+function v6RenderStates(){
+  v6Ensure();
+  $("v6StateChar").innerHTML=(db.characters||[]).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
+  const arr=db.characterStates.slice().reverse();
+  $("v6StateList").innerHTML=arr.length?`<table class="v6table"><thead><tr><th>Nhân vật</th><th>Mốc</th><th>Cảm xúc</th><th>Kiến thức</th><th>Trạng thái</th></tr></thead><tbody>${arr.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td>${esc(s.chapter)}</td><td>${esc(s.emotion)}</td><td>${esc(s.knowledge)}</td><td>${esc(s.status)}</td></tr>`).join("")}</tbody></table>`:"<div class='muted'>Chưa có snapshot.</div>";
+}
+function v6SaveState(){
+  const name=$("v6StateChar").value;if(!name){status("Chưa có nhân vật.",true);return}
+  db.characterStates.push({id:crypto.randomUUID(),name,chapter:$("v6StateChapter").value.trim()||`Chương ${db.chapters.length+1}`,emotion:$("v6StateEmotion").value.trim(),knowledge:$("v6StateKnowledge").value.trim(),relationships:$("v6StateRelations").value.trim(),status:$("v6StateStatus").value.trim(),createdAt:v6Now()});
+  persist();v6RenderStates();status("Đã lưu Character State snapshot.");
+}
+function v6SnapshotCharacters(){
+  const chapter=`Chương ${db.chapters.length||1}`;
+  for(const c of db.characters||[]) db.characterStates.push({id:crypto.randomUUID(),name:c.name,chapter,emotion:"",knowledge:c.knowledge||"",relationships:c.relationships||"",status:c.state||"",createdAt:v6Now()});
+  persist();v6RenderStates();status("Đã chụp trạng thái tất cả nhân vật.");
+}
+
+function v6BuildContext(){
+  const q=$("v6ContextQuery").value.trim()||[db.draft.goal,db.draft.outline,db.draft.sceneContract?.setting,db.draft.sceneContract?.pov].filter(Boolean).join("\n");
+  const c=v6SmartContext(q);
+  const compact={query:q,characters:c.characters,states:c.characterStates,threads:c.plotThreads,timeline:c.timeline,canonNodes:c.canonNodes,canonEdges:c.canonEdges,memory:c.memory,scenes:c.scenes,recentChapters:c.recentChapters};
+  db.contextLog.push({at:v6Now(),query:q,counts:Object.fromEntries(Object.entries(compact).filter(([k])=>Array.isArray(compact[k])).map(([k,v])=>[k,v.length]))});
+  db.contextLog=db.contextLog.slice(-30);persist();
+  $("v6ContextReport").textContent=JSON.stringify(compact,null,2);
+  status("Đã truy xuất context liên quan.");
+}
+
+function v6Paragraphs(s){return String(s||"").split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);}
+function v6DiffBlocks(a,b){
+  const A=v6Paragraphs(a),B=v6Paragraphs(b), out=[]; let i=0,j=0,added=0,removed=0,same=0;
+  while(i<A.length||j<B.length){
+    if(i<A.length&&j<B.length&&A[i]===B[j]){out.push(`<div class="v6same">${esc(A[i])}</div>`);same++;i++;j++;continue}
+    const bi=j<B.length?B[j]:"", ai=i<A.length?A[i]:"";
+    if(ai&&bi){out.push(`<div class="v6del">− ${esc(ai)}</div><div class="v6add">+ ${esc(bi)}</div>`);removed++;added++;i++;j++}
+    else if(ai){out.push(`<div class="v6del">− ${esc(ai)}</div>`);removed++;i++}
+    else {out.push(`<div class="v6add">+ ${esc(bi)}</div>`);added++;j++}
+  }
+  return {html:out.join(""),added,removed,same};
+}
+function v6ShowDiff(){
+  syncDraft();const a=db.draft.manual||"",b=db.draft.proposal||"";
+  if(!a||!b){status("Cần cả bản gốc và AI proposal để so sánh.",true);return}
+  const d=v6DiffBlocks(a,b);$("v6DiffStats").textContent=`+${d.added} đoạn · −${d.removed} đoạn · ${d.same} đoạn giữ nguyên`;
+  $("v6DiffView").innerHTML=d.html;status("Đã tạo diff.");
+}
+function v6AcceptProposal(){
+  const p=(db.draft.proposal||$("aiProposal").value||"").trim();if(!p){status("AI proposal đang trống.",true);return}
+  db.draft.manual=p;$("manualContent").value=p;db.draft.proposal="";$("aiProposal").value="";
+  db.revisionLog.push({at:v6Now(),type:"ACCEPT_ALL",title:db.draft.title||"Draft",words:v6Words(p)});
+  persist();updateMeters();$("v6DiffView").innerHTML="Đã chấp nhận toàn bộ bản sửa.";status("Đã đưa bản sửa vào draft. Chưa thành canon cho đến khi lưu chương.");
+}
+function v6RejectProposal(){db.draft.proposal="";$("aiProposal").value="";persist();$("v6DiffView").innerHTML="Đã từ chối proposal; bản gốc được giữ nguyên.";updateMeters();status("Đã giữ bản gốc.");}
+
+function v6LocalPreflight(){
+  const issues=[];const sc=db.draft.sceneContract||{};
+  if(sc.pov && !(db.characters||[]).some(c=>c.name.toLowerCase()===sc.pov.toLowerCase())) issues.push(`POV "${sc.pov}" chưa có trong Character Bible.`);
+  const known=new Set((db.characters||[]).map(c=>c.name.toLowerCase()));
+  const text=db.draft.manual||"";
+  for(const c of db.characters||[]){if(c.knowledge&&text.includes(c.name)&&c.knowledge.length>120){}}
+  if(!db.draft.goal.trim())issues.push("Chương chưa có mục tiêu rõ.");
+  if(!db.draft.sceneContract?.goal?.trim())issues.push("Scene Contract chưa có mục tiêu scene.");
+  if(!db.draft.sceneContract?.turn?.trim())issues.push("Scene chưa có turning point / exit hook.");
+  return issues;
+}
+
+function v6ContextForAI(data={}){
+  const query=[data.title,data.goal,data.outline,data.manual,data.chapter,data.scene,data.instruction,data.setting].filter(Boolean).join("\n");
+  return v6ContextText(query);
+}
+/* Override context provider used by the existing AI functions. */
+function contextText(extra=""){return v6SmartContext(extra);}
+function ctx(extra=""){return JSON.stringify(v6SmartContext(extra),null,2);}
+
+/* V6 save hook: preserve old behavior, then record state/scene objects. */
+const _v6_oldSaveChapter = saveChapter;
+async function saveChapterV6(){
+  const issues=v6LocalPreflight();
+  if(issues.length){
+    const ok=confirm("V6 phát hiện:\n\n• "+issues.join("\n• ")+"\n\nBạn vẫn muốn lưu chương?");
+    if(!ok)return;
+  }
+  await _v6_oldSaveChapter();
+  v6Ensure();
+  const last=db.chapters[db.chapters.length-1];
+  if(last){
+    const sc=db.draft.sceneContract||{};
+    db.sceneObjects.push({id:crypto.randomUUID(),chapter:last.title,title:sc.title||last.title,pov:sc.pov||"",setting:sc.setting||"",goal:sc.goal||last.goal||"",conflict:sc.conflict||"",reveal:sc.reveal||"",turn:sc.turn||"",text:last.text.slice(-5000),createdAt:v6Now()});
+    for(const c of db.characters||[]) db.characterStates.push({id:crypto.randomUUID(),name:c.name,chapter:last.title,emotion:"",knowledge:c.knowledge||"",relationships:c.relationships||"",status:c.state||"",createdAt:v6Now()});
+    persist();
+    status("Đã lưu chương + scene object + character state.");
+  }
+}
+saveChapter=saveChapterV6;
+
+function v6OpenPageHook(){
+  v6Ensure();
+  if(document.getElementById("v6CanonNodes"))v6RenderCanon();
+  if(document.getElementById("v6StateList"))v6RenderStates();
+}
+
+
+/* ================= V7 PROFESSIONAL ENGINE ================= */
+function v7Ensure(){
+  db.version=Math.max(Number(db.version||5),7); db.v7=db.v7||{};
+  db.v7.arcs=db.v7.arcs||[]; db.v7.characterArcs=db.v7.characterArcs||[]; db.v7.chapterVersions=db.v7.chapterVersions||[]; db.v7.foreshadowing=db.v7.foreshadowing||[]; db.draft=db.draft||{}; db.draft.currentChapterId=db.draft.currentChapterId||'';
+  db.canon=db.canon||{nodes:[],edges:[]}; db.characterStates=db.characterStates||[];
+}
+function v7Save(){v7Ensure();persist();}
+function v7EscText(x){return esc(x||"");}
+function v7Issue(type,text,detail=""){return {type,text,detail};}
+function v7RunChecks(){
+  v7Ensure(); const issues=[], warnings=[]; const d=db.draft||{}; const sc=d.sceneContract||{};
+  if(!d.title.trim()) warnings.push(v7Issue('warning','Chưa có tiêu đề chương.'));
+  if(!d.goal.trim()) issues.push(v7Issue('error','Chương chưa có mục tiêu.','Mỗi chương nên thay đổi ít nhất một trạng thái của truyện.'));
+  if(!sc.pov.trim()) issues.push(v7Issue('error','Chưa xác định POV của scene.'));
+  else if(!(db.characters||[]).some(c=>c.name.toLowerCase()===sc.pov.toLowerCase())) issues.push(v7Issue('error',`POV "${sc.pov}" chưa tồn tại trong Character Bible.`));
+  if(!sc.goal.trim()) issues.push(v7Issue('error','Scene chưa có mục tiêu.'));
+  if(!sc.conflict.trim()) warnings.push(v7Issue('warning','Scene chưa ghi xung đột.'));
+  if(!sc.turn.trim()) warnings.push(v7Issue('warning','Scene chưa có turning point / exit hook.'));
+  const canonNames=new Set((db.canon?.nodes||[]).filter(n=>n.status==='CANON').map(n=>n.name.toLowerCase()));
+  const retired=new Set((db.canon?.nodes||[]).filter(n=>n.status==='RETIRED').map(n=>n.name.toLowerCase()));
+  const draftText=String(d.manual||'').toLowerCase();
+  for(const n of retired){ if(n.length>2 && draftText.includes(n)) issues.push(v7Issue('error',`Draft nhắc tới canon node đã RETIRED: "${n}".`)); }
+  const names=(db.characters||[]).map(c=>c.name).filter(Boolean);
+  for(const c of db.characters||[]){
+    if(c.knowledge && c.knowledge.length>180 && draftText.includes(c.name.toLowerCase())) warnings.push(v7Issue('warning',`Knowledge của ${c.name} khá dài; nên dùng Character State gần chương này thay vì profile tổng.`));
+  }
+  const seenTitles=new Set(); for(const c of db.chapters||[]){const t=(c.title||'').trim().toLowerCase();if(t&&seenTitles.has(t))warnings.push(v7Issue('warning',`Có nhiều chương trùng tiêu đề: "${c.title}".`));seenTitles.add(t)}
+  for(const t of db.plotThreads||[]){if(t.status==='OPEN'&&Number(t.chapter||0)>0&&db.chapters.length-(Number(t.chapter)||db.chapters.length)>25)warnings.push(v7Issue('warning',`Plot thread "${t.title}" mở khá lâu; kiểm tra payoff/tiến triển.`));}
+  for(const f of db.v7.foreshadowing||[]){if(f.status!=='PAID'&&Number(f.setupChapter||0)>0&&db.chapters.length-Number(f.setupChapter)>15)warnings.push(v7Issue('warning',`Foreshadowing "${f.title}" đã treo ${db.chapters.length-Number(f.setupChapter)} chương.`));}
+  const versions=db.v7.chapterVersions||[];
+  const score=Math.max(0,Math.min(100,100-issues.length*14-warnings.length*5));
+  $('v7HealthScore').textContent=score+'/100'; $('v7HealthScore').className='v7score '+(score>=85?'v7good':score>=65?'v7warn':'v7bad'); $('v7HealthBar').style.width=score+'%';
+  const html=[...issues.map(x=>`<div class="v7issue"><b>⚠ ${v7EscText(x.text)}</b><div class="small">${v7EscText(x.detail)}</div></div>`),...warnings.map(x=>`<div class="v7warnissue"><b>△ ${v7EscText(x.text)}</b><div class="small">${v7EscText(x.detail)}</div></div>`),(!issues.length&&!warnings.length?'<div class="v7okissue"><b>✓ Không phát hiện vấn đề cục bộ.</b><div class="small">Đây không phải bằng chứng tuyệt đối rằng continuity hoàn hảo; AI/editor vẫn nên kiểm tra ngữ nghĩa.</div></div>':'')].join('');
+  $('v7CheckResult').innerHTML=html; $('v7DashboardHealth').innerHTML=`<span class="v7badge">${score}/100</span> ${issues.length} lỗi cần xem · ${warnings.length} cảnh báo · ${versions.length} version`; status(issues.length?`Preflight: ${issues.length} lỗi, ${warnings.length} cảnh báo.`:'Preflight hoàn tất: không có lỗi cục bộ.');
+  return {score,issues,warnings};
+}
+function v7RenderForeshadowing(){v7Ensure();const a=db.v7.foreshadowing||[];$('v7FsList').innerHTML=a.length?a.map((f,i)=>{const age=f.status==='OPEN'&&Number(f.setupChapter)>0?Math.max(0,db.chapters.length-Number(f.setupChapter)):0;return `<div class="item"><strong>${v7EscText(f.title)} <span class="v7badge">${v7EscText(L(f.status))}</span></strong><div class="small">Setup: chương ${v7EscText(f.setupChapter)} · Tuổi: ${age} chương</div><div>${v7EscText(f.payoff)}</div><button onclick="v7ToggleForeshadowing(${i})">${f.status==='OPEN'?'✓ Đánh dấu payoff':'↺ Mở lại'}</button> <button class="danger" onclick="v7DeleteForeshadowing(${i})">Xóa</button></div>`}).join(''):'<div class="muted">Chưa có foreshadowing.</div>';}
+function v7AddForeshadowing(){const title=$('v7FsTitle').value.trim();if(!title){status('Nhập tên foreshadowing.',true);return}v7Ensure();db.v7.foreshadowing.push({id:crypto.randomUUID(),title,setupChapter:Number($('v7FsSetup').value)||db.chapters.length||1,status:$('v7FsStatus').value,payoff:$('v7FsPayoff').value.trim(),createdAt:new Date().toISOString()});v7Save();v7RenderForeshadowing();status('Đã lưu foreshadowing.');}
+function v7ToggleForeshadowing(i){const f=db.v7.foreshadowing[i];if(!f)return;f.status=f.status==='OPEN'?'PAID':'OPEN';v7Save();v7RenderForeshadowing();}
+function v7DeleteForeshadowing(i){if(!confirm('Xóa foreshadowing này?'))return;db.v7.foreshadowing.splice(i,1);v7Save();v7RenderForeshadowing();}
+function v7RenderArcs(){v7Ensure();$('v7ArcList').innerHTML=db.v7.arcs.length?db.v7.arcs.map((a,i)=>`<div class="item"><strong>${v7EscText(a.book)} · ${v7EscText(a.name)}</strong><div>${v7EscText(a.goal)}</div><div class="small muted">${v7EscText(a.change)} · Exit: ${v7EscText(a.exit)}</div><button class="danger" onclick="v7DeleteArc(${i})">Xóa</button></div>`).join(''):'<div class="muted">Chưa có Arc.</div>';
+  $('v7ArcChar').innerHTML=(db.characters||[]).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join(''); $('v7CharArcList').innerHTML=db.v7.characterArcs.length?db.v7.characterArcs.map((a,i)=>`<div class="item"><strong>${v7EscText(a.name)}</strong><div>Want: ${v7EscText(a.want)} · Need: ${v7EscText(a.need)}</div><div>${v7EscText(a.fearFlaw)}</div><div>${v7EscText(a.change)}</div><button class="danger" onclick="v7DeleteCharacterArc(${i})">Xóa</button></div>`).join(''):'<div class="muted">Chưa có Character Arc.</div>';
+}
+function v7AddArc(){const name=$('v7ArcName').value.trim();if(!name){status('Nhập tên Arc.',true);return}v7Ensure();db.v7.arcs.push({id:crypto.randomUUID(),book:$('v7Book').value.trim(),name,goal:$('v7ArcGoal').value.trim(),change:$('v7ArcChange').value.trim(),exit:$('v7ArcExit').value.trim(),createdAt:new Date().toISOString()});v7Save();v7RenderArcs();status('Đã thêm Arc.');}
+function v7DeleteArc(i){if(!confirm('Xóa Arc này?'))return;db.v7.arcs.splice(i,1);v7Save();v7RenderArcs();}
+function v7SaveCharacterArc(){const name=$('v7ArcChar').value;if(!name){status('Chưa có nhân vật.',true);return}v7Ensure();db.v7.characterArcs.push({id:crypto.randomUUID(),name,want:$('v7Want').value.trim(),need:$('v7Need').value.trim(),fearFlaw:$('v7FearFlaw').value.trim(),change:$('v7Change').value.trim(),createdAt:new Date().toISOString()});v7Save();v7RenderArcs();status('Đã lưu Character Arc.');}
+function v7DeleteCharacterArc(i){if(!confirm('Xóa Character Arc?'))return;db.v7.characterArcs.splice(i,1);v7Save();v7RenderArcs();}
+function v7LocalProseCheck(){
+  const text=String($('manualContent')?.value||db.draft?.manual||'').trim(); if(!text){status('Chưa có bản thảo để phân tích.',true);return}
+  const sentences=text.split(/[.!?…]+/).map(x=>x.trim()).filter(Boolean), words=text.match(/[\p{L}\p{N}À-ỹ]+/gu)||[]; const paras=text.split(/\n\s*\n/).filter(x=>x.trim());
+  const freq={}; for(const w of words){const k=w.toLowerCase();if(k.length>=4)freq[k]=(freq[k]||0)+1} const repeats=Object.entries(freq).sort((a,b)=>b[1]-a[1]).filter(([,n])=>n>=5).slice(0,12);
+  const long=sentences.filter(x=>(x.match(/\s+/g)||[]).length>=45).length; const short=sentences.filter(x=>(x.match(/\s+/g)||[]).length<=4).length;
+  const dialogue=(text.match(/[“”"«»]/g)||[]).length; const cliches=['một cách','vô cùng','không khỏi','bất giác','đột nhiên','trong lòng','ánh mắt','khóe môi','thở dài']; const found=cliches.filter(x=>text.toLowerCase().includes(x));
+  const avg=sentences.length?(words.length/sentences.length).toFixed(1):0;
+  $('v7ProseStats').innerHTML=`<div class="card"><b>${words.length}</b><div class="muted">từ</div></div><div class="card"><b>${sentences.length}</b><div class="muted">câu</div></div><div class="card"><b>${avg}</b><div class="muted">từ/câu</div></div><div class="card"><b>${paras.length}</b><div class="muted">đoạn</div></div>`;
+  const items=[]; if(long)items.push(`<div class="v7warnissue">△ ${long} câu rất dài (≥45 từ). Hãy xem có cần tách nhịp không.</div>`); if(short>sentences.length*.25)items.push(`<div class="v7warnissue">△ ${short} câu rất ngắn (≤4 từ), chiếm tỷ lệ cao; kiểm tra nhịp cảnh.</div>`); if(repeats.length)items.push(`<div class="v7warnissue"><b>△ Từ lặp đáng chú ý</b><div>${repeats.map(([w,n])=>`<span class="v7badge">${v7EscText(w)} ×${n}</span>`).join(' ')}</div></div>`); if(found.length)items.push(`<div class="v7warnissue"><b>△ Cụm dễ thành văn khuôn</b><div>${found.map(v7EscText).join(', ')}</div><div class="small">Đây là cảnh báo heuristic, không phải kết luận rằng câu văn sai.</div></div>`); if(dialogue%2!==0)items.push('<div class="v7issue">⚠ Dấu ngoặc kép hội thoại có số lượng lẻ; kiểm tra dấu câu.</div>'); if(!items.length)items.push('<div class="v7okissue">✓ Không phát hiện vấn đề heuristic nổi bật.</div>'); $('v7ProseIssues').innerHTML=items.join(''); nav('v7prose'); status('Đã phân tích văn bản cục bộ.');
+}
+function v7RenderVersions(){v7Ensure();const a=db.v7.chapterVersions.slice().reverse();$('v7VersionList').innerHTML=a.length?a.map((v,i)=>`<div class="item"><strong>${v7EscText(v.chapterTitle)} · v${v.version}</strong><div class="small muted">${v7EscText(v.savedAt)} · ${v.wordCount} từ · ${v.reason==='UPDATE'?'Cập nhật chương':'Bản đầu'}</div><div class="actions"><button onclick="v7PreviewVersion(${db.v7.chapterVersions.length-1-i})">Xem</button><button class="ok" onclick="v7RestoreVersion(${db.v7.chapterVersions.length-1-i})">Khôi phục vào draft</button></div></div>`).join(''):'<div class="muted">Chưa có version.</div>';}
+function v7PreviewVersion(i){const v=db.v7.chapterVersions[i];if(!v)return;$('output').textContent=v.text;nav('chapters');tab('library',document.querySelector('.tabs button:nth-child(4)'));status(`Đang xem ${v.chapterTitle} v${v.version}. Bản gốc không bị thay đổi.`);}
+function v7RestoreVersion(i){const v=db.v7.chapterVersions[i];if(!v)return;if(!confirm(`Khôi phục ${v.chapterTitle} v${v.version} vào draft?`))return;db.draft.title=v.chapterTitle;db.draft.goal=v.goal||'';db.draft.outline=v.outline||'';db.draft.manual=v.text;db.draft.proposal='';setDraftInputs();v7Save();nav('chapters');status(`Đã khôi phục ${v.chapterTitle} v${v.version} vào draft; chưa lưu thành canon.`);}
+function v7SnapshotBeforeSave(chapter){v7Ensure();const same=db.v7.chapterVersions.filter(v=>v.chapterId===chapter.id);db.v7.chapterVersions.push({id:crypto.randomUUID(),chapterId:chapter.id,chapterTitle:chapter.title,version:same.length+1,savedAt:new Date().toLocaleString('vi-VN'),goal:chapter.goal,outline:chapter.outline,text:chapter.text,wordCount:v6Words(chapter.text),reason:same.length?'UPDATE':'CREATE'});db.v7.chapterVersions=db.v7.chapterVersions.slice(-200);}
+function v8BuildProposal(title,chapterId,x){
+  v6Ensure();
+  const characterUpdates=(x.character_updates||[]).filter(u=>u&&u.name).map(u=>{
+    const cur=db.characters.find(c=>c.name===u.name);
+    const conflicts=v8DetectConflicts(u.name,[u.state,u.knowledge,u.relationships].filter(Boolean).join(' '));
+    return {name:u.name,state:u.state||'',knowledge:u.knowledge||'',relationships:u.relationships||'',oldState:cur?.state||'',oldKnowledge:cur?.knowledge||'',oldRelationships:cur?.relationships||'',exists:!!cur,conflicts,approved:!conflicts.length};
+  });
+  const canonUpdates=(x.canon_updates||[]).filter(u=>u&&u.name).map(u=>{
+    const existing=db.canon.nodes.find(n=>n.name.toLowerCase()===String(u.name).toLowerCase());
+    const conflicts=existing&&existing.locked?v8DetectConflicts(u.name,u.text||''):[];
+    return {op:u.op||(existing?'update':'add'),name:u.name,type:u.type||'LORE',text:u.text||'',existingId:existing?.id||null,existingLocked:!!existing?.locked,oldText:existing?.text||'',conflicts,approved:!conflicts.length};
+  });
+  const timelineEvents=(x.timeline_events||[]).filter(e=>e&&(e.title||e.detail)).map(e=>({date:e.date||'',title:e.title||'',detail:e.detail||'',approved:true}));
+  const threadUpdates=(x.thread_updates||[]).filter(t=>t&&t.title).map(t=>{
+    const existing=db.plotThreads.find(p=>p.title.toLowerCase()===String(t.title).toLowerCase());
+    return {title:t.title,progress:t.progress||'',status:t.status||existing?.status||'OPEN',existing:!!existing,oldProgress:existing?.progress||'',approved:true};
+  });
+  return {chapterId,chapterTitle:title,createdAt:new Date().toLocaleString('vi-VN'),characterUpdates,canonUpdates,timelineEvents,threadUpdates};
+}
+function v8RenderReview(){
+  v8Ensure();
+  const box=$('v8ReviewBox'), meta=$('v8ReviewMeta'); if(!box)return;
+  const p=db.v8.pendingReview;
+  if(!p){box.innerHTML="<div class='muted'>Không có đề xuất nào đang chờ duyệt.</div>";if(meta)meta.textContent='Không có đề xuất nào đang chờ.';v8UpdateBadge();return}
+  if(meta)meta.textContent=`Chương: ${p.chapterTitle} · AI tạo lúc ${p.createdAt}`;
+  const sec=(title,arr,renderItem)=>arr.length?`<div class="card"><h3>${title} (${arr.length})</h3>${arr.map(renderItem).join('')}</div>`:'';
+  let html='';
+  html+=sec('👤 Character State',p.characterUpdates,(u)=>{const i=p.characterUpdates.indexOf(u);return `<div class="item ${u.conflicts?.length?'v7issue':''}"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" ${u.approved?'checked':''} onchange="v8ToggleItem('characterUpdates',${i},this.checked)"><div><strong>${esc(u.name)}</strong>${u.exists?'':' <span class="tag">Nhân vật mới — chưa có trong Bible</span>'}
+    ${u.state?`<div class="small">Trạng thái: <span class="muted">${esc(u.oldState)}</span> → <b>${esc(u.state)}</b></div>`:''}
+    ${u.knowledge?`<div class="small">Kiến thức: <span class="muted">${esc(u.oldKnowledge)}</span> → <b>${esc(u.knowledge)}</b></div>`:''}
+    ${u.relationships?`<div class="small">Quan hệ: <span class="muted">${esc(u.oldRelationships)}</span> → <b>${esc(u.relationships)}</b></div>`:''}
+    ${u.conflicts?.length?`<div class="v7issue">⚠ Mâu thuẫn với canon đã khóa:<br>${u.conflicts.map(esc).join('<br>')}</div>`:''}
+    </div></label></div>`});
+  html+=sec('🧬 Canon',p.canonUpdates,(u)=>{return `<div class="item ${u.conflicts?.length?'v7issue':''}"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" ${u.approved?'checked':''} onchange="v8ToggleItem('canonUpdates',${p.canonUpdates.indexOf(u)},this.checked)"><div><strong>${esc(u.name)}</strong> <span class="tag">${esc(L(u.type))}</span> <span class="tag">${u.op==='add'?'Thêm mới':u.op==='retire'?'Loại bỏ':'Cập nhật'}</span>${u.existingLocked?' <span class="tag">🔒 đã khóa</span>':''}
+    ${u.oldText?`<div class="small muted">Cũ: ${esc(u.oldText)}</div>`:''}
+    <div class="small">Mới: ${esc(u.text)}</div>
+    ${u.conflicts?.length?`<div class="v7issue">⚠ Mâu thuẫn với canon đã khóa:<br>${u.conflicts.map(esc).join('<br>')}</div>`:''}
+    </div></label></div>`});
+  html+=sec('🕐 Timeline',p.timelineEvents,(e)=>`<div class="item"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" ${e.approved?'checked':''} onchange="v8ToggleItem('timelineEvents',${p.timelineEvents.indexOf(e)},this.checked)"><div><strong>${esc(e.date)} — ${esc(e.title)}</strong><div class="small">${esc(e.detail)}</div></div></label></div>`);
+  html+=sec('🧵 Plot Threads',p.threadUpdates,(t)=>`<div class="item"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" ${t.approved?'checked':''} onchange="v8ToggleItem('threadUpdates',${p.threadUpdates.indexOf(t)},this.checked)"><div><strong>${esc(t.title)}</strong>${t.existing?'':' <span class="tag">Thread mới</span>'}<div class="small">Tiến triển: ${esc(t.progress)}</div><div class="small">Trạng thái đề xuất: ${esc(L(t.status))}</div></div></label></div>`);
+  box.innerHTML=html||"<div class='muted'>AI không đề xuất thay đổi nào có căn cứ cho chương này.</div>";
+  v8UpdateBadge();
+}
+function v8ToggleItem(group,i,val){db.v8.pendingReview[group][i].approved=val;v7Save();}
+function v8UpdateBadge(){
+  v8Ensure(); const p=db.v8.pendingReview, btn=$('navReview'); if(!btn)return;
+  const n=p?(p.characterUpdates.length+p.canonUpdates.length+p.timelineEvents.length+p.threadUpdates.length):0;
+  btn.textContent=n?`🔎 Duyệt thay đổi (${n})`:'🔎 Duyệt thay đổi';
+}
+function v8ApplyReview(){
+  v8Ensure(); const p=db.v8.pendingReview; if(!p){status('Không có gì để áp dụng.',true);return}
+  let n=0;
+  for(const u of p.characterUpdates){
+    if(!u.approved)continue;
+    let c=db.characters.find(x=>x.name===u.name);
+    if(!c){ c={name:u.name,role:'',profile:'',state:'',knowledge:'',relationships:''}; db.characters.push(c); }
+    if(u.state)c.state=u.state; if(u.knowledge)c.knowledge=u.knowledge; if(u.relationships)c.relationships=u.relationships;
+    n++;
+  }
+  for(const u of p.canonUpdates){
+    if(!u.approved)continue;
+    let node=u.existingId?db.canon.nodes.find(x=>x.id===u.existingId):db.canon.nodes.find(x=>x.name.toLowerCase()===u.name.toLowerCase());
+    if(u.op==='retire'){ if(node) node.status='RETIRED'; n++; continue }
+    if(node){ node.text=u.text||node.text; node.type=u.type||node.type; }
+    else { db.canon.nodes.push({id:crypto.randomUUID(),type:u.type||'LORE',name:u.name,status:'CANON',text:u.text,locked:false,createdAt:v6Now()}); }
+    n++;
+  }
+  for(const e of p.timelineEvents){ if(!e.approved)continue; db.timeline.push({date:e.date,title:e.title,detail:e.detail}); n++; }
+  for(const t of p.threadUpdates){
+    if(!t.approved)continue;
+    let th=db.plotThreads.find(x=>x.title.toLowerCase()===t.title.toLowerCase());
+    if(!th){ th={title:t.title,goal:'',clues:'',progress:'',status:t.status||'OPEN'}; db.plotThreads.push(th); }
+    th.progress=(th.progress?th.progress+'\n':'')+t.progress; if(t.status)th.status=t.status;
+    n++;
+  }
+  db.v8.pendingReview=null;
+  v7Save(); render(false); renderThreads(); v6RenderCanon(); v6RenderStates(); v8RenderReview();
+  status(`Đã áp dụng ${n} thay đổi đã duyệt vào Canon/Nhân vật/Timeline/Plot Thread.`);
+}
+function v8DiscardReview(){
+  if(!confirm('Bỏ qua toàn bộ đề xuất continuity của chương này? Dữ liệu chương vẫn được giữ nguyên, chỉ đề xuất bị xóa.'))return;
+  v8Ensure(); db.v8.pendingReview=null; v7Save(); v8RenderReview(); status('Đã bỏ qua đề xuất.');
+}
+async function v7SaveChapter(){
+  syncDraft(); v7Ensure(); v8Ensure(); const text=db.draft.manual.trim(); if(!text){status('Chưa có nội dung để lưu chương.',true);return}
+  const check=v7RunChecks(); if(check.issues.length&&!confirm('Preflight còn lỗi:\n\n• '+check.issues.map(x=>x.text).join('\n• ')+'\n\nBạn vẫn muốn lưu?'))return;
+  const title=db.draft.title||`Chương ${db.chapters.length+1}`; let c=db.draft.currentChapterId?db.chapters.find(x=>x.id===db.draft.currentChapterId):null; const isUpdate=!!c;
+  if(!c){c={id:crypto.randomUUID(),title,createdAt:new Date().toLocaleString('vi-VN'),goal:'',outline:'',scenes:'',text:'',wordCount:0};db.chapters.push(c)}
+  c.title=title;c.goal=db.draft.goal;c.outline=db.draft.outline;c.scenes=db.draft.scenes;c.text=text;c.wordCount=v6Words(text);c.updatedAt=new Date().toLocaleString('vi-VN');v7SnapshotBeforeSave(c);
+  $('output').textContent=text;
+  // Khi cập nhật chương, thay thế memory tự động của chính chương đó; không nhân bản dữ liệu.
+  db.memory=(db.memory||[]).filter(m=>!(m.auto===true&&m.source===title));
+  status('Đang tự đọc lại chương và soạn đề xuất continuity...');
+  let proposal=null;
+  try{
+    const m=await ai('extract-memory',{chapter:text,title});
+    let x=null; try{x=JSON.parse(m.text)}catch{x=null}
+    if(x){ db.memory.push(...(x.memory||[]).map(mm=>({...mm,source:mm.source||title,auto:true}))); proposal=v8BuildProposal(title,c.id,x); }
+    else db.memory.push({type:'CHAPTER_SUMMARY',text:m.text,source:title,auto:true});
+  }catch{ db.memory.push({type:'SUMMARY',text:'Chương đã lưu; chưa tạo được đề xuất continuity do AI lỗi.',source:title,auto:true}); }
+  const sc=db.draft.sceneContract||{};
+  db.sceneObjects=(db.sceneObjects||[]).filter(x=>x.chapter!==c.title);
+  db.sceneObjects.push({id:crypto.randomUUID(),chapter:c.title,title:c.title,pov:sc.pov||'',setting:sc.setting||'',goal:sc.goal||c.goal||'',conflict:sc.conflict||'',reveal:sc.reveal||'',turn:sc.turn||'',text:c.text.slice(-5000),createdAt:new Date().toISOString()});
+  db.characterStates=(db.characterStates||[]).filter(x=>x.chapter!==c.title);
+  for(const ch of db.characters||[]) db.characterStates.push({id:crypto.randomUUID(),name:ch.name,chapter:c.title,emotion:'',knowledge:ch.knowledge||'',relationships:ch.relationships||'',status:ch.state||'',createdAt:new Date().toISOString()});
+  db.draft.currentChapterId=c.id; db.draft.proposal=''; $('aiProposal').value='';
+  const hasProposal=proposal&&(proposal.characterUpdates.length||proposal.canonUpdates.length||proposal.timelineEvents.length||proposal.threadUpdates.length);
+  db.v8.pendingReview=hasProposal?proposal:null;
+  v7Save(); render(false);renderThreads();refreshSceneSelect();v7RenderVersions();v8RenderReview();saveInternalBackup();
+  if(hasProposal){ nav('review'); v7OpenPageHook(); status(isUpdate?'Đã cập nhật chương. Có đề xuất continuity đang chờ bạn duyệt ở trang "Duyệt thay đổi".':'Đã lưu chương. Có đề xuất continuity đang chờ bạn duyệt ở trang "Duyệt thay đổi".'); }
+  else status(isUpdate?'Đã cập nhật chương + tạo version. AI không đề xuất thay đổi continuity nào.':'Đã lưu chương + tạo version. AI không đề xuất thay đổi continuity nào.');
+}
+function v7LoadChapter(i){const c=db.chapters[i];if(!c)return;db.draft.currentChapterId=c.id;db.draft.title=c.title;db.draft.goal=c.goal||'';db.draft.outline=c.outline||'';db.draft.manual=c.text;db.draft.proposal='';db.draft.scenes=c.scenes||'';setDraftInputs();$('output').textContent=c.text;nav('chapters');tab('write',document.querySelector('.tabs button'));status(`Đã mở ${c.title} để chỉnh sửa; lần lưu tiếp theo sẽ tạo version.`);}
+// V7 owns the save/load chapter behavior.
+saveChapter=v7SaveChapter; loadChapter=v7LoadChapter;
+// Prevent old V6 save hook from being called through the button.
+function v7OpenPageHook(){v7Ensure();v8Ensure();v6OpenPageHook();if($('v7ArcList'))v7RenderArcs();if($('v7VersionList'))v7RenderVersions();if($('v7FsList'))v7RenderForeshadowing();if($('v8ReviewBox'))v8RenderReview();v8UpdateBadge();v8BackupReminder();}
+
+function init(){
+  v6Ensure(); v7Ensure(); v8Ensure();
+  const key=localStorage.getItem("muses_api_key")||localStorage.getItem("muses_v5_api_key")||localStorage.getItem("muses_v6_api_key")||localStorage.getItem("muses_v3_api_key"); if(key)$("apiKey").value=key;
+  db.settings=db.settings||{genre:"",narrative:"",styleGuide:"Tiếng Việt tự nhiên, giàu hình ảnh vừa đủ, tránh văn dịch.",writingRules:"Giữ canon, xưng hô và POV nhất quán."};
+  ["genre","narrative","styleGuide","writingRules"].forEach(id=>{if($(id))$(id).value=db.settings[id]||""});
+  bindDraft(); render(); renderThreads(); refreshSceneSelect(); loadSceneContract(); nav("dashboard"); v7OpenPageHook();
+  refreshProjectSwitcherUI(); v8RenderAutoBackupList();
+  $("projectSwitcher")?.addEventListener("change",e=>switchProject(e.target.value));
+  setInterval(()=>{maybeAutoBackup();v8BackupReminder();},5*60*1000);
+}
+(async()=>{
+  status("Đang tải dự án từ IndexedDB...");
+  try{ await bootstrapDB(); }catch(e){ console.error(e); status("Không mở được IndexedDB; kiểm tra quyền lưu trữ của trình duyệt.",true); }
+  init();
+})();
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".nav button"); if(b){setTimeout(v7OpenPageHook,0);}
+});
+</script>
+</body></html>
