@@ -81,7 +81,7 @@
 <div id="twrite">
   <div class="card"><h2>Chương mới</h2><div class="grid"><label class="label"><span>Tiêu đề</span><input id="ctitle"></label><label class="label"><span>Độ dài mục tiêu</span><input id="words" type="number" min="300" max="30000" value="5000"></label></div><label class="label"><span>Mục tiêu chương</span><textarea id="goal"></textarea></label>
   <div class="hint">⚡ Cách nhanh nhất: chỉ cần điền <b>Mục tiêu chương</b> rồi bấm nút dưới đây — AI tự lập outline, tự lên 1–3 scene, tự điền Scene Contract, rồi viết luôn bản thảo đầy đủ vào ô nội dung. Bạn chỉ cần đọc/sửa rồi bấm "Lưu chương".</div>
-  <div class="actions"><button class="primary" style="flex:2 1 0;font-size:16px;padding:14px" onclick="v8AutoWriteChapter()">⚡ Viết truyện (Tự động)</button><button class="danger" style="flex:1 1 0;font-size:16px;padding:14px" onclick="stopAI()">⏹️ Dừng</button></div>
+  <label class="hint small" style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="fastMode" checked style="width:auto"> ⚡ Chế độ nhanh: bỏ bước outline riêng, dùng thẳng Scene Plan (ít hơn 1 lượt gọi AI)</label><div class="actions"><button class="primary" style="flex:2 1 0;font-size:16px;padding:14px" onclick="v8AutoWriteChapter()">⚡ Viết truyện (Tự động)</button><button class="danger" style="flex:1 1 0;font-size:16px;padding:14px" onclick="stopAI()">⏹️ Dừng</button></div>
   <details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Làm từng bước thủ công thay vì tự động</summary>
   <label class="label"><span>Outline đã duyệt / chỉnh sửa</span><textarea id="outline"></textarea></label><div class="actions"><button onclick="makeOutline()">🧠 Lập outline</button><button onclick="makeScenes()">🎬 Scene Planner</button></div>
   </details></div>
@@ -384,12 +384,15 @@ let currentAbort=null;
 function stopAI(){if(currentAbort){try{currentAbort.abort()}catch{}status("Đã dừng theo yêu cầu.",true)}}
 async function ai(action,data={},onDelta){const key=localStorage.getItem("muses_api_key")||localStorage.getItem("muses_v6_api_key")||localStorage.getItem("muses_v5_api_key")||localStorage.getItem("muses_v3_api_key");if(!key){nav("settings");status("Chưa có OpenRouter API key. Nhập key trong Cài đặt.",true);throw Error("Chưa có API key")};
   const t0=performance.now();status("AI đang xử lý...");
-  const body={action,model:db.settings.model,context:ctx([data.title,data.goal,data.outline,data.manual,data.chapter,data.scene,data.instruction].filter(Boolean).join("\n")),...data};
+  const LIGHT=["outline","scene-plan","scene-plan-json"];
+  const ctxQ=[data.title,data.goal,data.outline,data.manual,data.chapter,data.scene,data.instruction].filter(Boolean).join("\n");
+  const body={action,model:db.settings.model,context:LIGHT.includes(action)?ctxLight(ctxQ):ctx(ctxQ),...data};
   const wantsStream=typeof onDelta==="function";
-  const maxTok=Math.max(700,Math.min(8000,Math.round((Number(data.words)||1400)*2.4)));
+  const CAPS={"outline":1800,"scene-plan":1500,"scene-plan-json":1400,"suggest-next":2200,"continuity":2000,"extract-memory":2500};
+  const maxTok=CAPS[action]||Math.max(700,Math.min(16000,Math.round((Number(data.words)||1400)*2.4)));
   const ac=new AbortController();currentAbort=ac;
   try{
-    const r=await fetch(db.settings.endpoint,{method:"POST",signal:ac.signal,headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json","HTTP-Referer":location.href,"X-Title":"Muses V3"},body:JSON.stringify({model:body.model,stream:wantsStream,max_tokens:maxTok,messages:[{role:"system",content:SYSTEM},{role:"user",content:promptFor(body)}],temperature:action==="write"?0.82:0.55})});
+    const r=await fetch(db.settings.endpoint,{method:"POST",signal:ac.signal,headers:{"Authorization":`Bearer ${key}`,"Content-Type":"application/json","HTTP-Referer":location.href,"X-Title":"Muses V3"},body:JSON.stringify({model:body.model,stream:wantsStream,max_tokens:maxTok,provider:{sort:"throughput"},messages:[{role:"system",content:SYSTEM},{role:"user",content:promptFor(body)}],temperature:action==="write"?0.82:0.55})});
     if(!wantsStream){
       const j=await r.json();if(!r.ok)throw Error(j?.error?.message||`OpenRouter HTTP ${r.status}`);
       status(`AI hoàn thành (${((performance.now()-t0)/1000).toFixed(1)}s).`);
@@ -431,11 +434,14 @@ async function v8AutoWriteChapter(){
   if(!db.draft.goal.trim()){status('Nhập Mục tiêu chương trước khi bấm Viết truyện (Tự động).',true);return}
   if(!db.draft.title.trim()){db.draft.title=`Chương ${db.chapters.length+1}`;$('ctitle').value=db.draft.title;}
   try{
-    status('Bước 1/3 — Đang lập outline...');
-    const jo=await ai('outline',{title:db.draft.title,goal:db.draft.goal,words:db.draft.words});
-    db.draft.outline=jo.text||''; $('outline').value=db.draft.outline; persist();
+    const fast=$('fastMode')?.checked;
+    if(!fast){
+      status('Bước 1/3 — Đang lập outline...');
+      const jo=await ai('outline',{title:db.draft.title,goal:db.draft.goal,words:db.draft.words});
+      db.draft.outline=jo.text||''; $('outline').value=db.draft.outline; persist();
+    } else { db.draft.outline=''; $('outline').value=''; }
 
-    status('Bước 2/3 — Đang lên Scene Plan...');
+    status(fast?'Bước 1/2 — Đang lên Scene Plan...':'Bước 2/3 — Đang lên Scene Plan...');
     const js=await ai('scene-plan-json',{title:db.draft.title,goal:db.draft.goal,outline:db.draft.outline,words:db.draft.words});
     let scenes=[];
     try{const parsed=JSON.parse((js.text||'').replace(/```json|```/g,'').trim());scenes=(parsed.scenes||[]).filter(Boolean).slice(0,3)}catch{scenes=[]}
@@ -456,7 +462,8 @@ async function v8AutoWriteChapter(){
     };
     loadSceneContract();
 
-    status(`Bước 3/3 — Đang viết chương (${scenes.length} scene)...`);
+    if(fast){ db.draft.outline=db.draft.scenes; $('outline').value=db.draft.outline; }
+    status(`Bước ${fast?'2/2':'3/3'} — Đang viết chương (${scenes.length} scene)...`);
     const scenesPlanText=scenes.map((s,i)=>`Scene ${i+1}: POV ${s.pov||'?'}; Bối cảnh ${s.setting||'?'}; Mục tiêu ${s.goal||'?'}; Xung đột ${s.conflict||'?'}; Reveal ${s.reveal||'?'}; Turn ${s.turn||'?'}; Tóm tắt: ${s.summary||''}`).join('\n');
     const onDelta=(t)=>{$('aiProposal').value=t;updateMeters()};
     const jw=await ai('write',{title:db.draft.title,goal:db.draft.goal,outline:(db.draft.outline||'')+'\n\nSCENE PLAN CHI TIẾT (bám sát, không tự thêm scene khác):\n'+scenesPlanText,words:db.draft.words,manual:''},onDelta);
@@ -721,7 +728,9 @@ function v6ContextForAI(data={}){
 }
 /* Override context provider used by the existing AI functions. */
 function contextText(extra=""){return v6SmartContext(extra);}
-function ctx(extra=""){return JSON.stringify(v6SmartContext(extra),null,2);}
+function ctx(extra=""){return JSON.stringify(v6SmartContext(extra));}
+/* Context gọn cho các bước lập kế hoạch (outline / scene plan): ít token hơn => phản hồi nhanh hơn. */
+function ctxLight(extra=""){const c=v6SmartContext(extra);c.recentChapters=(c.recentChapters||[]).slice(-1).map(x=>({...x,text:String(x.text||"").slice(-2500)}));c.memory=(c.memory||[]).slice(0,10);c.scenes=(c.scenes||[]).slice(0,4);c.characterStates=(c.characterStates||[]).slice(0,8);return JSON.stringify(c);}
 
 /* V6 save hook: preserve old behavior, then record state/scene objects. */
 const _v6_oldSaveChapter = saveChapter;
@@ -904,25 +913,28 @@ async function v7SaveChapter(){
   $('output').textContent=text;
   // Khi cập nhật chương, thay thế memory tự động của chính chương đó; không nhân bản dữ liệu.
   db.memory=(db.memory||[]).filter(m=>!(m.auto===true&&m.source===title));
-  status('Đang tự đọc lại chương và soạn đề xuất continuity...');
-  let proposal=null;
-  try{
-    const m=await ai('extract-memory',{chapter:text,title});
-    let x=null; try{x=JSON.parse(m.text)}catch{x=null}
-    if(x){ db.memory.push(...(x.memory||[]).map(mm=>({...mm,source:mm.source||title,auto:true}))); proposal=v8BuildProposal(title,c.id,x); }
-    else db.memory.push({type:'CHAPTER_SUMMARY',text:m.text,source:title,auto:true});
-  }catch{ db.memory.push({type:'SUMMARY',text:'Chương đã lưu; chưa tạo được đề xuất continuity do AI lỗi.',source:title,auto:true}); }
   const sc=db.draft.sceneContract||{};
   db.sceneObjects=(db.sceneObjects||[]).filter(x=>x.chapter!==c.title);
   db.sceneObjects.push({id:crypto.randomUUID(),chapter:c.title,title:c.title,pov:sc.pov||'',setting:sc.setting||'',goal:sc.goal||c.goal||'',conflict:sc.conflict||'',reveal:sc.reveal||'',turn:sc.turn||'',text:c.text.slice(-5000),createdAt:new Date().toISOString()});
   db.characterStates=(db.characterStates||[]).filter(x=>x.chapter!==c.title);
   for(const ch of db.characters||[]) db.characterStates.push({id:crypto.randomUUID(),name:ch.name,chapter:c.title,emotion:'',knowledge:ch.knowledge||'',relationships:ch.relationships||'',status:ch.state||'',createdAt:new Date().toISOString()});
   db.draft.currentChapterId=c.id; db.draft.proposal=''; $('aiProposal').value='';
-  const hasProposal=proposal&&(proposal.characterUpdates.length||proposal.canonUpdates.length||proposal.timelineEvents.length||proposal.threadUpdates.length);
-  db.v8.pendingReview=hasProposal?proposal:null;
   v7Save(); render(false);renderThreads();refreshSceneSelect();v7RenderVersions();v8RenderReview();saveInternalBackup();
-  if(hasProposal){ nav('review'); v7OpenPageHook(); status(isUpdate?'Đã cập nhật chương. Có đề xuất continuity đang chờ bạn duyệt ở trang "Duyệt thay đổi".':'Đã lưu chương. Có đề xuất continuity đang chờ bạn duyệt ở trang "Duyệt thay đổi".'); }
-  else status(isUpdate?'Đã cập nhật chương + tạo version. AI không đề xuất thay đổi continuity nào.':'Đã lưu chương + tạo version. AI không đề xuất thay đổi continuity nào.');
+  status((isUpdate?'Đã cập nhật chương + tạo version.':'Đã lưu chương + tạo version.')+' AI đang soạn đề xuất continuity ở nền, bạn cứ viết tiếp...');
+  v8ExtractInBackground(text,title,c.id,isUpdate); // KHÔNG await: không chặn thao tác của bạn
+}
+async function v8ExtractInBackground(text,title,chapterId,isUpdate){
+  let proposal=null;
+  try{
+    const m=await ai('extract-memory',{chapter:text,title});
+    let x=null; try{x=JSON.parse(String(m.text||'').replace(/```json|```/g,'').trim())}catch{x=null}
+    if(x){ db.memory.push(...(x.memory||[]).map(mm=>({...mm,source:mm.source||title,auto:true}))); proposal=v8BuildProposal(title,chapterId,x); }
+    else db.memory.push({type:'CHAPTER_SUMMARY',text:m.text,source:title,auto:true});
+  }catch(e){ if(!(e&&e.aborted)) db.memory.push({type:'SUMMARY',text:'Chương đã lưu; chưa tạo được đề xuất continuity do AI lỗi.',source:title,auto:true}); }
+  const hasProposal=proposal&&(proposal.characterUpdates.length||proposal.canonUpdates.length||proposal.timelineEvents.length||proposal.threadUpdates.length);
+  v8Ensure(); db.v8.pendingReview=hasProposal?proposal:db.v8.pendingReview;
+  v7Save(); v8RenderReview(); v8UpdateBadge();
+  status(hasProposal?'Có đề xuất continuity mới đang chờ bạn duyệt ở trang "Duyệt thay đổi" (xem badge ở menu).':'Phân tích continuity xong: AI không đề xuất thay đổi nào.');
 }
 function v7LoadChapter(i){const c=db.chapters[i];if(!c)return;db.draft.currentChapterId=c.id;db.draft.title=c.title;db.draft.goal=c.goal||'';db.draft.outline=c.outline||'';db.draft.manual=c.text;db.draft.proposal='';db.draft.scenes=c.scenes||'';setDraftInputs();$('output').textContent=c.text;nav('chapters');tab('write',document.querySelector('.tabs button'));status(`Đã mở ${c.title} để chỉnh sửa; lần lưu tiếp theo sẽ tạo version.`);}
 // V7 owns the save/load chapter behavior.
