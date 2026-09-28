@@ -123,7 +123,7 @@
   <div class="top"><div><h1>🔎 Duyệt Thay Đổi Continuity</h1><div class="muted" id="v8ReviewMeta">Không có đề xuất nào đang chờ.</div></div>
   <div class="actions"><button class="primary" onclick="v8ApplyReview()">✅ Áp dụng mục đã chọn</button><button class="danger" onclick="v8DiscardReview()">🗑️ Bỏ qua toàn bộ</button></div></div>
   <div class="hint">Sau khi bạn lưu chương, AI tự đọc lại chương vừa lưu và đề xuất cập nhật <b>Character State</b>, <b>Canon</b>, <b>Timeline</b> và <b>Plot Thread</b> ở đây. Không có gì được ghi vào dữ liệu chính thức cho tới khi bạn bấm "Áp dụng mục đã chọn". Mục có dấu ⚠ nghĩa là mâu thuẫn với một canon node đã khóa 🔒 — kiểm tra kỹ trước khi duyệt.</div>
-  <div id="v8ReviewBox"><div class="muted">Không có đề xuất nào đang chờ duyệt.</div></div>
+  <div class="actions" style="margin-bottom:8px"><button class="primary" onclick="v8ReanalyzeLast()">🔄 Phân tích lại chương gần nhất</button></div><div id="v8ExtractInfo"></div><div id="v8ReviewBox"><div class="muted">Không có đề xuất nào đang chờ duyệt.</div></div>
 </section>
 
 
@@ -389,7 +389,7 @@ async function ai(action,data={},onDelta){const key=localStorage.getItem("muses_
   const ctxQ=[data.title,data.goal,data.outline,data.manual,data.chapter,data.scene,data.instruction].filter(Boolean).join("\n");
   const body={action,model:db.settings.model,context:LIGHT.includes(action)?ctxLight(ctxQ):ctx(ctxQ),...data};
   const wantsStream=typeof onDelta==="function";
-  const CAPS={"outline":1800,"scene-plan":1500,"scene-plan-json":1400,"suggest-next":2200,"continuity":2000,"extract-memory":4500};
+  const CAPS={"outline":1800,"scene-plan":1500,"scene-plan-json":1400,"suggest-next":2200,"continuity":2000,"extract-memory":8000};
   const maxTok=CAPS[action]||Math.max(700,Math.min(16000,Math.round((Number(data.words)||1400)*2.4)));
   const ac=new AbortController();currentAbort=ac;
   try{
@@ -423,7 +423,7 @@ function projectStyle(){return `THỂ LOẠI: ${db.settings.genre||""}
 NGÔI KỂ/THÌ: ${db.settings.narrative||""}
 GIỌNG VĂN: ${db.settings.styleGuide||"Tiếng Việt tự nhiên, giàu hình ảnh vừa đủ, không văn dịch."}
 NGUYÊN TẮC BẮT BUỘC: ${db.settings.writingRules||""}`;}
-function promptFor(b){const c=(b.context||"")+`\\n\\nGHI CHÚ DỰ ÁN (coi là một phần cốt truyện/canon nếu không mâu thuẫn dữ liệu khác):\\n${db.project.notes||"(không có)"}`+`\\n\\nSTYLE CONTRACT:\\n${projectStyle()}`;if(b.action==="suggest-next")return `Phân tích truyện và tạo 3 hướng khác nhau cho chương kế tiếp. Mỗi hướng gồm: tiêu đề tạm, mục tiêu, 5-7 diễn biến, nhân vật, plot thread/foreshadowing liên quan, cliffhanger và rủi ro continuity. Không chọn thay người dùng.\nDỮ LIỆU:\n${c}`;if(b.action==="outline")return `Lập outline chi tiết cho chương "${b.title||""}". Mục tiêu: ${b.goal||""}. Độ dài: ${b.words||5000}. Chia scene; mỗi scene có mục tiêu, POV, nhân vật, xung đột, thông tin mới, điểm chuyển và kết thúc. Không phá continuity.\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan-json")return `Từ mục tiêu chương và outline sau, lập kế hoạch scene NGẮN GỌN cho một chương: tự quyết định số lượng scene hợp lý (tối thiểu 1, tối đa 3 — không chia vụn nếu mục tiêu đơn giản). Với mỗi scene xác định: POV (ưu tiên khớp tên nhân vật đã có trong Bible/Context), Bối cảnh (địa điểm + thời gian), Mục tiêu scene, Xung đột, Reveal (thông tin mới hé lộ), Turning point/hook kết scene, và một câu tóm tắt ngắn. CHỈ trả về JSON hợp lệ DUY NHẤT, không kèm giải thích, không kèm markdown fence, đúng schema: {"scenes":[{"pov":"","setting":"","goal":"","conflict":"","reveal":"","turn":"","summary":""}]}.\nMỤC TIÊU CHƯƠNG: ${b.goal||""}\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan")return `Từ outline sau, thiết kế Scene Planner: thứ tự scene, mục tiêu, POV, nhân vật, địa điểm, conflict, turning point, kết thúc scene. Không viết văn xuôi.\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="write")return `Tạo một bản đề xuất văn xuôi cho chương "${b.title||""}" khoảng ${b.words||5000} từ. Mục tiêu: ${b.goal||""}. Outline: ${b.outline||""}. Nội dung thủ công/người dùng cung cấp (nếu có) là chỉ dẫn ưu tiên: ${b.manual||""}. Dữ liệu continuity: ${c}`;if(b.action==="scene-write")return `Viết riêng scene sau thành văn xuôi hoàn chỉnh. Giữ nguyên canon, POV, tense, character knowledge và mục tiêu scene. Không tự thêm lore trái Bible. Chỉ trả văn xuôi.\nCHAPTER: ${b.title||""}\nOUTLINE: ${b.outline||""}\nSCENE: ${b.scene||""}\nCONTEXT:\n${c}`;if(b.action==="revise")return `Chỉnh sửa bản thảo theo yêu cầu nhưng KHÔNG thay đổi sự kiện canon, nhân vật, timeline hoặc POV nếu yêu cầu không nói rõ. Chỉ trả bản văn đã sửa.\nYÊU CẦU: ${b.instruction||""}\nBẢN THẢO:\n${b.chapter||""}\nCONTEXT:\n${c}`;if(b.action==="continuity")return `Đóng vai continuity editor. Kiểm tra 5 chương gần nhất và Bible. Tìm: nhân vật biết sai, tuổi/ngoại hình sai, địa điểm/thời gian mâu thuẫn, vật phẩm sai, năng lực sai, quan hệ sai, plot/foreshadowing mâu thuẫn. Phân loại CRITICAL/WARNING/OK và nêu bằng chứng cụ thể. Không tự sửa canon.\n${c}`;if(b.action==="extract-memory")return `Đọc kỹ chương vừa viết và đề xuất các thay đổi CANON thật sự đã xảy ra trong chương (không suy đoán, không đề xuất điều chưa xảy ra). Đây CHỈ LÀ ĐỀ XUẤT để tác giả tự duyệt, chưa phải canon chính thức — không tự quyết định thay tác giả. Trả về JSON hợp lệ DUY NHẤT, đúng schema sau, mảng nào không có thay đổi thì để rỗng:\n{"memory":[{"type":"EVENT|RELATIONSHIP|KNOWLEDGE|STATE|ITEM|PLOT|FORESHADOWING|SUMMARY","text":"...","source":"${b.title||"chapter"}"}],"character_updates":[{"name":"Tên nhân vật (đã có trong Bible hoặc mới xuất hiện)","state":"trạng thái mới nếu đổi","knowledge":"kiến thức mới nếu đổi","relationships":"quan hệ mới nếu đổi"}],"canon_updates":[{"op":"add|update|retire","name":"Tên node canon","type":"CHARACTER|LOCATION|ITEM|EVENT|FACTION|LORE|SECRET","text":"sự thật canon ngắn gọn, cụ thể"}],"timeline_events":[{"date":"mốc thời gian trong truyện nếu có","title":"tên sự kiện","detail":"chi tiết ngắn"}],"thread_updates":[{"title":"tên plot thread đã có hoặc mới","progress":"tiến triển mới trong chương này","status":"OPEN|RESOLVED"}],"next_chapter_suggestions":"chuỗi văn bản: 3 hướng KHÁC NHAU cho chương kế tiếp, mỗi hướng gồm tiêu đề tạm, mục tiêu, 4-5 diễn biến, plot thread/foreshadowing liên quan, cliffhanger, rủi ro continuity. Dùng ký tự \\n để xuống dòng, KHÔNG dùng dấu nháy kép bên trong chuỗi này"}\nCHƯƠNG:\n${b.chapter||""}\n\nDỮ LIỆU (chỉ để bám continuity khi viết next_chapter_suggestions):\n${c}`;return ""}
+function promptFor(b){const c=(b.context||"")+`\\n\\nGHI CHÚ DỰ ÁN (coi là một phần cốt truyện/canon nếu không mâu thuẫn dữ liệu khác):\\n${db.project.notes||"(không có)"}`+`\\n\\nSTYLE CONTRACT:\\n${projectStyle()}`;if(b.action==="suggest-next")return `Phân tích truyện và tạo 3 hướng khác nhau cho chương kế tiếp. Mỗi hướng gồm: tiêu đề tạm, mục tiêu, 5-7 diễn biến, nhân vật, plot thread/foreshadowing liên quan, cliffhanger và rủi ro continuity. Không chọn thay người dùng.\nDỮ LIỆU:\n${c}`;if(b.action==="outline")return `Lập outline chi tiết cho chương "${b.title||""}". Mục tiêu: ${b.goal||""}. Độ dài: ${b.words||5000}. Chia scene; mỗi scene có mục tiêu, POV, nhân vật, xung đột, thông tin mới, điểm chuyển và kết thúc. Không phá continuity.\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan-json")return `Từ mục tiêu chương và outline sau, lập kế hoạch scene NGẮN GỌN cho một chương: tự quyết định số lượng scene hợp lý (tối thiểu 1, tối đa 3 — không chia vụn nếu mục tiêu đơn giản). Với mỗi scene xác định: POV (ưu tiên khớp tên nhân vật đã có trong Bible/Context), Bối cảnh (địa điểm + thời gian), Mục tiêu scene, Xung đột, Reveal (thông tin mới hé lộ), Turning point/hook kết scene, và một câu tóm tắt ngắn. CHỈ trả về JSON hợp lệ DUY NHẤT, không kèm giải thích, không kèm markdown fence, đúng schema: {"scenes":[{"pov":"","setting":"","goal":"","conflict":"","reveal":"","turn":"","summary":""}]}.\nMỤC TIÊU CHƯƠNG: ${b.goal||""}\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="scene-plan")return `Từ outline sau, thiết kế Scene Planner: thứ tự scene, mục tiêu, POV, nhân vật, địa điểm, conflict, turning point, kết thúc scene. Không viết văn xuôi.\nOUTLINE:\n${b.outline||""}\nDỮ LIỆU:\n${c}`;if(b.action==="write")return `Tạo một bản đề xuất văn xuôi cho chương "${b.title||""}" khoảng ${b.words||5000} từ. Mục tiêu: ${b.goal||""}. Outline: ${b.outline||""}. Nội dung thủ công/người dùng cung cấp (nếu có) là chỉ dẫn ưu tiên: ${b.manual||""}. Dữ liệu continuity: ${c}`;if(b.action==="scene-write")return `Viết riêng scene sau thành văn xuôi hoàn chỉnh. Giữ nguyên canon, POV, tense, character knowledge và mục tiêu scene. Không tự thêm lore trái Bible. Chỉ trả văn xuôi.\nCHAPTER: ${b.title||""}\nOUTLINE: ${b.outline||""}\nSCENE: ${b.scene||""}\nCONTEXT:\n${c}`;if(b.action==="revise")return `Chỉnh sửa bản thảo theo yêu cầu nhưng KHÔNG thay đổi sự kiện canon, nhân vật, timeline hoặc POV nếu yêu cầu không nói rõ. Chỉ trả bản văn đã sửa.\nYÊU CẦU: ${b.instruction||""}\nBẢN THẢO:\n${b.chapter||""}\nCONTEXT:\n${c}`;if(b.action==="continuity")return `Đóng vai continuity editor. Kiểm tra 5 chương gần nhất và Bible. Tìm: nhân vật biết sai, tuổi/ngoại hình sai, địa điểm/thời gian mâu thuẫn, vật phẩm sai, năng lực sai, quan hệ sai, plot/foreshadowing mâu thuẫn. Phân loại CRITICAL/WARNING/OK và nêu bằng chứng cụ thể. Không tự sửa canon.\n${c}`;if(b.action==="extract-memory")return `Đọc kỹ chương vừa viết và đề xuất các thay đổi CANON thật sự đã xảy ra trong chương (không suy đoán, không đề xuất điều chưa xảy ra). Đây CHỈ LÀ ĐỀ XUẤT để tác giả tự duyệt, chưa phải canon chính thức — không tự quyết định thay tác giả. Trả về JSON hợp lệ DUY NHẤT, đúng schema sau, mảng nào không có thay đổi thì để rỗng:\n{"memory":[{"type":"EVENT|RELATIONSHIP|KNOWLEDGE|STATE|ITEM|PLOT|FORESHADOWING|SUMMARY","text":"...","source":"${b.title||"chapter"}"}],"character_updates":[{"name":"Tên nhân vật (đã có trong Bible hoặc mới xuất hiện)","state":"trạng thái mới nếu đổi","knowledge":"kiến thức mới nếu đổi","relationships":"quan hệ mới nếu đổi"}],"canon_updates":[{"op":"add|update|retire","name":"Tên node canon","type":"CHARACTER|LOCATION|ITEM|EVENT|FACTION|LORE|SECRET","text":"sự thật canon ngắn gọn, cụ thể"}],"timeline_events":[{"date":"mốc thời gian trong truyện nếu có","title":"tên sự kiện","detail":"chi tiết ngắn"}],"thread_updates":[{"title":"tên plot thread đã có hoặc mới","progress":"tiến triển mới trong chương này","status":"OPEN|RESOLVED"}]}\nSAU KHỐI JSON, xuống dòng và viết đúng dấu phân cách ###GOI_Y### rồi viết văn bản thường (KHÔNG phải JSON): 3 hướng KHÁC NHAU cho chương kế tiếp, mỗi hướng gồm tiêu đề tạm, mục tiêu, 4-5 diễn biến, plot thread/foreshadowing liên quan, cliffhanger, rủi ro continuity. Không thêm giải thích nào khác ngoài JSON và phần gợi ý.\nCHƯƠNG:\n${b.chapter||""}\n\nDỮ LIỆU (để bám continuity):\n${c}`;return ""}
 async function suggest(){try{const j=await ai("suggest-next");$("nextText").value=j.text||"";db.nextSuggestion=$("nextText").value;debouncedSaveDraft()}catch{}}
 function approveNext(){db.nextSuggestion=$("nextText").value;db.draft.goal=db.nextSuggestion;persist();$("goal").value=db.draft.goal;status("Đã đưa gợi ý vào mục tiêu chương. Bạn vẫn có thể sửa.");tab("write",document.querySelector(".tabs button"))}
 function clearNext(){$("nextText").value="";db.nextSuggestion="";persist();status("Đã xóa gợi ý chương sau.")}
@@ -844,6 +844,7 @@ function v8BuildProposal(title,chapterId,x){
 function v8RenderReview(){
   v8Ensure();
   const box=$('v8ReviewBox'), meta=$('v8ReviewMeta'); if(!box)return;
+  const le=db.v8.lastExtract, info=$('v8ExtractInfo'); if(info)info.innerHTML=le?(le.err?`<div class="v7issue">⚠ Lần phân tích gần nhất (${esc(le.title)}, ${esc(le.at)}) THẤT BẠI: ${esc(le.err)}</div>`:`<div class="hint small">Lần phân tích gần nhất: ${esc(le.title)}, ${esc(le.at)} — thành công.</div>`):'';
   const p=db.v8.pendingReview;
   if(!p){box.innerHTML="<div class='muted'>Không có đề xuất nào đang chờ duyệt.</div>";if(meta)meta.textContent='Không có đề xuất nào đang chờ.';v8UpdateBadge();return}
   if(meta)meta.textContent=`Chương: ${p.chapterTitle} · AI tạo lúc ${p.createdAt}`;
@@ -924,20 +925,49 @@ async function v7SaveChapter(){
   status((isUpdate?'Đã cập nhật chương + tạo version.':'Đã lưu chương + tạo version.')+' AI đang soạn đề xuất continuity ở nền, bạn cứ viết tiếp...');
   v8ExtractInBackground(text,title,c.id,isUpdate); // KHÔNG await: không chặn thao tác của bạn
 }
+function v8RepairJSON(str){
+  let out='',stack=[],inStr=false,esc=false;
+  for(const ch of str){
+    out+=ch;
+    if(inStr){ if(esc)esc=false; else if(ch==='\\')esc=true; else if(ch==='"')inStr=false; continue }
+    if(ch==='"')inStr=true; else if(ch==='{')stack.push('}'); else if(ch==='[')stack.push(']'); else if(ch==='}'||ch===']')stack.pop();
+  }
+  if(inStr)out+='"';
+  out=out.replace(/[,:\s]+$/,'');
+  return out+stack.reverse().join('');
+}
+function v8ParseExtract(raw){
+  raw=String(raw||''); let head=raw, tail='';
+  const k=raw.indexOf('###GOI_Y###'); if(k>=0){head=raw.slice(0,k); tail=raw.slice(k+11).trim();}
+  head=head.replace(/```json|```/g,'').trim();
+  const a=head.indexOf('{'); if(a<0)return {x:null,tail,why:'AI không trả về JSON.'};
+  const b=head.lastIndexOf('}'); const body=b>a?head.slice(a,b+1):head.slice(a);
+  try{return {x:JSON.parse(body),tail}}catch{}
+  let t=head.slice(a);
+  for(let n=0;n<60&&t;n++){ try{return {x:JSON.parse(v8RepairJSON(t)),tail,repaired:true}}catch{} const k2=t.lastIndexOf(','); if(k2<0)break; t=t.slice(0,k2); }
+  return {x:null,tail,why:'JSON bị lỗi/cắt cụt.'}
+}
 async function v8ExtractInBackground(text,title,chapterId,isUpdate){
-  let proposal=null,gotNext=false;
+  let proposal=null,gotNext=false,err='';
+  db.memory=(db.memory||[]).filter(m=>!(m.auto===true&&m.source===title));
   try{
     const m=await ai('extract-memory',{chapter:text,title});
-    let x=null; try{x=JSON.parse(String(m.text||'').replace(/```json|```/g,'').trim())}catch{x=null}
-    if(x){ db.memory.push(...(x.memory||[]).map(mm=>({...mm,source:mm.source||title,auto:true}))); proposal=v8BuildProposal(title,chapterId,x);
-      const ns=typeof x.next_chapter_suggestions==='string'?x.next_chapter_suggestions:(Array.isArray(x.next_chapter_suggestions)?x.next_chapter_suggestions.map(v=>typeof v==='string'?v:JSON.stringify(v)).join('\n\n'):'');
-      if(ns.trim()){ db.nextSuggestion=ns.replace(/\\n/g,'\n').trim(); const nt=$('nextText'); if(nt)nt.value=db.nextSuggestion; gotNext=true; } }
-    else db.memory.push({type:'CHAPTER_SUMMARY',text:m.text,source:title,auto:true});
-  }catch(e){ if(!(e&&e.aborted)) db.memory.push({type:'SUMMARY',text:'Chương đã lưu; chưa tạo được đề xuất continuity do AI lỗi.',source:title,auto:true}); }
+    const r=v8ParseExtract(m.text);
+    if(r.x){ const x=r.x; db.memory.push(...(x.memory||[]).map(mm=>({...mm,source:mm.source||title,auto:true}))); proposal=v8BuildProposal(title,chapterId,x); }
+    else err=(r.why||'Không đọc được kết quả AI')+' Bấm "🔄 Phân tích lại" ở trang Duyệt thay đổi.';
+    let ns=r.tail||''; if(!ns&&r.x&&r.x.next_chapter_suggestions)ns=String(r.x.next_chapter_suggestions).replace(/\\n/g,'\n');
+    if(ns.trim()){ db.nextSuggestion=ns.trim(); const nt=$('nextText'); if(nt)nt.value=db.nextSuggestion; gotNext=true; }
+  }catch(e){ if(e&&e.aborted)err='Đã dừng phân tích.'; else err='AI lỗi: '+(e.message||e)+'. Bấm "🔄 Phân tích lại" ở trang Duyệt thay đổi.'; }
   const hasProposal=proposal&&(proposal.characterUpdates.length||proposal.canonUpdates.length||proposal.timelineEvents.length||proposal.threadUpdates.length);
-  v8Ensure(); db.v8.pendingReview=hasProposal?proposal:db.v8.pendingReview;
+  v8Ensure(); db.v8.pendingReview=hasProposal?proposal:db.v8.pendingReview; db.v8.lastExtract={chapterId,title,err,at:new Date().toLocaleString('vi-VN')};
   v7Save(); v8RenderReview(); v8UpdateBadge();
-  status((hasProposal?'Có đề xuất continuity mới ở trang "Duyệt thay đổi" (xem badge ở menu).':'Phân tích continuity xong: AI không đề xuất thay đổi nào.')+(gotNext?' Gợi ý chương sau đã sẵn ở tab "AI gợi ý chương tiếp theo".':''));
+  if(err) status('⚠ '+err,true);
+  else status((hasProposal?'Có đề xuất continuity mới ở trang "Duyệt thay đổi" (xem badge ở menu).':'Phân tích xong: AI thật sự không thấy thay đổi nào cần đề xuất.')+(gotNext?' Gợi ý chương sau đã sẵn ở tab "AI gợi ý chương tiếp theo".':''));
+}
+async function v8ReanalyzeLast(){
+  const c=(db.chapters||[]).find(x=>x.id===db.draft.currentChapterId)||db.chapters[db.chapters.length-1];
+  if(!c){status('Chưa có chương nào để phân tích.',true);return}
+  status('Đang phân tích lại '+c.title+'...'); v8ExtractInBackground(c.text,c.title,c.id,true);
 }
 function v7LoadChapter(i){const c=db.chapters[i];if(!c)return;db.draft.currentChapterId=c.id;db.draft.title=c.title;db.draft.goal=c.goal||'';db.draft.outline=c.outline||'';db.draft.manual=c.text;db.draft.proposal='';db.draft.scenes=c.scenes||'';setDraftInputs();$('output').textContent=c.text;nav('chapters');tab('write',document.querySelector('.tabs button'));status(`Đã mở ${c.title} để chỉnh sửa; lần lưu tiếp theo sẽ tạo version.`);}
 // V7 owns the save/load chapter behavior.
