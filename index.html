@@ -8343,6 +8343,7 @@ const BG_FUNCTIONS_BASE = "/.netlify/functions"; // khi deploy Netlify sẽ đú
 // Cộng thêm thời gian trigger + polling trễ 12s → coi job là "có thể đã chết" nếu quá ngưỡng này mà vẫn pending/running.
 const BG_JOB_STALE_MS = 18 * 60 * 1000;
 const BG_HEAVY_CHAPTER_KEYS = ["stateSnapshots","stateSnapshot","versions","briefUsed"];   // lịch sử nặng của từng chương — không gửi lên server (V12.24: gồm briefUsed của chương cũ; chương mới do worker tạo tự mang briefUsed riêng)
+const BG_SOFT_POST_ISSUES = /^(Status|Memory)(?:\b|:)/i; // lỗi hậu kỳ tùy chọn không được biến thành lỗi của chương đã viết/lưu
 
 function getBgStatusEl(){ return $ID("bgJobStatus"); }
 
@@ -8767,7 +8768,10 @@ function renderChapterNav(){
       + (c.polished ? '<div style="color:var(--green);font-size:10px;">✓</div>' : '')
       + (c.truncated ? '<div class="cflag">⚠ cắt</div>' : '')
       + ((c.continuityWarnings&&c.continuityWarnings.length) ? '<div class="cflag">🔍 '+c.continuityWarnings.length+'</div>' : '')
-      + ((c.autoUpdateIssues&&c.autoUpdateIssues.length) ? '<div class="cflag" title="Chưa cập nhật được: '+escapeHtml(c.autoUpdateIssues.join(", "))+' — bấm Rescan để đồng bộ lại">⚠ '+escapeHtml(c.autoUpdateIssues.join("/"))+'</div>' : '');
+      + (()=>{
+          const hardIssues=(c.autoUpdateIssues||[]).filter(x=>!/^Status(?:\b|:)|^Memory(?:\b|:)/i.test(String(x||"")));
+          return hardIssues.length ? '<div class="cflag" title="Chưa cập nhật được: '+escapeHtml(hardIssues.join(", "))+' — bấm Rescan để đồng bộ lại">⚠ '+escapeHtml(hardIssues.join("/"))+'</div>' : '';
+        })();
     chip.addEventListener("click", ()=>{
       state.currentChapterIndex = i;
       renderChapterNav(); renderCurrentChapter();

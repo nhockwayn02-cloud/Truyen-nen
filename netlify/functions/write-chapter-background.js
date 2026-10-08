@@ -2663,7 +2663,7 @@ async function updateCharacters(job, chapter, n, state) {
   const res = { ok: true, chunks: chunks.length, nNew: 0, nUpdated: 0, failed: 0, dropped: 0, cut: 0, notes: [], problems: [] };
   await runPool(chunks.length, async (i) => {
     const tag = `NV lô ${i + 1}/${chunks.length}`;
-    if (timeLeft() < 240000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 4 phút — giữ thời gian cho Status/Memory`); return; }
+    if (timeLeft() < 360000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 6 phút — giữ thời gian an toàn cho Status/Memory`); return; }
     const prompt = [
       `CẬP NHẬT NHÂN VẬT — CHƯƠNG ${n}, PHẦN ${i + 1}/${chunks.length}.`,
       "Chỉ liệt kê nhân vật thực sự xuất hiện hoặc được nhắc tới có ý nghĩa trong PHẦN này. Không bịa.",
@@ -2775,7 +2775,7 @@ async function updateWorld(job, chapter, n, state) {
   const keys = ["locations", "items", "threads"];
   await runPool(chunks.length, async (i) => {
     const tag = `Thế giới lô ${i + 1}/${chunks.length}`;
-    if (timeLeft() < 240000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 4 phút — giữ thời gian cho Status/Memory`); return; }
+    if (timeLeft() < 360000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 6 phút — giữ thời gian an toàn cho Status/Memory`); return; }
     const prompt = [
       `CẬP NHẬT THẾ GIỚI — CHƯƠNG ${n}, PHẦN ${i + 1}/${chunks.length}.`,
       "Chỉ trả địa điểm/vật phẩm/thread mới hoặc thay đổi rõ trong phần này. Không bịa. Mô tả ngắn (tối đa 25 từ). Không dùng dấu \" bên trong giá trị chuỗi.",
@@ -3087,7 +3087,7 @@ async function updateCurrentStatus(job, chapter, n, state) {
           "Không điền giá trị cho trường không thay đổi. Không dùng null cho thay đổi. Không markdown."
         ].join("\n\n")
       }],
-      maxTokens: 7600, temperature: 0.12
+      maxTokens: 5200, temperature: 0.10
     }, 2);
 
     const parsed = await parseObjectWithRepair(job, r.text, keys);
@@ -3142,7 +3142,7 @@ async function updateLongMemory(job, chapter, n, state) {
       "Chỉ ghi sự kiện có bằng chứng. Không bịa. Mỗi mục ngắn gọn (tối đa 30 từ). Không dùng dấu \" bên trong chuỗi.",
       source,
       'Trả DUY NHẤT JSON: {"events":[{"type":"event|consequence|reveal|death|power_change","summary":"","causes":"","consequences":""}],"foreshadowing":[{"description":"","status":"seeded|developing|paid_off|abandoned","match":"","characters":""}],"knowledge":[{"character":"","fact":"","confidence":"direct|inferred|reported"}]}'
-    ].join("\n\n") }], maxTokens: 9200, temperature: 0.15 }, 2);
+    ].join("\n\n") }], maxTokens: 5200, temperature: 0.10 }, 2);
     const parsed = await parseObjectWithRepair(job, r.text, keys);
     const obj = parsed.obj;
     if (!obj) { res.notes.push(`Memory: KHÔNG đọc được JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`); res.problems.push("Memory: không đọc được JSON; dữ liệu cũ được giữ"); return res; }
@@ -3301,10 +3301,27 @@ exports.handler = async (event) => {
       if (!targetChapter) throw new Error("Không tìm thấy chương trong snapshot hậu kỳ");
       if (!Array.isArray(targetChapter.autoUpdateIssues)) targetChapter.autoUpdateIssues = [];
       targetChapter.updateDiagnostics = [];
+      targetChapter.postProcess = Object.assign({}, targetChapter.postProcess || {}, {
+        status: "RUNNING", serverSide: true,
+        tasks: Object.assign({}, (targetChapter.postProcess && targetChapter.postProcess.tasks) || {})
+      });
 
+      // Status/Memory là hậu kỳ mềm: nếu AI/API thất bại, chương vẫn đã được viết + lưu.
+      // Không đưa hai lỗi này vào autoUpdateIssues để chapter chip không hiện ⚠ Status/Memory.
+      const SOFT_TASKS = new Set(["Status", "Memory"]);
       const absorb = (label, res) => {
+        const soft = SOFT_TASKS.has(label);
+        const ok = !!(res && res.ok);
+        targetChapter.postProcess.tasks[label] = Object.assign({}, targetChapter.postProcess.tasks[label] || {}, {
+          status: ok ? "DONE" : "FAILED",
+          finishedAt: Date.now(),
+          error: ok ? null : ((res && res.problems && res.problems[0]) || null)
+        });
         (res && res.notes || []).forEach(t => targetChapter.updateDiagnostics.push(t));
-        (res && res.problems || []).forEach(p => { if (!targetChapter.autoUpdateIssues.includes(p)) targetChapter.autoUpdateIssues.push(p); });
+        (res && res.problems || []).forEach(p => {
+          if (soft) return;
+          if (!targetChapter.autoUpdateIssues.includes(p)) targetChapter.autoUpdateIssues.push(p);
+        });
       };
       const checkpoint = async (progress) => {
         job.progress = progress; job.updatedAt = Date.now(); job.storyState = newState;
@@ -3332,10 +3349,14 @@ exports.handler = async (event) => {
         summaryP
       ]);
 
-      await checkpoint("Đang cập nhật Current Status + Memory + Scene + Gợi ý...");
+      await checkpoint("Đang cập nhật Current Status + Memory...");
+      // Status rồi Memory chạy nối tiếp để tránh cùng lúc đập vào một provider/model.
+      // Hai task này được chạy sớm khi còn ngân sách thời gian và là hậu kỳ mềm.
+      await runPar("Status", () => updateCurrentStatus(job, targetChapter, n, newState));
+      await runPar("Memory", () => updateLongMemory(job, targetChapter, n, newState));
+
+      await checkpoint("Đang cập nhật Scene + Gợi ý chương sau...");
       await Promise.all([
-        runPar("Status", () => updateCurrentStatus(job, targetChapter, n, newState)),
-        runPar("Memory", () => updateLongMemory(job, targetChapter, n, newState)),
         runPar("Scene", () => scanScenes(job, targetChapter, n, newState)),
         runPar("Gợi ý chương sau", async () => {
           const hint = await generateNextChapterHint(job, targetChapter, targetChapter.summary || "", n, newState);

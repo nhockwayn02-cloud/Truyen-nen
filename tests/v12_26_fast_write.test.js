@@ -10,4 +10,4 @@ const checks=[
  ['generation UI released before postprocess',/setGenerating\(false\);[\s\S]{0,500}setStatus\(modeTag \+ "✓ Chương/.test(s)]
 ];
 let bad=0; for(const [n,c] of checks){console.log((c?'PASS ':'FAIL ')+n);if(!c)bad++;}
-console.log(`\\n${checks.length-bad}/${checks.length} PASS`); process.exit(bad?1:0);
+console.log(`\n${checks.length-bad}/${checks.length} PASS`); process.exit(bad?1:0);
