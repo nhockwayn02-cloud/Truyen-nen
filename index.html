@@ -1631,6 +1631,14 @@ function extractEndingAnchor(text) {
   const candidates = lines.filter(x => x.length >= 30 && !/^(?:gợi ý|mệnh lệnh|outline|chapter outline|arc manager)\s*[:：]?$/i.test(x));
   return candidates.length ? candidates[candidates.length - 1].slice(0, 500) : "";
 }
+
+// V12.28.3: giữ helper Ending Target ở SHARED-CORE để client và worker luôn đồng bộ.
+// Ưu tiên Ending Anchor trong GỢI Ý; nếu không có thì dùng MỆNH LỆNH.
+function getEndingTarget(hint, directive) {
+  const h = extractEndingAnchor(hint);
+  if (h) return h;
+  return extractEndingAnchor(directive);
+}
 function _anchorTokens(s) {
   const stop = new Set(["chương","kết","cuối","sau","trước","đến","rồi","và","là","của","cho","một","những","được","trong","với","này","đó","khi","thì","cũng","đã","sẽ","có","về","theo","nhưng","nếu","vào","ra","từ","tại","mà","lại","để","anh","cô","hắn","nàng","hắn","người"]);
   return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w => w.length >= 3 && !stop.has(w));
