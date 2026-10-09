@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.24</title>
+<title>Xưởng Truyện AI Pro Max v12.30</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -328,7 +328,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.24 · Auto-continue chạm điểm kết + Mở rộng chương · Quality Gate dùng chung · Tiếng Việt</div>
+<div class="brand-sub">v12.30 · Hậu kỳ AI một lần gọi · Bảo vệ canon và bộ nhớ · Tiếng Việt</div>
 </div>
 </div>
 <div class="topbar-actions">
@@ -1526,6 +1526,21 @@ function evidenceInText(evidence, text) {
   const have = new Set(_normWords(String(text || "")));
   let hit = 0; ev.forEach(w => { if (have.has(w)) hit++; });
   return hit / ev.length >= 0.7;
+}
+// V12.30: bằng chứng phải hỗ trợ chính giá trị được đề xuất, không chỉ là một câu bất kỳ trong chương.
+function evidenceSupportsValue(value, evidence, threshold = 0.55) {
+  const stop = new Set(["va","la","cua","cho","voi","mot","nhung","cac","da","dang","se","thi","ma","nay","do","kia","duoc","bi","boi","tai","trong","ngoai","tren","duoi","den","tu","rat","hon","nhu","khi","neu","vi","sau","truoc","roi","con","cung","khong","co","ban"]);
+  const words = _normWords(String(value || "")).filter(w => w.length >= 2 && !stop.has(w));
+  const ev = new Set(_normWords(String(evidence || "")).filter(w => w.length >= 2));
+  if (!words.length || !ev.size) return false;
+  const uniq = [...new Set(words)];
+  let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
+  return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
+}
+function fieldEvidenceSupports(value, evidence, source, threshold = 0.55) {
+  return !!String(value || "").trim() && !!String(evidence || "").trim()
+    && evidenceInText(evidence, source)
+    && evidenceSupportsValue(value, evidence, threshold);
 }
 // V12.20: kiểm tra một âm tiết tiếng Việt hợp lệ (bỏ dấu thanh, giữ ă â ê ô ơ ư đ). Bắt lỗi kiểu "mươititude", "bănnton", "bọcampo".
 const _VN_SYL_FULL = /^(?:ngh|ng|nh|kh|gh|gi|ph|qu|th|tr|ch|[bcdđghklmnpqrstvx])?[aăâeêioôơuưy]{1,3}(?:ng|nh|ch|[cmnpt])?$/;
@@ -5486,7 +5501,7 @@ async function updateCharactersIncremental(text, chapterNumber, silent){
       arr.forEach(u=>{const r=mergeCharacterUpdate(u,chapterNumber,chunks[i]);if(r&&r.isNewChar)nNew++;else if(r)nUpd++;});
     }catch(err){failed++;}
   }
-  state.lastMemorySyncChapter=chapterNumber;
+  // Character rescan does not synchronize Long-term Memory. Keep its sync cursor unchanged.
   persist(); renderCharacters(); captureChapterSnapshot(chapterNumber);
   if(!silent) setStatus(failed?"⚠ NV ch"+chapterNumber+": "+nNew+" mới, "+nUpd+" cập nhật, "+failed+" lô lỗi." : "NV ch"+chapterNumber+": +"+nNew+" mới, "+nUpd+" cập nhật"+(repaired?"; đã cứu JSON ở "+repaired+" lô.":"."),false);
   return {ok:failed<chunks.length,nNew,nUpd,failed,chunks:chunks.length,repaired};
@@ -5717,7 +5732,7 @@ async function updateCurrentStatusIncremental(text, chapterNumber, silent){
     state.statusState=previousState;
     state.currentStatus=lines.join("\n");
     state.lastStatusChapter=chapterNumber;
-    state.lastMemorySyncChapter=Math.max(state.lastMemorySyncChapter||0,chapterNumber);
+    // Current Status update is not a Long-term Memory sync; do not advance that cursor here.
     persist(); if(statusBox)statusBox.textContent=state.currentStatus; captureChapterSnapshot(chapterNumber);
     if(!silent)setStatus("Đã cập nhật Current Status → ch"+chapterNumber+" ("+applied+" thay đổi, "+conflicts.length+" xung đột).",false);
     return {ok:true,applied,conflicts:conflicts.length};
@@ -6864,98 +6879,10 @@ function previewNextChapterHint(cn, partial, briefUsed){
 }
 async function runCanonPostProcess(chapterObj, cn, text, rawForPolish, briefUsed){
   _hintPreviewLast = null;
-    const postTasks = [];
-    let polishPromise = Promise.resolve();
-    if(state.spellCheckEnabled && rawForPolish){
-      polishPromise = (async ()=>{
-        try{
-          const fixed = await polishVietnamese(rawForPolish, { modelOverride: state.model });
-          const stillThere = state.chapters.indexOf(chapterObj) !== -1;
-          const userTyping = document.activeElement === chapterTextEl;
-          if(fixed && fixed !== rawForPolish && stillThere && chapterObj.text === rawForPolish && !userTyping){
-            chapterObj.text = fixed; chapterObj.polished = true; chapterObj.wordCount = countWords(fixed);
-            persist(); renderChapterNav(); refreshStatBar();
-            if(state.chapters[state.currentChapterIndex] === chapterObj) renderCurrentChapter();
-          }
-        }catch(e){ console.warn("[Polish async]", e); }
-      })();
-    }
-    const fastPost = state.parallelEnabled !== false;
-    const deferredPost = {};
-    const sched = (fn, label, opts) => { if(!fastPost) return enqueueTask(fn, label, opts); deferredPost[label] = fn; return null; };
-    postTasks.push(sched(async ()=>{
-      if(state.autoSummaryEnabled && text){
-        try{
-          const sum = await generateChapterSummary(text, cn, true);
-          if(sum){ chapterObj.summary = sum; persist(); renderChapterNav(); renderCurrentChapter(); }
-        }catch(e){}
-      }
-    }, "summary", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      if(text){
-        let hint = "", errMsg = "";
-        try{ hint = await generateNextChapterHint(text, chapterObj.summary, cn, { onPartial:(full)=>previewNextChapterHint(cn, full, briefUsed) }); }
-        catch(e){ errMsg = (e && e.message) ? e.message : String(e); }
-        if(hint){
-          state.autoNextChapterHint = hint;
-          const applied = applyNextChapterHint(cn, hint, briefUsed);
-          persist();
-          if(applied) setStatus("💡 Đã tạo gợi ý cho chương " + (cn + 1) + " (xem ô Gợi ý).", false);
-          else if(cn >= state.chapters.length) setStatus("💡 Đã có gợi ý chương " + (cn + 1) + " nhưng ô Gợi ý đang có nội dung bạn tự sửa nên giữ nguyên. Bấm nút tạo gợi ý để thay bằng bản AI.", false);
-        }else{
-          applyNextChapterHint(cn, "", briefUsed);   // xóa gợi ý cũ đã dùng
-          persist();
-          const msg = "Gợi ý chương " + (cn + 1) + ": không tạo được" + (errMsg ? " — API lỗi: " + errMsg : " — AI trả rỗng") + ". Bấm nút tạo gợi ý để thử lại.";
-          chapterObj.updateDiagnostics = (chapterObj.updateDiagnostics || []).concat([msg]);
-          setStatus("⚠ " + msg, false);
-        }
-      }
-    }, "nextHint", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      const r = await updateCharactersIncremental(text, cn, true);
-      if(r && !r.ok) setStatus("⚠ Cập nhật NV ch" + cn + " thất bại — bấm Quét toàn truyện khi rảnh.", false);
-      markAutoUpdateIssue(cn, "NV", !r || !r.ok);
-    }, "char", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      const r = await updateWorldIncremental(text, cn, true);
-      markAutoUpdateIssue(cn, "Thế giới", !r || !r.ok);
-    }, "world", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      const r = await updateCurrentStatusIncremental(text, cn, true);
-      if(r && !r.ok) setStatus("⚠ Current Status ch" + cn + " lỗi — bấm Quét toàn bộ Status.", false);
-      else if(cn % 5 === 0) setStatus("✓ Bộ nhớ đã cập nhật tới ch" + cn + ". Nên rescan NV định kỳ.", false);
-      markAutoUpdateIssue(cn, "Status", !r || !r.ok);
-    }, "status", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      const r = await updateLongMemoryIncremental(text, cn, true);
-      markAutoUpdateIssue(cn, "Memory", !r || !r.ok);
-    }, "memory", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      /* Scene detection nếu mature */
-      if(state.mature && state.autoSceneEnabled){
-        try{ await scanScenesForChapter(cn); }catch(e){}
-      }
-    }, "scene", {serial:true}));
-    postTasks.push(sched(async ()=>{
-      const w = await runContinuityCheck(text, cn, buildStoryBibleSummary() + "\n" + characterSummaryForPrompt(relevantCharacters(20)), true);
-      if(w && w.length){
-        chapterObj.continuityWarnings = (chapterObj.continuityWarnings || []).concat(w);
-        persist(); renderChapterNav(); renderCurrentChapter();
-      }
-    }, "continuity", {serial:true}));
-    postTasks.push(sched(()=> checkCheckpoint(cn), "checkpoint", {serial:true}));
-    postTasks.push(sched(()=> checkPacingGuard(false), "pacing", {serial:true}));
-    // Chỉ sau khi summary + Character + World + Status + Memory + Scene +
-    // Continuity hoàn tất mới đóng snapshot chính thức của chương.
-    if(fastPost) await runFastPostTasks(deferredPost, polishPromise);
-    else { await Promise.allSettled(postTasks); await polishPromise; }
-    beginCanonSync(chapterObj, cn);
-    completeCanonSync(chapterObj, cn);
-    try{ captureChapterSnapshot(cn); }catch(e){}
-    chapterObj.review.status="completed";
-    persist(); renderChapterNav(); renderCurrentChapter(); refreshBackupBanner(); refreshStatBar();
-    { const _ts = timingSummary(); if(_ts) chapterObj.timingNote = _ts;
-      setStatus("🟢 Chương "+cn+" đã Sync vào Canon v"+chapterObj.canonVersion+(chapterObj.autoUpdateIssues&&chapterObj.autoUpdateIssues.length?" với cảnh báo: "+chapterObj.autoUpdateIssues.join(", "):"") + (_ts ? "\n" + _ts : ""), false); }
+  if(!chapterObj || !String(chapterObj.text || text || "").trim()) throw new Error("Chương không có nội dung để đồng bộ Canon.");
+  // V12.30: một job hậu kỳ tổng hợp cho Summary/NV/World/Status/Memory/Gợi ý.
+  // Không chạy các extractor client-side song song vì chúng có thể ghi đè chéo dữ liệu.
+  await startBackgroundPostProcess(chapterObj, cn, String(chapterObj.text || text || ""), briefUsed);
 }
 
 async function reviewCurrentChapter(){
@@ -7394,37 +7321,8 @@ $ID("continueChapterBtn").addEventListener("click", async ()=>{
       setStatus(endNoteC || "Đã viết tiếp.", false);
     }
     const cn = idx + 1;
-    const postTasks = [];
-    postTasks.push(enqueueTask(async ()=>{ const r = await updateCharactersIncremental(contText, cn, true); markAutoUpdateIssue(cn, "NV", !r || !r.ok); }, "char", {serial:true}));
-    postTasks.push(enqueueTask(async ()=>{ const r = await updateWorldIncremental(contText, cn, true); markAutoUpdateIssue(cn, "Thế giới", !r || !r.ok); }, "world", {serial:true}));
-    postTasks.push(enqueueTask(async ()=>{ const r = await updateCurrentStatusIncremental(contText, cn, true); markAutoUpdateIssue(cn, "Status", !r || !r.ok); }, "status", {serial:true}));
-    postTasks.push(enqueueTask(async ()=>{
-      const r = await updateLongMemoryIncremental(contText, cn, true);
-      markAutoUpdateIssue(cn, "Memory", !r || !r.ok);
-    }, "memory", {serial:true}));
-    postTasks.push(enqueueTask(async ()=>{
-      if(state.mature && state.autoSceneEnabled){
-        try{ await scanScenesForChapter(cn); }catch(e){}
-      }
-    }, "scene", {serial:true}));    postTasks.push(enqueueTask(async ()=>{
-      if(state.autoSummaryEnabled && chapter.text){
-        try{
-          const sum = await generateChapterSummary(chapter.text, cn, true);
-          if(sum){ chapter.summary = sum; persist(); renderChapterNav(); renderCurrentChapter(); }
-        }catch(e){}
-      }
-    }, "summary", {serial:true}));
-    postTasks.push(enqueueTask(async ()=>{
-      if(chapter.text){
-        try{
-          const hint = await generateNextChapterHint(chapter.text, chapter.summary, cn);
-          if(hint){ state.nextChapterHint = hint; nextChapterHintEl.value = hint; persist(); }
-          else { applyNextChapterHint(cn, "", null); persist(); }
-        }catch(e){ applyNextChapterHint(cn, "", null); persist(); setStatus("⚠ Gợi ý chương " + (cn + 1) + ": không tạo được — " + ((e && e.message) || e) + ". Bấm nút tạo gợi ý để thử lại.", false); }
-      }
-    }, "nextHint", {serial:true}));
-    await Promise.allSettled(postTasks);
-    try{ captureChapterSnapshot(cn); }catch(e){}
+    // V12.30: continuation cũng đi qua cùng một job hậu kỳ tổng hợp trên server.
+    await startBackgroundPostProcess(chapter, cn, chapter.text, chapter.briefUsed || state.nextChapterHint || "");
     if(endNoteC) setStatus(endNoteC, false);
 
   }catch(err){
@@ -8169,10 +8067,10 @@ async function updateLongMemoryIncremental(text, chapterNumber, silent){
     if(!obj||Array.isArray(obj)){const rr=await callAI("CHỈ TRẢ JSON OBJECT. "+prompt,{maxTokens:9500,temperature:0.1});obj=safeJsonParse(rr.text);}
     if(!obj||Array.isArray(obj))return {ok:false,reason:"parse"};
     if(!Array.isArray(state.timeline))state.timeline=[]; if(!Array.isArray(state.foreshadowing))state.foreshadowing=[]; if(!Array.isArray(state.knowledgeLedger))state.knowledgeLedger=[];
-    (obj.events||[]).forEach(e=>{if(e&&e.summary)state.timeline.push({id:genId(),chapter:chapterNumber,type:e.type||"event",summary:e.summary,causes:e.causes||"",consequences:e.consequences||""});});
-    (obj.foreshadowing||[]).forEach(f=>{if(!f||!f.description)return;const key=normalizeName(f.match||f.description).slice(0,60);let x=state.foreshadowing.find(a=>normalizeName(a.description).slice(0,60)===key||normalizeName(a.description).includes(key.slice(0,30)));if(!x)state.foreshadowing.push({id:genId(),description:f.description,status:f.status||"seeded",plantedChapter:chapterNumber,lastUpdated:chapterNumber,characters:f.characters||""});else{if(f.status)x.status=f.status;x.lastUpdated=chapterNumber;if(f.characters)x.characters=f.characters;}});
+    (obj.events||[]).forEach(e=>{if(!e||!e.summary)return;const key=normalizeName(e.summary);if(state.timeline.some(x=>x.chapter===chapterNumber&&normalizeName(x.summary)===key))return;state.timeline.push({id:genId(),chapter:chapterNumber,type:e.type||"event",summary:e.summary,causes:e.causes||"",consequences:e.consequences||""});});
+    (obj.foreshadowing||[]).forEach(f=>{if(!f||!f.description)return;const key=normalizeName(f.match||f.description).slice(0,60);let x=state.foreshadowing.find(a=>normalizeName(a.description).slice(0,60)===key||normalizeName(a.description).includes(key.slice(0,30)));if(!x)state.foreshadowing.push({id:genId(),description:f.description,status:f.status||"seeded",plantedChapter:chapterNumber,lastUpdated:chapterNumber,characters:f.characters||""});else{const terminal=["paid_off","abandoned","resolved"].includes(String(x.status||"").toLowerCase());if(f.status&&(!terminal||String(f.status).toLowerCase()===String(x.status).toLowerCase()))x.status=f.status;x.lastUpdated=chapterNumber;if(f.characters)x.characters=f.characters;}});
     (obj.knowledge||[]).forEach(k=>{if(!k||!k.character||!k.fact)return;const key=normalizeName(k.character)+"|"+normalizeName(k.fact).slice(0,80);let x=state.knowledgeLedger.find(a=>normalizeName(a.character)+"|"+normalizeName(a.fact).slice(0,80)===key);if(!x)state.knowledgeLedger.push({id:genId(),character:k.character,fact:k.fact,confidence:k.confidence||"direct",firstChapter:chapterNumber,lastUpdated:chapterNumber});else x.lastUpdated=chapterNumber;});
-    state.timeline=state.timeline.slice(-250);state.foreshadowing=state.foreshadowing.slice(-150);state.knowledgeLedger=state.knowledgeLedger.slice(-500);state.lastMemorySyncChapter=chapterNumber;persist();renderMemoryEngine();return {ok:true};
+    state.lastMemorySyncChapter=Math.max(Number(state.lastMemorySyncChapter)||0,chapterNumber);persist();renderMemoryEngine();return {ok:true};
   }catch(err){if(!silent)setStatus("Lỗi Memory ch"+chapterNumber+": "+err.message,false);return {ok:false,reason:err.message};}
 }
 $ID("memoryRescanBtn").addEventListener("click",async()=>{
@@ -8610,11 +8508,11 @@ async function mergeBackgroundChapter(statusData,record){
   state.lastStatusChapter=incoming.lastStatusChapter||state.lastStatusChapter;
   state.chaptersSinceBackup=incoming.chaptersSinceBackup!=null?incoming.chaptersSinceBackup:state.chaptersSinceBackup;
   /* v9.3: trước đây Timeline / Foreshadowing / Knowledge Ledger KHÔNG được hợp nhất từ job nền nên không bao giờ hiện. */
-  state.timeline=mergeArrayByIdOrName(state.timeline,incoming.timeline||[],"id").slice(-250);
-  state.foreshadowing=mergeArrayByIdOrName(state.foreshadowing,incoming.foreshadowing||[],"id").slice(-150);
-  state.knowledgeLedger=mergeArrayByIdOrName(state.knowledgeLedger,incoming.knowledgeLedger||[],"id").slice(-500);
+  state.timeline=mergeArrayByIdOrName(state.timeline,incoming.timeline||[],"id");
+  state.foreshadowing=mergeArrayByIdOrName(state.foreshadowing,incoming.foreshadowing||[],"id");
+  state.knowledgeLedger=mergeArrayByIdOrName(state.knowledgeLedger,incoming.knowledgeLedger||[],"id");
   state.memoryEvents=mergeArrayByIdOrName(state.memoryEvents,incoming.memoryEvents||[],"id");
-  state.lastMemorySyncChapter=incoming.lastMemorySyncChapter||state.lastMemorySyncChapter||0;
+  state.lastMemorySyncChapter=Math.max(Number(state.lastMemorySyncChapter)||0,Number(incoming.lastMemorySyncChapter)||0);
   state.canonVersion=mergeCanonVersion(state.canonVersion, incoming.canonVersion);
   /* V12.23: job nền trả gợi ý chương sau (rỗng = tạo thất bại -> xóa gợi ý cũ đã dùng). Không ghi đè nếu người dùng đã gõ gợi ý mới trong lúc job chạy. */
   if(typeof incoming.nextChapterHint === "string"){

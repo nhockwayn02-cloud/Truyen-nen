@@ -543,6 +543,21 @@ function evidenceInText(evidence, text) {
   let hit = 0; ev.forEach(w => { if (have.has(w)) hit++; });
   return hit / ev.length >= 0.7;
 }
+// V12.30: bằng chứng phải hỗ trợ chính giá trị được đề xuất, không chỉ là một câu bất kỳ trong chương.
+function evidenceSupportsValue(value, evidence, threshold = 0.55) {
+  const stop = new Set(["va","la","cua","cho","voi","mot","nhung","cac","da","dang","se","thi","ma","nay","do","kia","duoc","bi","boi","tai","trong","ngoai","tren","duoi","den","tu","rat","hon","nhu","khi","neu","vi","sau","truoc","roi","con","cung","khong","co","ban"]);
+  const words = _normWords(String(value || "")).filter(w => w.length >= 2 && !stop.has(w));
+  const ev = new Set(_normWords(String(evidence || "")).filter(w => w.length >= 2));
+  if (!words.length || !ev.size) return false;
+  const uniq = [...new Set(words)];
+  let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
+  return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
+}
+function fieldEvidenceSupports(value, evidence, source, threshold = 0.55) {
+  return !!String(value || "").trim() && !!String(evidence || "").trim()
+    && evidenceInText(evidence, source)
+    && evidenceSupportsValue(value, evidence, threshold);
+}
 // V12.20: kiểm tra một âm tiết tiếng Việt hợp lệ (bỏ dấu thanh, giữ ă â ê ô ơ ư đ). Bắt lỗi kiểu "mươititude", "bănnton", "bọcampo".
 const _VN_SYL_FULL = /^(?:ngh|ng|nh|kh|gh|gi|ph|qu|th|tr|ch|[bcdđghklmnpqrstvx])?[aăâeêioôơuưy]{1,3}(?:ng|nh|ch|[cmnpt])?$/;
 function _stripToneMarks(s) { return String(s).normalize("NFD").replace(/[\u0300\u0301\u0303\u0309\u0323]/g, "").normalize("NFC"); }

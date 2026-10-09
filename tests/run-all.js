@@ -13,6 +13,8 @@ const dir = __dirname; const suites = [
   ["V12.23 create-job kích hoạt/404", process.execPath, ["v12_23_netlify.test.js"]],
   ["V12.28.2 Status/Memory soft hậu kỳ", process.execPath, ["v12_28_2_postprocess_soft.js"]],
   ["V12.28.3 getEndingTarget helper", process.execPath, ["v12_28_3_ending_target.test.js"]],
+  ["V12.29 tối ưu chi phí không đổi model", process.execPath, ["v12_29_cost_optimization.test.js"]],
+  ["V12.30 hậu kỳ một lần gọi + bảo vệ canon/memory", process.execPath, ["v12_30_unified_postprocess.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],
   ["Bảo mật server", process.execPath, ["security.test.js"]],
   ["Tích hợp worker", process.execPath, ["worker.integration.js"], { EXTRACT_CONCURRENCY: "3" }],

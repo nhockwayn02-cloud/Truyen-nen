@@ -615,6 +615,21 @@ function evidenceInText(evidence, text) {
   let hit = 0; ev.forEach(w => { if (have.has(w)) hit++; });
   return hit / ev.length >= 0.7;
 }
+// V12.30: bằng chứng phải hỗ trợ chính giá trị được đề xuất, không chỉ là một câu bất kỳ trong chương.
+function evidenceSupportsValue(value, evidence, threshold = 0.55) {
+  const stop = new Set(["va","la","cua","cho","voi","mot","nhung","cac","da","dang","se","thi","ma","nay","do","kia","duoc","bi","boi","tai","trong","ngoai","tren","duoi","den","tu","rat","hon","nhu","khi","neu","vi","sau","truoc","roi","con","cung","khong","co","ban"]);
+  const words = _normWords(String(value || "")).filter(w => w.length >= 2 && !stop.has(w));
+  const ev = new Set(_normWords(String(evidence || "")).filter(w => w.length >= 2));
+  if (!words.length || !ev.size) return false;
+  const uniq = [...new Set(words)];
+  let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
+  return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
+}
+function fieldEvidenceSupports(value, evidence, source, threshold = 0.55) {
+  return !!String(value || "").trim() && !!String(evidence || "").trim()
+    && evidenceInText(evidence, source)
+    && evidenceSupportsValue(value, evidence, threshold);
+}
 // V12.20: kiểm tra một âm tiết tiếng Việt hợp lệ (bỏ dấu thanh, giữ ă â ê ô ơ ư đ). Bắt lỗi kiểu "mươititude", "bănnton", "bọcampo".
 const _VN_SYL_FULL = /^(?:ngh|ng|nh|kh|gh|gi|ph|qu|th|tr|ch|[bcdđghklmnpqrstvx])?[aăâeêioôơuưy]{1,3}(?:ng|nh|ch|[cmnpt])?$/;
 function _stripToneMarks(s) { return String(s).normalize("NFD").replace(/[\u0300\u0301\u0303\u0309\u0323]/g, "").normalize("NFC"); }
@@ -2479,15 +2494,11 @@ async function generateSummary(job, chapter, n) {
     }
     const _wc = t => (String(t).trim().match(/\S+/g) || []).length;
     if (_wc(summary) > 450) {
-      try {
-        const s3 = await ask("Rút gọn bản tóm tắt sau xuống 300-400 từ tiếng Việt. Giữ dòng mở đầu \"**Tóm tắt chương:**\", giữ trình tự thời gian, tên đầy đủ; bỏ chi tiết phụ; không thêm gì mới. Chỉ trả về bản đã rút gọn.\n\n" + summary, 0.15, 1);
-        if (s3 && _wc(s3) < _wc(summary)) summary = s3;
-      } catch (_) {}
-      if (_wc(summary) > 450) {
-        const words = summary.split(/\s+/).slice(0, 420).join(" ");
-        const cut = Math.max(words.lastIndexOf(". "), words.lastIndexOf("! "), words.lastIndexOf("? "));
-        summary = cut > words.length * 0.6 ? words.slice(0, cut + 1) : words;
-      }
+      // V12.29 COST: avoid a third model call only to shorten the summary.
+      // Keep the chapter itself untouched; compact summary locally at sentence boundary.
+      const words = summary.split(/\s+/).slice(0, 420).join(" ");
+      const cut = Math.max(words.lastIndexOf(". "), words.lastIndexOf("! "), words.lastIndexOf("? "));
+      summary = cut > words.length * 0.6 ? words.slice(0, cut + 1) : words;
     }
     if (!summaryGrounded(summary, full).ok) summary = extractiveSummary(full) || summary;
     return summary;
@@ -2612,7 +2623,8 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
       if (u[k] && !String(c[k] || "").trim()) { c[k] = u[k]; if (coreFields.includes(k)) c.coreIdentity[k] = c[k]; }
     });
     /* V12.19: nghề/chức vụ đã có chỉ đổi khi có sự kiện + bằng chứng trích đúng từ chương (kể cả NV đã mở khóa). */
-    const explicitJobChange = u.explicitCoreChange === true && String(u.changeEvidence || "").trim().length >= 12 && (sourceText == null || evidenceInText(u.changeEvidence, sourceText));
+    const explicitRoleValueSupported = ["role","occupation","position","faction"].some(k => u[k] && evidenceSupportsValue(u[k], u.changeEvidence, 0.55));
+    const explicitJobChange = u.explicitCoreChange === true && String(u.changeEvidence || "").trim().length >= 12 && (sourceText == null || evidenceInText(u.changeEvidence, sourceText)) && explicitRoleValueSupported;
     ["role","relevanceToMC","occupation","faction"].forEach(k => {
       if (!u[k]) return;
       const emptyNow = !String(c[k] || "").trim();
@@ -2623,7 +2635,7 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
     });
     ["currentLocation","physicalState","mentalState"].forEach(k => { if (u[k]) c[k] = u[k]; });
     applyCharExtras(c, u);
-    if (u.tier && !c.locked) c.tier = u.tier;
+    if (u.tier && !c.locked && !String(c.tier || "").trim()) c.tier = u.tier;
     if (u.isDead === true && !c.dead) { c.dead = true; c.deathChapter = chapterNumber; }
     c.lastAppearance = chapterNumber;
   }
@@ -2667,7 +2679,7 @@ async function runPool(count, worker, limit = EXTRACT_CONCURRENCY) {
 
 async function updateCharacters(job, chapter, n, state) {
   if (!Array.isArray(state.characters)) state.characters = [];
-  const chunks = chunkText(chapter.text, 9000, 700);
+  const chunks = chunkText(chapter.text, 12000, 400);
   const res = { ok: true, chunks: chunks.length, nNew: 0, nUpdated: 0, failed: 0, dropped: 0, cut: 0, notes: [], problems: [] };
   await runPool(chunks.length, async (i) => {
     const tag = `NV lô ${i + 1}/${chunks.length}`;
@@ -2771,14 +2783,18 @@ function applyWorld(obj, n, state) {
     if (!t?.desc) return;
     let x = findThread(state, t);
     if (!x) state.threads.push({ id: genId("t"), type: t.type || "open_thread", status: t.status || "seeded", desc: t.desc, chapterIntroduced: n, lastUpdated: n, history: [] });
-    else { if (t.status) x.status = t.status; x.lastUpdated = n; if (!Array.isArray(x.history)) x.history = []; x.history.push({ chapter: n, status: t.status || x.status, note: t.desc }); }
+    else {
+      const terminal = ["paid_off", "abandoned", "completed", "resolved"].includes(String(x.status || "").toLowerCase());
+      if (t.status && (!terminal || String(t.status).toLowerCase() === String(x.status).toLowerCase())) x.status = t.status;
+      x.lastUpdated = n; if (!Array.isArray(x.history)) x.history = []; x.history.push({ chapter: n, status: x.status, note: t.desc });
+    }
   });
 }
 async function updateWorld(job, chapter, n, state) {
   if (!Array.isArray(state.locations)) state.locations = [];
   if (!Array.isArray(state.items)) state.items = [];
   if (!Array.isArray(state.threads)) state.threads = [];
-  const chunks = chunkText(chapter.text, 10000, 700);
+  const chunks = chunkText(chapter.text, 13000, 400);
   const res = { ok: true, chunks: chunks.length, failed: 0, cut: 0, notes: [], problems: [] };
   const keys = ["locations", "items", "threads"];
   await runPool(chunks.length, async (i) => {
@@ -2789,7 +2805,7 @@ async function updateWorld(job, chapter, n, state) {
       "Chỉ trả địa điểm/vật phẩm/thread mới hoặc thay đổi rõ trong phần này. Không bịa. Mô tả ngắn (tối đa 25 từ). Không dùng dấu \" bên trong giá trị chuỗi.",
       "Địa điểm hiện có: " + state.locations.map(x => x.name).join(", "),
       "Vật phẩm hiện có: " + state.items.map(x => x.name).join(", "),
-      "Thread hiện có:\n" + state.threads.slice(-30).map(x => `${x.type}: ${x.desc} [${x.status}]`).join("\n"),
+      "Thread hiện có (20 gần nhất; mô tả rút gọn để giảm token):\n" + state.threads.slice(-20).map(x => `${x.type}: ${String(x.desc || "").slice(0, 140)} [${x.status}]`).join("\n"),
       "NỘI DUNG:", chunks[i],
       'JSON: {"locations":[{"name":"","description":"","status":"active|destroyed|abandoned|locked"}],"items":[{"name":"","description":"","owner":"","status":"active|lost|destroyed|stored"}],"threads":[{"type":"open_thread|foreshadowing|consequence","desc":"","status":"seeded|developing|paid_off|abandoned","matchExistingDesc":""}]}'
     ].join("\n\n");
@@ -2952,6 +2968,9 @@ function mergeStatusChanges(state, n, extraction) {
 
   const roster = statusCharacterRoster(state);
   const rosterById = new Map(roster.map(c => [c.id, c]));
+  const priorChars = Array.isArray(status.characterStates) ? status.characterStates : [];
+  const priorById = new Map(priorChars.map(c => [String(c.characterId || c.id || ""), c]));
+  const priorByName = new Map(priorChars.map(c => [normalizeName(c.name || c.characterName || ""), c]));
   const incomingChars = Array.isArray(changes.characterChanges) ? changes.characterChanges : [];
   const normalizedChars = [];
   incomingChars.forEach(c => {
@@ -2969,21 +2988,36 @@ function mergeStatusChanges(state, n, extraction) {
     }
     const evidence = String(c.evidence || "").trim();
     const accepted = Object.keys(cleanChanges).length && evidence && String(c.status || "updated").toLowerCase() === "updated";
+    const prior = priorById.get(known.id) || priorByName.get(normalizeName(known.name)) || null;
+    const mergedChanges = Object.assign({}, prior && prior.changes && typeof prior.changes === "object" ? prior.changes : {}, accepted ? cleanChanges : {});
     const item = {
       characterId: known.id,
       name: known.name,
-      status: accepted ? "updated" : "unchanged",
-      changes: accepted ? cleanChanges : {},
-      evidence: accepted ? evidence : ""
+      status: accepted ? "updated" : ((prior && prior.status) || "unchanged"),
+      changes: mergedChanges,
+      evidence: accepted ? evidence : String((prior && prior.evidence) || "")
     };
     normalizedChars.push(item);
     if (accepted) applied++;
   });
 
-  // Bắt buộc kiểm kê tất cả nhân vật hiện có; nhân vật không đổi không bị xóa.
+  // Bắt buộc kiểm kê tất cả nhân vật hiện có; nếu không có cập nhật mới thì giữ
+  // nguyên bản ghi trạng thái trước đó thay vì làm rơi thông tin đã tích lũy.
   const byId = new Map(normalizedChars.map(x => [x.characterId, x]));
   roster.forEach(c => {
-    if (!byId.has(c.id)) normalizedChars.push({ characterId: c.id, name: c.name, status: "unchanged", changes: {}, evidence: "" });
+    if (byId.has(c.id)) return;
+    const prior = priorById.get(c.id) || priorByName.get(normalizeName(c.name)) || null;
+    normalizedChars.push(prior
+      ? Object.assign({}, prior, { characterId: c.id, name: c.name })
+      : { characterId: c.id, name: c.name, status: "unchanged", changes: {}, evidence: "" });
+  });
+  // Character DB cleanup must not delete an older status/history record as a side effect.
+  priorChars.forEach(prior => {
+    if (!prior || typeof prior !== "object") return;
+    const pid = String(prior.characterId || prior.id || "");
+    const pname = normalizeName(prior.name || prior.characterName || "");
+    if (normalizedChars.some(x => (pid && String(x.characterId || x.id || "") === pid) || (pname && normalizeName(x.name || x.characterName || "") === pname))) return;
+    normalizedChars.push(prior);
   });
   status.characterStates = normalizedChars;
 
@@ -3007,7 +3041,7 @@ function mergeStatusChanges(state, n, extraction) {
     changes: changes
   };
   status.changeLog.push(log);
-  status.changeLog = status.changeLog.slice(-50);
+  // Keep the full change log; older status history is part of long-term canon.
   status.conflicts = status.conflicts.slice(-50);
   status.schemaVersion = 2;
   return { status, applied, conflicts: validatedConflicts.length };
@@ -3174,15 +3208,291 @@ async function updateLongMemory(job, chapter, n, state) {
       else x.lastUpdated = n;
     });
     const added = [state.timeline.length - b[0], state.foreshadowing.length - b[1], state.knowledgeLedger.length - b[2]];
-    state.timeline = state.timeline.slice(-250);
-    state.foreshadowing = state.foreshadowing.slice(-150);
-    state.knowledgeLedger = state.knowledgeLedger.slice(-500);
+    // Keep all existing long-term memories. New entries are de-duplicated before append.
     state.lastMemorySyncChapter = n;
     res.ok = true;
     res.notes.push(`Memory: ${fin(r)}, parse=${parsed.method || "?"}, +${added[0]} sự kiện, +${added[1]} foreshadowing, +${added[2]} knowledge`);
     if (r.finishReason === "length") res.problems.push("Memory: model bị cắt cụt");
     return res;
   } catch (e) { res.notes.push(`Memory: LỖI — ${sampleOf(e.message, 160)}`); res.problems.push("Memory: lỗi gọi model; dữ liệu cũ được giữ"); return res; }
+}
+
+/* V12.30: one model request for the whole postprocess. Parsing and merging are deliberately
+   deterministic: no JSON-repair model call, and a missing/invalid section never clears stored data. */
+function unifiedPostprocessPrompt(job, chapter, n, state) {
+  const source = representativeText(String(chapter.text || ""), 90000);
+  const characters = (Array.isArray(state.characters) ? state.characters : []).slice(0, 70).map(c => ({
+    id:c.id, name:c.name, tier:c.tier, age:c.age, gender:c.gender, role:c.role,
+    position:c.position, occupation:c.occupation, faction:c.faction,
+    appearance:String(c.appearance||"").slice(0,180), personality:String(c.personality||"").slice(0,180),
+    goals:String(c.goals||"").slice(0,140), currentLocation:c.currentLocation,
+    physicalState:c.physicalState, mentalState:c.mentalState, dead:!!c.dead,
+    coreLocked:c.coreLocked !== false
+  }));
+  const world = {
+    locations:(state.locations||[]).slice(-35).map(x=>({name:x.name,description:String(x.description||"").slice(0,100),status:x.status})),
+    items:(state.items||[]).slice(-35).map(x=>({name:x.name,description:String(x.description||"").slice(0,100),owner:x.owner,status:x.status})),
+    threads:(state.threads||[]).slice(-25).map(x=>({type:x.type,desc:String(x.desc||"").slice(0,150),status:x.status})),
+    openForeshadowing:(state.foreshadowing||[]).filter(x=>!["paid_off","abandoned","resolved"].includes(x.status)).slice(-20).map(x=>({description:String(x.description||"").slice(0,150),status:x.status})),
+    recentTimeline:(state.timeline||[]).slice(-12).map(x=>({chapter:x.chapter,summary:String(x.summary||"").slice(0,160)})),
+    recentKnowledge:(state.knowledgeLedger||[]).slice(-20).map(x=>({character:x.character,fact:String(x.fact||"").slice(0,140)}))
+  };
+  const oldStatus = String(state.currentStatus || "").slice(-14000);
+  const previousChapter = n > 1 ? (state.chapters || [])[n - 2] : null;
+  const previousEnding = previousChapter && String(previousChapter.text || "").slice(-1800);
+  const adult = !!chapter.isNsfw;
+  return [
+    `HẬU KỲ TỔNG HỢP CHO CHƯƠNG ${n}: thực hiện TẤT CẢ tác vụ dưới đây trong MỘT phản hồi JSON.`,
+    "Bạn chỉ trích xuất/đồng bộ dữ liệu. Không viết lại chương, không suy diễn, không tạo canon mới nếu không có bằng chứng.",
+    "NGUYÊN TẮC AN TOÀN: dữ liệu hiện có là canon. Chỉ trả các thay đổi được chương mới chứng minh. Không có thay đổi thì trả mảng rỗng/chuỗi rỗng; KHÔNG lặp lại hoặc thay thế dữ liệu cũ. Mọi mục cập nhật phải có evidence là một trích đoạn ngắn 5–18 từ lấy từ chính chương. Không dùng bằng chứng bịa.",
+    "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. Hồ sơ gốc role/occupation/position/faction/identity không được đổi. Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
+    "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
+    "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
+    "LONG-TERM MEMORY: chỉ thêm sự kiện có ý nghĩa, tri thức của từng nhân vật và thay đổi foreshadowing có bằng chứng; không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
+    "CONTINUITY: rà mâu thuẫn cụ thể với hồ sơ nhân vật, Current Status, world rules, tri thức đã biết và đoạn cuối chương trước. Chỉ cảnh báo mâu thuẫn thực sự; không báo chỉ vì thiếu thông tin. Mỗi cảnh báo phải có evidence trích từ chương hiện tại và canonReference nêu quy tắc/dữ kiện đối chiếu. Nếu không có, trả mảng []. Không tự sửa canon ở bước này.",
+    "SUMMARY: tiếng Việt, mở đầu bằng **Tóm tắt chương:**, 250–400 từ, theo đúng thứ tự, giữ sự kiện/nhân vật thật, không bổ sung. " + (adult ? "Với cảnh trưởng thành, tóm tắt trung lập nhưng không bỏ qua sự kiện/quyết định/hệ quả quan trọng." : ""),
+    "NEXT HINT: tiếng Việt, khoảng 150–260 từ, tiếp nối trực tiếp điểm kết; 1–3 sự kiện chính; dùng nhân vật/thread hiện có, không mở tuyến lớn mới, không tự thêm nhân vật quan trọng. Nêu điểm kết chương rõ ràng.",
+    "Không trả markdown fence. Toàn bộ phản hồi phải là MỘT JSON object hợp lệ. Không dùng dấu nháy kép trong nội dung chuỗi trừ escaping JSON đúng chuẩn.",
+    "NHÂN VẬT ĐÃ CÓ (nguồn sự thật):\n" + JSON.stringify(characters),
+    "WORLD + MEMORY ĐÃ CÓ (chỉ để đối chiếu, không viết lại):\n" + JSON.stringify(world),
+    "CURRENT STATUS CŨ (giữ toàn bộ phần không đổi):\n" + oldStatus,
+    "MAIN CHARACTER PROFILE:\n" + JSON.stringify(state.mainCharProfile || {}),
+    "ĐOẠN CUỐI CHƯƠNG TRƯỚC (đối chiếu continuity; có thể rỗng ở chương đầu):\n" + String(previousEnding || ""),
+    "CHAPTER SUMMARY/CONTENT SOURCE — chỉ nguồn này chứng minh diễn biến:\n<chapter>\n" + source + "\n</chapter>",
+    `JSON SCHEMA (điền chính xác các khóa): {"summary":"","characters":[{"name":"","evidence":"","fieldEvidence":{"age":"","gender":"","position":"","role":"","occupation":"","faction":"","appearance":"","personality":"","goals":"","secret":"","weakness":"","fear":"","knowledge":"","chapterEvent":"","speech":"","height":"","bodyType":"","hair":"","eyes":"","skin":"","relevanceToMC":"","voice":"","scent":"","style":"","scars":"","tattoos":"","schedule":"","strength":"","independentPlot":"","sexualExperience":"","boundaries":"","taboos":"","preferences":"","attractionToMC":"","tensionWithMC":"","consentNotes":""},"stateEvidence":{"currentLocation":"","physicalState":"","mentalState":"","secret":""},"relationshipWithMainEvidence":{"stage":"","trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","notes":""},"deathEvidence":"","tier":"","age":"","gender":"","position":"","speech":"","height":"","bodyType":"","hair":"","eyes":"","skin":"","role":"","relevanceToMC":"","voice":"","scent":"","style":"","scars":"","tattoos":"","schedule":"","strength":"","independentPlot":"","sexualExperience":"","boundaries":"","taboos":"","preferences":"","attractionToMC":"","tensionWithMC":"","consentNotes":"","appearance":"","personality":"","occupation":"","faction":"","goals":"","secret":"","weakness":"","fear":"","knowledge":"","currentLocation":"","physicalState":"","mentalState":"","chapterEvent":"","relationshipWithMain":{},"relationships":[{"withName":"","evidence":"","fieldEvidence":{"stage":"","trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","notes":""}}],"isDead":false,"explicitCoreChange":false,"changeEvidence":""}], "world":{"locations":[{"name":"","description":"","status":"","evidence":"","fieldEvidence":{"description":"","status":""}}],"items":[{"name":"","description":"","owner":"","status":"","evidence":"","fieldEvidence":{"description":"","owner":"","status":""}}],"threads":[{"type":"","desc":"","status":"","matchExistingDesc":"","evidence":"","fieldEvidence":{"desc":"","status":""}}]},"status":{"changes":{"time":{},"situation":{},"mainEvent":{},"location":{},"overall":{},"mainCharacter":{},"relationships":{},"power":{},"rules":{},"conflict":{},"nextGoal":{},"knowledge":{},"unresolved":{},"secrets":{},"weaknesses":{},"characterChanges":[{"characterId":"","characterName":"","status":"updated","changes":{},"changeEvidence":{},"evidence":""}],"conflicts":[{"characterName":"","field":"","oldValue":"","newValue":"","description":"","evidence":""}]}},"memory":{"events":[{"type":"event","summary":"","causes":"","consequences":"","evidence":""}],"foreshadowing":[{"description":"","status":"seeded","match":"","characters":"","evidence":""}],"knowledge":[{"character":"","fact":"","confidence":"direct","evidence":""}]},"continuityWarnings":[{"type":"","description":"","canonReference":"","severity":"warning","evidence":""}],"nextChapterHint":""}`,
+    "Đối với mỗi thay đổi Status field, giá trị có dạng {\"status\":\"updated|added|resolved\",\"value\":\"...\",\"evidence\":\"trích đoạn\"}. Không tạo khóa lạ. Nếu không có thay đổi: mảng [] và value rỗng. Chỉ tiếng Việt."
+  ].join("\n\n");
+}
+
+function labelsForUnifiedPostProcess() { return ["Summary", "NV", "Thế giới", "Status", "Memory", "Continuity", "Scene", "Gợi ý chương sau"]; }
+
+function validEvidenceItems(items, source) {
+  return (Array.isArray(items) ? items : []).filter(x => x && typeof x === "object" && String(x.evidence || "").trim() && evidenceInText(x.evidence, source));
+}
+function containsNamePhrase(name, source) {
+  const hay = (" " + normalizeName(source).replace(/[^\p{L}\p{N}]+/gu, " ").trim() + " ");
+  const needle = normalizeName(name).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return !!needle && hay.includes(" " + needle + " ");
+}
+function filterRelationshipObject(obj, evidenceMap, source) {
+  if (!isPlainObj(obj)) return {};
+  const out = {};
+  Object.keys(obj).forEach(k => {
+    const val = obj[k];
+    if (typeof val === "string" && val.trim() && fieldEvidenceSupports(val, evidenceMap && evidenceMap[k], source, 0.45)) out[k] = val;
+  });
+  return out;
+}
+
+async function runUnifiedPostProcess(job, chapter, n, state) {
+  const labels = ["Summary", "NV", "Thế giới", "Status", "Memory", "Continuity", "Scene", "Gợi ý chương sau"];
+  const tasks = Object.fromEntries(labels.map(k => [k, {ok:false, notes:[], problems:[]} ]));
+  const res = { ok:false, notes:[], problems:[], tasks, callCount:0 };
+  const stateBefore = JSON.stringify(state);
+  const chapterBefore = JSON.stringify(chapter);
+  const summaryBefore = chapter.summary;
+  const source = String(chapter.text || "");
+  if (!source.trim()) {
+    res.problems.push("Hậu kỳ: chương rỗng; không thay đổi dữ liệu.");
+    return res;
+  }
+  try {
+    // Chọn model chính cho toàn gói hậu kỳ (không thay cấu hình model/provider của người dùng).
+    // Gộp tác vụ bắt buộc dùng chung một phản hồi, nên ưu tiên tính nhất quán canon.
+    const r = await callWithRetry({
+      endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model,
+      messages: [
+        { role:"system", content:"Bạn là bộ đồng bộ canon và bộ nhớ tiểu thuyết dài kỳ tiếng Việt. Chỉ trả một JSON object hoàn chỉnh, không markdown. Ưu tiên dữ liệu cũ; chỉ đề xuất delta có evidence lấy từ chương." },
+        { role:"user", content: unifiedPostprocessPrompt(job, chapter, n, state) }
+      ],
+      maxTokens:16000, temperature:0.1
+    }, 1); // V12.30: không gọi lại AI lần 2; lỗi tạm thời thì fail-safe, giữ dữ liệu cũ.
+    res.callCount = 1;
+    if (r.finishReason === "length") throw new Error("Kết quả JSON bị cắt ở giới hạn token; đã giữ nguyên toàn bộ dữ liệu cũ để tránh cập nhật thiếu.");
+    const parsed = tryParse(stripFences(String(r.text || "")));
+    const data = parsed && parsed.ok && isPlainObj(parsed.value) ? parsed.value : null;
+    if (!data) throw new Error("Không đọc được JSON tổng hợp hoàn chỉnh; đã giữ nguyên dữ liệu cũ.");
+
+    // 1) Summary: grounded check + local cap only. Never clear a previous summary.
+    if (typeof data.summary === "string" && data.summary.trim()) {
+      let summary = data.summary.trim();
+      const wc = summary.split(/\s+/).filter(Boolean).length;
+      if (wc > 450) {
+        const words = summary.split(/\s+/).slice(0, 420).join(" ");
+        const cut = Math.max(words.lastIndexOf(". "), words.lastIndexOf("! "), words.lastIndexOf("? "));
+        summary = cut > words.length * 0.6 ? words.slice(0, cut + 1) : words;
+      }
+      if (summaryGrounded(summary, source).ok) {
+        chapter.summary = summary;
+        tasks.Summary = {ok:true, notes:["Summary: đã cập nhật từ cùng phản hồi JSON."], problems:[]};
+      } else {
+        const fallback = extractiveSummary(source);
+        if (!chapter.summary && fallback) chapter.summary = fallback;
+        tasks.Summary = {ok:!!(chapter.summary || fallback), notes:["Summary: bản AI không vượt kiểm tra căn cứ; đã giữ/tạo tóm tắt trích xuất an toàn."], problems:[]};
+      }
+    } else {
+      if (!chapter.summary) chapter.summary = extractiveSummary(source) || "";
+      tasks.Summary = {ok:!!chapter.summary, notes:["Summary: phản hồi không có tóm tắt hợp lệ; không xóa tóm tắt cũ."], problems:[]};
+    }
+
+    // 2) Character database. Each row needs evidence from the real chapter.
+    if (Array.isArray(data.characters)) {
+      let created=0, updated=0, skipped=0;
+      validEvidenceItems(data.characters, source).forEach(u => {
+        const nm = String(u.name || "").trim();
+        if (!nm || !containsNamePhrase(nm, source)) { skipped++; return; }
+        const rosterNames = (state.characters || []).map(c => normalizeName(c.name));
+        const isExisting = rosterNames.includes(normalizeName(nm)) || normalizeName(state.mainCharProfile && state.mainCharProfile.name) === normalizeName(nm);
+        if (!isExisting) {
+          // Chỉ tạo nhân vật phụ/minor khi có sự kiện xuất hiện cụ thể và evidence trong chương.
+          // Tuyệt đối không cho một lượt trích xuất tự xếp nhân vật mới thành main/major.
+          const tier = normalizeName(u.tier || "supporting");
+          if (!String(u.chapterEvent || "").trim() || ["main", "major", "protagonist", "lead", "chinh", "chinh tuyen"].includes(tier)) { skipped++; return; }
+          u = Object.assign({}, u, { tier: ["minor", "background", "cameo"].includes(tier) ? tier : "supporting" });
+        }
+        try {
+          const safeU = Object.assign({}, u);
+          const fe = safeU.fieldEvidence && typeof safeU.fieldEvidence === "object" ? safeU.fieldEvidence : {};
+          const se = safeU.stateEvidence && typeof safeU.stateEvidence === "object" ? safeU.stateEvidence : {};
+          const fieldNames = ["age","gender","position","role","occupation","faction","appearance","personality","goals","secret","weakness","fear","knowledge","chapterEvent","speech","height","bodyType","hair","eyes","skin","relevanceToMC","voice","scent","style","scars","tattoos","schedule","strength","independentPlot","sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"];
+          fieldNames.forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], fe[field] || (field === "secret" ? se.secret : ""), source, 0.55)) safeU[field] = ""; });
+          ["currentLocation","physicalState","mentalState"].forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], se[field], source, 0.55)) safeU[field] = ""; });
+          if (safeU.secret && !fieldEvidenceSupports(safeU.secret, se.secret || fe.secret, source, 0.55)) safeU.secret = "";
+          safeU.relationshipWithMain = filterRelationshipObject(safeU.relationshipWithMain, safeU.relationshipWithMainEvidence, source);
+          safeU.relationships = (Array.isArray(safeU.relationships) ? safeU.relationships : []).filter(rel => rel && rel.withName && containsNamePhrase(rel.withName, source) && String(rel.evidence || "").trim() && evidenceInText(rel.evidence, source)).map(rel => Object.assign({}, rel, { fieldEvidence: rel.fieldEvidence || {} }));
+          safeU.relationships.forEach(rel => {
+            ["stage","trust","respect","affection","attraction","suspicion","tension","boundaries","notes"].forEach(field => { if (rel[field] && !fieldEvidenceSupports(rel[field], rel.fieldEvidence[field] || rel.evidence, source, 0.45)) rel[field] = ""; });
+          });
+          safeU.relationships = safeU.relationships.filter(rel => ["stage","trust","respect","affection","attraction","suspicion","tension","boundaries","notes"].some(k => String(rel[k] || "").trim()));
+          if (safeU.isDead === true && !(/\b(chết|tử vong|mất mạng|thiệt mạng|qua đời|bị giết)\b/i.test(String(safeU.deathEvidence || "")) && evidenceInText(safeU.deathEvidence, source))) safeU.isDead = false;
+          if (safeU.chapterEvent && !fieldEvidenceSupports(safeU.chapterEvent, fe.chapterEvent || safeU.evidence, source, 0.45)) safeU.chapterEvent = "";
+          const m = mergeCharacter(state, safeU, n, source); if (m.created) created++; else if (m.updated) updated++;
+        }
+        catch (_) { skipped++; }
+      });
+      tasks.NV = {ok:true, notes:[`NV: +${created} mới, ${updated} cập nhật có bằng chứng, ${skipped} bỏ qua.`], problems:[]};
+    } else tasks.NV = {ok:false, notes:["NV: thiếu mảng hợp lệ; giữ nguyên Character Database."], problems:["NV: output không có mảng characters."]};
+
+    // 3) World updates, evidence-checked. Existing entities are never deleted.
+    if (isPlainObj(data.world) && Array.isArray(data.world.locations) && Array.isArray(data.world.items) && Array.isArray(data.world.threads)) {
+      const worldRows = (rows, kind) => validEvidenceItems(rows, source).filter(x => {
+        if (kind === "threads") return String(x.desc || "").trim() && fieldEvidenceSupports(x.desc, (x.fieldEvidence || {}).desc || x.evidence, source, 0.35);
+        return !!x.name && containsNamePhrase(x.name, source);
+      }).map(x => {
+        const fe = x.fieldEvidence && typeof x.fieldEvidence === "object" ? x.fieldEvidence : {};
+        if (x.description && !fieldEvidenceSupports(x.description, fe.description || x.evidence, source, 0.35)) x.description = "";
+        if (x.owner && !fieldEvidenceSupports(x.owner, fe.owner || x.evidence, source, 0.45)) x.owner = "";
+        if (x.status && !fieldEvidenceSupports(x.status, fe.status || "", source, 0.55)) x.status = "";
+        if (kind === "threads" && x.status && !fieldEvidenceSupports(x.status, fe.status, source, 0.55)) x.status = "";
+        return x;
+      });
+      const wo = {
+        locations: worldRows(data.world.locations, "locations"),
+        items: worldRows(data.world.items, "items"),
+        threads: worldRows(data.world.threads, "threads")
+      };
+      const before=[(state.locations||[]).length,(state.items||[]).length,(state.threads||[]).length];
+      applyWorld(wo, n, state);
+      tasks["Thế giới"]={ok:true,notes:[`Thế giới: +${state.locations.length-before[0]} địa điểm, +${state.items.length-before[1]} vật phẩm, +${state.threads.length-before[2]} thread (đã kiểm tra evidence).`],problems:[]};
+    } else tasks["Thế giới"]={ok:false,notes:["Thế giới: thiếu object/mảng locations-items-threads hoàn chỉnh; giữ nguyên dữ liệu."],problems:["World output không hợp lệ hoặc bị thiếu mảng."]};
+
+    // 4) Status: only accept changes whose evidence occurs in this chapter.
+    if (isPlainObj(data.status) && isPlainObj(data.status.changes)) {
+      const changes = JSON.parse(JSON.stringify(data.status.changes));
+      const statusKeys=["time","situation","mainEvent","location","overall","mainCharacter","relationships","power","rules","conflict","nextGoal","knowledge","unresolved","secrets","weaknesses"];
+      statusKeys.forEach(k=>{ const item=changes[k]; if(item && typeof item==="object" && !fieldEvidenceSupports(item.value,item.evidence,source,0.55)) delete changes[k]; });
+      changes.characterChanges = validEvidenceItems(changes.characterChanges, source).map(item => {
+        const clean = Object.assign({}, item, {changes:{}});
+        const fieldEvidence = item.changeEvidence && typeof item.changeEvidence === "object" ? item.changeEvidence : {};
+        Object.keys(item.changes && typeof item.changes === "object" ? item.changes : {}).forEach(field => {
+          const value = item.changes[field]; const ev = fieldEvidence[field] || item.evidence;
+          if (fieldEvidenceSupports(value, ev, source, 0.55)) clean.changes[field] = value;
+        });
+        return clean;
+      }).filter(item => Object.keys(item.changes || {}).length > 0);
+      changes.conflicts = validEvidenceItems(changes.conflicts, source);
+      const merged=mergeStatusChanges(state,n,{changes});
+      state.statusState=merged.status; state.currentStatus=formatStatusV2(merged.status,n); state.lastStatusChapter=n;
+      tasks.Status={ok:true,notes:[`Status: ${merged.applied} thay đổi có evidence, ${merged.conflicts} xung đột được ghi; các mục cũ không được nhắc lại vẫn giữ nguyên.`],problems:[]};
+    } else tasks.Status={ok:false,notes:["Status: thiếu object hợp lệ; giữ nguyên Current Status và statusState."],problems:["Status output không hợp lệ."]};
+
+    // 5) Long-term memory: evidence-based adds only; never trim historic records.
+    if (isPlainObj(data.memory) && Array.isArray(data.memory.events) && Array.isArray(data.memory.foreshadowing) && Array.isArray(data.memory.knowledge)) {
+      ["timeline","foreshadowing","knowledgeLedger"].forEach(k=>{ if(!Array.isArray(state[k])) state[k]=[]; });
+      const mem=data.memory;
+      let evAdded=0, fsAdded=0, klAdded=0, skipped=0;
+      validEvidenceItems(mem.events,source).forEach(e=>{
+        if(!e.summary || !fieldEvidenceSupports(e.summary,e.evidence,source,0.45)) { skipped++; return; }
+        const key=normalizeName(e.summary);
+        if(state.timeline.some(x=>x.chapter===n && normalizeName(x.summary)===key)) return;
+        state.timeline.push({id:genId("ev"),chapter:n,type:e.type||"event",summary:e.summary,causes:e.causes||"",consequences:e.consequences||""}); evAdded++;
+      });
+      validEvidenceItems(mem.foreshadowing,source).forEach(f=>{
+        if(!f.description || !fieldEvidenceSupports(f.description,f.evidence,source,0.45)) { skipped++; return; }
+        const key=normalizeName(f.match||f.description).slice(0,60);
+        let x=state.foreshadowing.find(a=>normalizeName(a.description).slice(0,60)===key || (key.length>=24 && normalizeName(a.description).includes(key.slice(0,30))));
+        if(!x) {state.foreshadowing.push({id:genId("fs"),description:f.description,status:f.status||"seeded",plantedChapter:n,lastUpdated:n,characters:f.characters||""});fsAdded++;}
+        else {
+          const terminal = ["paid_off", "abandoned", "resolved"].includes(String(x.status || "").toLowerCase());
+          if(f.status && (!terminal || String(f.status).toLowerCase() === String(x.status).toLowerCase())) x.status=f.status;
+          x.lastUpdated=n;if(f.characters)x.characters=f.characters;
+        }
+      });
+      validEvidenceItems(mem.knowledge,source).forEach(k=>{
+        if(!k.character||!k.fact || !fieldEvidenceSupports(k.fact,k.evidence,source,0.45)) {skipped++;return;}
+        const key=normalizeName(k.character)+"|"+normalizeName(k.fact).slice(0,80);
+        const exists=state.knowledgeLedger.some(a=>normalizeName(a.character)+"|"+normalizeName(a.fact).slice(0,80)===key);
+        if(!exists){state.knowledgeLedger.push({id:genId("kl"),character:k.character,fact:k.fact,confidence:k.confidence||"direct",firstChapter:n,lastUpdated:n});klAdded++;}
+      });
+      state.lastMemorySyncChapter=Math.max(Number(state.lastMemorySyncChapter)||0,n);
+      tasks.Memory={ok:true,notes:[`Memory: +${evAdded} timeline, +${fsAdded} foreshadowing, +${klAdded} knowledge; bỏ ${skipped} mục không hợp lệ. Không cắt lịch sử cũ.`],problems:[]};
+    } else tasks.Memory={ok:false,notes:["Memory: thiếu object/mảng events-foreshadowing-knowledge hoàn chỉnh; giữ nguyên bộ nhớ đã có và không đánh dấu đã đồng bộ."],problems:["Memory output không hợp lệ hoặc bị thiếu mảng."]};
+
+    // 6) Continuity warnings come from the same model response; preserve any older warnings.
+    if (Array.isArray(data.continuityWarnings)) {
+      const accepted = validEvidenceItems(data.continuityWarnings, source).filter(w => String(w.description || "").trim() && String(w.canonReference || "").trim());
+      if (!Array.isArray(chapter.continuityWarnings)) chapter.continuityWarnings = [];
+      let added = 0;
+      accepted.forEach(w => {
+        const key = normalizeName(w.description) + "|" + normalizeName(w.evidence);
+        if (chapter.continuityWarnings.some(x => normalizeName(x.description || x.message || "") + "|" + normalizeName(x.evidence || "") === key)) return;
+        chapter.continuityWarnings.push({type:w.type || "continuity", description:w.description, canonReference:w.canonReference, severity:w.severity || "warning", evidence:w.evidence, chapter:n}); added++;
+      });
+      tasks.Continuity={ok:true,notes:[`Continuity: ${added} cảnh báo có evidence được ghi; không xóa cảnh báo cũ.`],problems:[]};
+    } else tasks.Continuity={ok:false,notes:["Continuity: thiếu mảng hợp lệ; giữ nguyên cảnh báo cũ."],problems:["Continuity output không hợp lệ."]};
+
+    // Scene Tracker is intentionally disabled in this app version; don't silently re-enable it.
+    tasks.Scene={ok:true,notes:["Scene: giữ cấu hình hiện tại (Scene Tracker đang tắt trong phiên bản này)."],problems:[]};
+
+    // 6) Hint is optional. Empty/invalid output never clears an existing user hint.
+    if (typeof data.nextChapterHint === "string" && data.nextChapterHint.trim()) {
+      state.nextChapterHint=data.nextChapterHint.trim();
+      tasks["Gợi ý chương sau"]={ok:true,notes:["Gợi ý chương sau: cập nhật bằng cùng phản hồi JSON."],problems:[]};
+    } else tasks["Gợi ý chương sau"]={ok:false,notes:["Gợi ý chương sau: không có bản mới; giữ nguyên gợi ý hiện tại."],problems:[]};
+
+    res.ok = true;
+    res.notes.push(`Hậu kỳ hợp nhất: 1 phản hồi AI; JSON=${parsed.method || "strict"}; finish=${r.finishReason || "?"}.`);
+    return res;
+  } catch (e) {
+    // Atomic rollback: if any deterministic merge step unexpectedly fails, restore
+    // the complete pre-call story state and chapter summary rather than keep a half-merge.
+    try {
+      const restore = JSON.parse(stateBefore || "{}");
+      Object.keys(state).forEach(k=>delete state[k]);
+      Object.assign(state, restore);
+      const restoreChapter = JSON.parse(chapterBefore || "{}");
+      Object.keys(chapter).forEach(k=>delete chapter[k]);
+      Object.assign(chapter, restoreChapter);
+      chapter.summary = summaryBefore;
+      if (Array.isArray(state.chapters) && Number(n) > 0 && state.chapters[n - 1]) state.chapters[n - 1] = chapter;
+    } catch (_) {}
+    res.callCount = Math.max(res.callCount, 1);
+    const msg=sampleOf(e.message,220);
+    labels.forEach(k=>{ tasks[k]={ok:false,notes:[`${k}: chưa cập nhật vì phản hồi tổng hợp lỗi; dữ liệu cũ được giữ.`],problems:[]}; });
+    res.problems.push("Hậu kỳ tổng hợp thất bại: " + msg);
+    res.notes.push("Hậu kỳ tổng hợp lỗi; đã hoàn tác mọi cập nhật hậu kỳ của lượt này.");
+    return res;
+  }
 }
 
 async function scanScenes(job, chapter, n, state) {
@@ -3316,7 +3626,7 @@ exports.handler = async (event) => {
 
       // Status/Memory là hậu kỳ mềm: nếu AI/API thất bại, chương vẫn đã được viết + lưu.
       // Không đưa hai lỗi này vào autoUpdateIssues để chapter chip không hiện ⚠ Status/Memory.
-      const SOFT_TASKS = new Set(["Status", "Memory"]);
+      const SOFT_TASKS = new Set(["Status", "Memory", "Summary", "Continuity", "Scene", "Gợi ý chương sau"]);
       const absorb = (label, res) => {
         const soft = SOFT_TASKS.has(label);
         const ok = !!(res && res.ok);
@@ -3348,30 +3658,13 @@ exports.handler = async (event) => {
       };
 
       await store.setJSON(jobId, cleanJobForStore(job));
-      job.progress = "Đang cập nhật tóm tắt + nhân vật + thế giới...";
-      await store.setJSON(jobId, cleanJobForStore(job));
-      const summaryP = generateSummary(job, targetChapter, n).then(s => { targetChapter.summary = s || targetChapter.summary || ""; return s; }).catch(() => targetChapter.summary || "");
-      await Promise.all([
-        runPar("NV", () => updateCharacters(job, targetChapter, n, newState)),
-        runPar("Thế giới", () => updateWorld(job, targetChapter, n, newState)),
-        summaryP
-      ]);
-
-      await checkpoint("Đang cập nhật Current Status + Memory...");
-      // Status rồi Memory chạy nối tiếp để tránh cùng lúc đập vào một provider/model.
-      // Hai task này được chạy sớm khi còn ngân sách thời gian và là hậu kỳ mềm.
-      await runPar("Status", () => updateCurrentStatus(job, targetChapter, n, newState));
-      await runPar("Memory", () => updateLongMemory(job, targetChapter, n, newState));
-
-      await checkpoint("Đang cập nhật Scene + Gợi ý chương sau...");
-      await Promise.all([
-        runPar("Scene", () => scanScenes(job, targetChapter, n, newState)),
-        runPar("Gợi ý chương sau", async () => {
-          const hint = await generateNextChapterHint(job, targetChapter, targetChapter.summary || "", n, newState);
-          newState.nextChapterHint = hint || "";
-          return { ok:!!hint, notes:[hint ? "Gợi ý chương sau: đã cập nhật" : "Gợi ý chương sau: bỏ trống"], problems:[] };
-        })
-      ]);
+      await checkpoint("Đang hậu kỳ hợp nhất bằng một lần gọi AI...");
+      const unified = await runUnifiedPostProcess(job, targetChapter, n, newState);
+      // Hiển thị trạng thái từng tác vụ mà không tạo thêm request. Các task mềm
+      // (Status/Memory) không đánh dấu lỗi nặng; toàn bộ merge vẫn giữ dữ liệu cũ.
+      labelsForUnifiedPostProcess().forEach(label => absorb(label, unified.tasks[label] || {ok:false,notes:[label+": không có kết quả"],problems:[]}));
+      unified.notes.forEach(x=>targetChapter.updateDiagnostics.push(x));
+      unified.problems.forEach(x=>targetChapter.updateDiagnostics.push(x));
 
       await checkpoint("Đang đồng bộ Canon + Snapshot...");
       try { applyCanonSync(newState, targetChapter); } catch (e) { absorb("Canon", {ok:false, notes:["Canon: " + sampleOf(e.message, 200)], problems:["Canon: lỗi hệ thống"]}); }
@@ -3421,7 +3714,6 @@ exports.handler = async (event) => {
     }
     job.progress = "Quality PASS — đang cập nhật Canon..."; job.updatedAt = Date.now(); await store.setJSON(jobId, cleanJobForStore(job));
     // Chỉ sau Quality PASS mới chạy summary/state/memory và Sync.
-    const summaryP = generateSummary(job, chapter, n).then(s => { chapter.summary = s; return s; }).catch(() => { chapter.summary = chapter.summary || ""; return ""; });
     const newState = JSON.parse(JSON.stringify(job.storyState));
     newState.chapters.push(chapter);
     newState.currentChapterIndex = newState.chapters.length - 1;
@@ -3446,23 +3738,11 @@ exports.handler = async (event) => {
       try { const t0 = Date.now(); const res = await fn(); res.notes = res.notes || []; if (res.notes.length) res.notes[res.notes.length - 1] += ` [${Math.round((Date.now() - t0) / 1000)}s]`; absorb(label, res); return res; }
       catch (e) { const res = { ok: false, notes: [`${label}: LỖI không lường trước — ${sampleOf(e.message, 200)}`], problems: [`${label}: lỗi hệ thống`] }; absorb(label, res); return res; }
     };
-    await checkpoint("Đang cập nhật nhân vật + thế giới...");
-    await Promise.all([
-      runPar("NV", () => updateCharacters(job, chapter, n, newState)),
-      runPar("Thế giới", () => updateWorld(job, chapter, n, newState)),
-      summaryP
-    ]);
-    await checkpoint("Đang cập nhật Status + Memory + Scene... (đã giữ tối thiểu thời gian an toàn cho pha cuối)");
-    await Promise.all([
-      runPar("Status", () => updateCurrentStatus(job, chapter, n, newState)),
-      runPar("Memory", () => updateLongMemory(job, chapter, n, newState)),
-      runPar("Scene", () => scanScenes(job, chapter, n, newState)),
-      runPar("Gợi ý chương sau", async () => {
-        const hint = await generateNextChapterHint(job, chapter, chapter.summary, n, newState);
-        newState.nextChapterHint = hint || "";   // V12.23: tạo thất bại -> xóa gợi ý cũ đã dùng, không để chương sau bị ép viết lại kế hoạch cũ
-        return { ok: !!hint, notes: [hint ? "Gợi ý chương sau: đã cập nhật" : "Gợi ý chương sau: bỏ trống (lỗi hoặc rỗng)"], problems: [] };
-      })
-    ]);
+    await checkpoint("Đang hậu kỳ hợp nhất bằng một lần gọi AI...");
+    const unified = await runUnifiedPostProcess(job, chapter, n, newState);
+    labelsForUnifiedPostProcess().forEach(label => absorb(label, unified.tasks[label] || {ok:false,notes:[label+": không có kết quả"],problems:[]}));
+    unified.notes.forEach(x=>chapter.updateDiagnostics.push(x));
+    unified.problems.forEach(x=>chapter.updateDiagnostics.push(x));
     await checkpoint("Đang lưu kết quả...");
     applyCanonSync(newState, chapter);
     job.progress = "Đã Sync Canon v" + newState.canonVersion;

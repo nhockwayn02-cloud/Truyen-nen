@@ -7,25 +7,37 @@ const mockBlobs = { connectLambda() {}, getStore() { return { async get(k) { con
 const origLoad = Module._load;
 Module._load = function (req, ...a) { return req === "@netlify/blobs" ? mockBlobs : origLoad.call(this, req, ...a); };
 
-const counts = { nv: 0, world: 0, other: 0, chapter: 0 };
+const counts = { nv: 0, world: 0, other: 0, chapter: 0, unified: 0 };
 let inflight = 0, maxInflightNV = 0, inflightNV = 0;
-const LONG = ("Gió thổi qua con phố vắng, cô bước đi giữa đêm mưa lạnh. ".repeat(1100)).trim(); // ~60k ký tự
+const LONG = ("Lan gặp Minh tại Phố cũ. Minh nhận được chìa khóa từ Lan.\n\n" + "Gió thổi qua con phố vắng, cô bước đi giữa đêm mưa lạnh. ".repeat(1100)).trim(); // ~60k ký tự + evidence ở đầu để test cả khi draft bị cắt theo mục tiêu
 global.fetch = async (url, init) => {
   const body = JSON.parse(init.body); const prompt = JSON.stringify(body.messages);
+  const isUnified = prompt.includes("HẬU KỲ TỔNG HỢP CHO CHƯƠNG");
   const isNV = prompt.includes("CẬP NHẬT NHÂN VẬT"), isW = prompt.includes("CẬP NHẬT THẾ GIỚI");
   const isChapter = /VIẾT CHƯƠNG|Viết TIẾP chương|Bạn đang viết CHƯƠNG THỨ/.test(prompt);
   const isSummary = prompt.includes("bộ máy tóm tắt");
   const isReview = prompt.includes("QUALITY AUDITOR");
-  if (isNV) { counts.nv++; inflightNV++; maxInflightNV = Math.max(maxInflightNV, inflightNV); } else if (isW) counts.world++; else if (isChapter) counts.chapter++; else if (isReview) counts.other++; else counts.other++;
+  if (isUnified) counts.unified++;
+  else if (isNV) { counts.nv++; inflightNV++; maxInflightNV = Math.max(maxInflightNV, inflightNV); }
+  else if (isW) counts.world++; else if (isChapter) counts.chapter++; else counts.other++;
   await new Promise(r => setTimeout(r, LAT));
   if (isNV) inflightNV--;
   let content;
   if (isChapter) content = LONG;
   else if (isReview) content = JSON.stringify({score:96,verdict:"PASS",dimensions:{continuity:20,characterConsistency:15,canonConsistency:15,plotDiscipline:15,worldRules:10,outlineCompliance:10,style:5,pacing:5,knowledgeConsistency:5},mainEventCount:1,namedCharacterCount:1,unauthorizedImportantCharacter:false,knowledgeViolation:false,retcon:false,outlineDeviation:false,hardFailures:[],warnings:[],suggestions:[],rewriteInstructions:[]});
+  else if (isUnified) content = JSON.stringify({
+    summary:"**Tóm tắt chương:** Gió thổi qua con phố vắng, cô bước đi giữa đêm mưa lạnh. Lan gặp Minh tại Phố cũ và Minh nhận được chìa khóa từ Lan.",
+    characters:[{name:"Minh",tier:"supporting",chapterEvent:"Lan gặp Minh tại Phố cũ",evidence:"Lan gặp Minh tại Phố cũ."}],
+    world:{locations:[{name:"Phố cũ",description:"Con phố vắng trong đêm mưa",status:"active",evidence:"Lan gặp Minh tại Phố cũ."}],items:[{name:"Chìa khóa",description:"Chìa khóa Minh nhận được",owner:"Minh",status:"active",evidence:"Minh nhận được chìa khóa từ Lan."}],threads:[]},
+    status:{changes:{characterChanges:[],conflicts:[]}},
+    memory:{events:[],foreshadowing:[],knowledge:[]},
+    continuityWarnings:[],
+    nextChapterHint:"**Gợi ý ngắn Chương 2:** Lan và Minh tiếp tục xử lý chiếc chìa khóa vừa xuất hiện tại Phố cũ. Chương sau nối trực tiếp từ cuộc gặp này và tập trung vào một diễn biến chính."
+  });
   else if (isSummary) content = "**Tóm tắt chương:** Cô bước đi giữa đêm mưa lạnh trên con phố vắng, gió thổi qua.";
   else if (isNV) content = '[{"name":"Lan","tier":"major","role":"chính"},{"name":"Minh","tier":"major","role":"phụ"}]';
   else if (isW) content = '{"locations":[{"name":"Phố cũ","description":"vắng","status":"active"}],"items":[],"threads":[]}';
-    else content = '{"summary":"x","timeline":[],"foreshadowing":[],"knowledgeLedger":[],"status":"ổn"}';
+  else content = '{"summary":"x","timeline":[],"foreshadowing":[],"knowledgeLedger":[],"status":"ổn"}';
   return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ choices: [{ message: { content }, finish_reason: "stop" }] }), text: async () => content };
 };
 const worker = require(path.join(__dirname, "../netlify/functions/write-chapter-background.js"));
@@ -51,11 +63,14 @@ const worker = require(path.join(__dirname, "../netlify/functions/write-chapter-
   assert(!/^TIÊU ĐỀ|^NỘI DUNG/i.test(job.resultChapter.text), "văn bản không được dính nhãn");
   // V12.17: Gate PASS → Sync qua hàm dùng chung (applyCanonSync)
   const rc = job.resultChapter;
-  const hasWarn = !!(rc.autoUpdateIssues && rc.autoUpdateIssues.length); // dữ liệu giả không trả JSON Status hợp lệ → có cảnh báo (giống v12.16b)
+  const hasWarn = !!(rc.autoUpdateIssues && rc.autoUpdateIssues.length); // các task hợp lệ không được tạo cảnh báo giả
   assert.strictEqual(rc.status, hasWarn ? "SYNCED_WITH_WARNINGS" : "SYNCED", "trạng thái Sync phải khớp cảnh báo, đang là " + rc.status);
   assert.strictEqual(rc.canonVersion, 1, "canonVersion chương = 1"); assert.strictEqual(job.storyState.canonVersion, 1, "canonVersion truyện = 1");
   assert(rc.sync && rc.sync.status === rc.status && rc.sync.canonVersion === 1 && rc.sync.syncedAt, "chapter.sync phải đầy đủ: " + JSON.stringify(rc.sync));
   assert(rc.review && rc.review.verdict === "PASS" && rc.review.status === "completed", "review PASS phải được lưu: " + JSON.stringify(rc.review));
   assert(!job.qualityGateFailed, "không được đặt qualityGateFailed khi PASS");
-  console.log(JSON.stringify({ concurrency: process.env.EXTRACT_CONCURRENCY || "3 (mặc định)", seconds: +secs.toFixed(1), nvBatches: counts.nv, maxParallelNV: maxInflightNV, status: job.status }));
+  assert.strictEqual(counts.unified, 1, "hậu kỳ phải được gộp vào đúng một response AI");
+  assert.strictEqual(counts.nv, 0, "không được gọi extractor Nhân vật riêng sau khi đã gộp");
+  assert.strictEqual(counts.world, 0, "không được gọi extractor Thế giới riêng sau khi đã gộp");
+  console.log(JSON.stringify({ concurrency: process.env.EXTRACT_CONCURRENCY || "3 (mặc định)", seconds: +secs.toFixed(1), unifiedCalls: counts.unified, legacyNVCalls: counts.nv, legacyWorldCalls: counts.world, status: job.status }));
 })().catch(e => { console.error("FAIL", e.message); process.exit(1); });
