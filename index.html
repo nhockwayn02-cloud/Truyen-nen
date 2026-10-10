@@ -3883,13 +3883,24 @@ function auditPromptInstructions(){
       if(c) entries.push({...c, source:source.label});
     }
   }
-  const warnings=[], seen=new Set();
+  const warnings=[], seen=new Set(), sourceTopicSeen=new Set();
+  // Chỉ phát một cảnh báo cho mỗi cặp nguồn + chủ đề; không tạo tổ hợp mọi câu
+  // với mọi câu vì một nhóm quy tắc dài có thể phình thành hàng chục cảnh báo giả.
   for(let i=0;i<entries.length;i++) for(let j=i+1;j<entries.length;j++){
     const a=entries[i], b=entries[j];
     if(a.source===b.source || a.topic!==b.topic || a.polarity===b.polarity) continue;
+    const pair=[a.topic,a.source,b.source].sort().join("|");
+    if(sourceTopicSeen.has(pair)) continue;
     const key=[a.topic,a.source,b.source,a.text,b.text].sort().join("|");
-    if(seen.has(key)) continue; seen.add(key);
-    warnings.push("Có thể xung đột về " + a.topic + ": [" + a.source + "] “" + a.text.slice(0,220) + (a.text.length>220?"…":"") + "” ↔ [" + b.source + "] “" + b.text.slice(0,220) + (b.text.length>220?"…":"") + "”. Giữ nguyên canon/quan hệ/trạng thái đã xác nhận; chỉ thực hiện chỉ đạo cụ thể nếu không làm sai dữ kiện canon.");
+    if(seen.has(key)) continue;
+    seen.add(key); sourceTopicSeen.add(pair);
+    warnings.push("Có thể xung đột về " + a.topic + ": [" + a.source + "] “" + a.text.slice(0,180) + (a.text.length>180?"…":"") + "” ↔ [" + b.source + "] “" + b.text.slice(0,180) + (b.text.length>180?"…":"") + "”. Chỉ xử lý nếu hai yêu cầu thực sự áp dụng cùng chương/phạm vi; không sửa canon đã xác nhận.");
+  }
+  // Giữ prompt gọn: tối đa 3 cảnh báo đại diện. Không thêm phần còn lại vào prompt.
+  const MAX_PROMPT_CONFLICT_WARNINGS = 3;
+  if(warnings.length > MAX_PROMPT_CONFLICT_WARNINGS){
+    const omitted = warnings.length - MAX_PROMPT_CONFLICT_WARNINGS;
+    return warnings.slice(0, MAX_PROMPT_CONFLICT_WARNINGS).concat("Đã gộp/bỏ qua " + omitted + " cảnh báo trùng chủ đề hoặc ít ưu tiên; không coi đây là các mâu thuẫn đã được xác nhận.");
   }
   return warnings;
 }

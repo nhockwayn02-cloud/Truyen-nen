@@ -144,4 +144,14 @@ function makeContext(state) {
   assert(workerSource.includes('const mirrorContext = buildContextBlock({includeChapterInstructions:false});'), 'background worker uses same no-duplicate context mode');
 }
 
+// Regression: long rule sets must not flood the prompt with dozens of pairwise warnings.
+{
+  const rules = Array.from({length: 20}, (_, i) => `Tuyệt đối không tạo nhân vật mới trong tình huống ${i}.`).join("\n");
+  const directives = Array.from({length: 20}, (_, i) => `Bắt buộc tạo nhân vật mới tên Nhân vật ${i} trong chương này.`).join("\n");
+  const ctx = makeContext(makeState({ advancedRules: rules, directive: directives }));
+  const warnings = ctx.auditPromptInstructions();
+  assert(warnings.length <= 4, 'conflict audit is capped and summarized instead of flooding prompt');
+  assert(warnings.length < 58, 'pairwise warning explosion is prevented');
+}
+
 console.log('PASS V12.31 prompt context: dedupe, disabled rules, conflict audit, Current Status freshness, no stale hint leakage');

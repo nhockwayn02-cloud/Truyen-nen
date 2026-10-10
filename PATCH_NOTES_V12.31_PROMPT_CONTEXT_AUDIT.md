@@ -12,3 +12,9 @@
 ## Giới hạn có chủ đích
 - Các quy tắc chung và ngoại lệ được bảo toàn; chỉ loại bỏ trùng văn bản đã chuẩn hóa. Các dòng được ghi tự nhiên là "đã tắt" nhưng không dùng tiền tố `[TẮT]`/`[OFF]` vẫn được giữ để tránh hiểu sai nội dung.
 - Không có API/model thật trong unit test; chi phí, độ chính xác đầu ra và Current Status sau phản hồi thật vẫn cần xác minh trên cấu hình người dùng.
+
+
+### V12.31.1 — giảm cảnh báo xung đột giả
+- Sửa lỗi bộ audit tạo tổ hợp nhiều-mọi-nhiều khiến cảnh báo phình thành hàng chục mục khi có nhiều quy tắc cùng chủ đề.
+- Chỉ giữ một cảnh báo cho mỗi cặp nguồn/chủ đề; tối đa 3 cảnh báo chi tiết trong prompt, phần còn lại được gộp thành một dòng tóm tắt.
+- Đồng bộ sửa ở giao diện và background worker; thêm regression test với tập quy tắc lớn.
