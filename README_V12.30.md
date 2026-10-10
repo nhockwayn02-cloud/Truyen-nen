@@ -20,3 +20,11 @@ Quality Gate vẫn là cổng kiểm tra riêng trước khi ghi Canon; nó khô
 ## Kiểm thử
 
 Chạy `npm test`. Bộ test V12.30 bao gồm: cập nhật có bằng chứng nhưng giữ hồ sơ cốt lõi, không thêm nhân vật major, giữ status và memory cũ, rollback khi JSON bị cắt, và không merge memory nếu schema thiếu.
+
+
+## V12.30.1 — Sửa lỗi phản hồi trống (streaming)
+- Đọc đúng SSE có CRLF, `data:` không có dấu cách và event cuối không có newline.
+- Nếu endpoint không trả `text/event-stream`, xử lý response JSON bình thường.
+- Nếu stream không có nội dung, tự thử lại một lần theo non-streaming trong cùng lượt gọi; không trả/ghi nội dung rỗng.
+- Không thay đổi model, prompt viết chương, Quality Gate hoặc pipeline bảo vệ Character/Memory.
+- Có test mô phỏng SSE thiếu newline và fallback khi stream rỗng.
