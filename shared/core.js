@@ -31,24 +31,23 @@ function _clipChapterText(t, maxChars) {
   if (t.length <= maxChars) return t;
   return t.slice(0, Math.floor(maxChars * 0.3)) + "\n\n[...]\n\n" + t.slice(-Math.floor(maxChars * 0.6));
 }
-// Chương gần (đoạn rút) + tóm tắt chương xa — đúng như viết thường.
+// V12.32: chỉ gửi tóm tắt ngắn của chương gần nhất + đoạn cuối để nối mạch.
+// Không tự động gửi tóm tắt các chương xa; canon dài hạn lấy từ Story Bible/Memory có chọn lọc.
 function buildRecentBlocks(priorChapters) {
   const pc = Array.isArray(priorChapters) ? priorChapters : [];
-  let recentFullText = "";
-  if (pc.length) {
-    const last = pc[pc.length - 1], lastNum = pc.length;
-    recentFullText = "--- Chương " + lastNum + " (đoạn gần, đã rút) ---\n" + _clipChapterText(last.text, 3500);
-    if (pc.length >= 2) {
-      const prev = pc[pc.length - 2];
-      recentFullText = "--- Ch" + (lastNum - 1) + " " + (prev.title || "") + " ---\n" + (prev.summary || _clipChapterText(prev.text, 800)) + "\n\n" + recentFullText;
-    }
-  }
-  let olderSummaries = "";
-  if (pc.length > 2) {
-    const older = pc.slice(0, -2), start = Math.max(0, older.length - 8);
-    olderSummaries = older.slice(start).map((c, i) => "Ch" + (start + i + 1) + ": " + (c.summary || "(chưa tóm tắt)").slice(0, (older.length - start - i) <= 3 ? 900 : 350)).join("\n");
-  }
-  return { recentFullText, olderSummaries };
+  if (!pc.length) return { recentFullText: "", olderSummaries: "" };
+  const last = pc[pc.length - 1];
+  const summary = String(last.summary || "").trim();
+  const compactSummary = summary
+    ? (summary.length > 1100 ? summary.slice(0, 1100).trimEnd() + "…" : summary)
+    : _clipChapterText(last.text || "", 700);
+  const ending = String(last.text || "").trim().slice(-1400);
+  const recentFullText = [
+    "--- CHƯƠNG GẦN NHẤT: TÓM TẮT SỰ KIỆN QUAN TRỌNG ---",
+    compactSummary || "(Chưa có tóm tắt; chỉ dùng đoạn kết bên dưới để nối tiếp.)",
+    ending ? "--- ĐOẠN CUỐI ĐỂ NỐI TIẾP ---\n" + ending : ""
+  ].filter(Boolean).join("\n\n");
+  return { recentFullText, olderSummaries: "" };
 }
 
 // Prompt lập KẾ HOẠCH chương. Có brief của người dùng: giữ ĐỦ mọi nhịp (không còn giới hạn 3 sự kiện / 5 beat làm nén gợi ý nhiều nhịp).

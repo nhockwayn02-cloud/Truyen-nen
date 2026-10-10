@@ -103,24 +103,23 @@ function _clipChapterText(t, maxChars) {
   if (t.length <= maxChars) return t;
   return t.slice(0, Math.floor(maxChars * 0.3)) + "\n\n[...]\n\n" + t.slice(-Math.floor(maxChars * 0.6));
 }
-// Chương gần (đoạn rút) + tóm tắt chương xa — đúng như viết thường.
+// V12.32: chỉ gửi tóm tắt ngắn của chương gần nhất + đoạn cuối để nối mạch.
+// Không tự động gửi tóm tắt các chương xa; canon dài hạn lấy từ Story Bible/Memory có chọn lọc.
 function buildRecentBlocks(priorChapters) {
   const pc = Array.isArray(priorChapters) ? priorChapters : [];
-  let recentFullText = "";
-  if (pc.length) {
-    const last = pc[pc.length - 1], lastNum = pc.length;
-    recentFullText = "--- Chương " + lastNum + " (đoạn gần, đã rút) ---\n" + _clipChapterText(last.text, 3500);
-    if (pc.length >= 2) {
-      const prev = pc[pc.length - 2];
-      recentFullText = "--- Ch" + (lastNum - 1) + " " + (prev.title || "") + " ---\n" + (prev.summary || _clipChapterText(prev.text, 800)) + "\n\n" + recentFullText;
-    }
-  }
-  let olderSummaries = "";
-  if (pc.length > 2) {
-    const older = pc.slice(0, -2), start = Math.max(0, older.length - 8);
-    olderSummaries = older.slice(start).map((c, i) => "Ch" + (start + i + 1) + ": " + (c.summary || "(chưa tóm tắt)").slice(0, (older.length - start - i) <= 3 ? 900 : 350)).join("\n");
-  }
-  return { recentFullText, olderSummaries };
+  if (!pc.length) return { recentFullText: "", olderSummaries: "" };
+  const last = pc[pc.length - 1];
+  const summary = String(last.summary || "").trim();
+  const compactSummary = summary
+    ? (summary.length > 1100 ? summary.slice(0, 1100).trimEnd() + "…" : summary)
+    : _clipChapterText(last.text || "", 700);
+  const ending = String(last.text || "").trim().slice(-1400);
+  const recentFullText = [
+    "--- CHƯƠNG GẦN NHẤT: TÓM TẮT SỰ KIỆN QUAN TRỌNG ---",
+    compactSummary || "(Chưa có tóm tắt; chỉ dùng đoạn kết bên dưới để nối tiếp.)",
+    ending ? "--- ĐOẠN CUỐI ĐỂ NỐI TIẾP ---\n" + ending : ""
+  ].filter(Boolean).join("\n\n");
+  return { recentFullText, olderSummaries: "" };
 }
 
 // Prompt lập KẾ HOẠCH chương. Có brief của người dùng: giữ ĐỦ mọi nhịp (không còn giới hạn 3 sự kiện / 5 beat làm nén gợi ý nhiều nhịp).
@@ -1491,7 +1490,7 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
         "HTTP-Referer": process.env.URL || "https://xuong-truyen-ai.netlify.app",
         "X-Title": "Xuong Truyen AI v9"
       },
-      body: JSON.stringify(Object.assign({ model, messages, max_tokens: maxTokens, temperature, stream: true },
+      body: JSON.stringify(Object.assign({ model, messages, max_tokens: Math.max(1, Math.min(7800, Number(maxTokens) || 4000)), temperature, stream: true },
         // V12.20: siết lấy mẫu khi viết văn để giảm từ lỗi ghép (mươititude, bănnton...). top_k chỉ gửi cho OpenRouter.
         creative ? { top_p: 0.88 } : {},
         (creative && /openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) ? { top_k: 40 } : {},
@@ -1588,7 +1587,7 @@ async function callExtract(args, tries = 2) {
   // Rỗng hoặc bị cắt (finish=length) -> gọi lại với ngân sách gấp đôi (tối đa 16000)
   if ((empty || r.finishReason === "length") && base < 16000 && timeLeft() > 120000) {
     try {
-      const r2 = await callWithRetry({ ...args, maxTokens: Math.min(16000, base * 2) }, tries);
+      const r2 = await callWithRetry({ ...args, maxTokens: Math.min(7800, base * 2) }, tries);
       const has2 = String(r2.text || "").trim();
       if (has2 && (empty || r2.finishReason !== "length" || r2.text.length > r.text.length)) r = { ...r2, retriedBigger: true };
     } catch (e) { if (empty) throw e; }
@@ -1762,24 +1761,15 @@ function buildContextBlock(options){
 
   if(state.storyClock) lines.push("THỜI ĐIỂM: " + state.storyClock);
 
-  /* Chỉ 3 summary gần — đủ chống lặp, không phình prompt */
-  if(state.chapters.length){
-    const recent = state.chapters.slice(-3);
-    const startNum = state.chapters.length - recent.length + 1;
-    const sumLines = recent.map((c,i)=>{
-      const n = startNum + i;
-      return "- Ch" + n + " (" + (c.title||"") + "): " + clip(c.summary || "(chưa tóm tắt)", 280);
-    }).join("\n");
-    lines.push("TÓM TẮT 3 CHƯƠNG GẦN:\n" + sumLines);
-  }
+  // V12.32: không chèn tóm tắt chương cũ lần thứ hai vào khối ngữ cảnh.
   /* NV: bóc thẻ tự động, tối đa 5 thẻ cho mỗi prompt */
   const cardText = characterCardsForPromptV102((state.chapters.slice(-1)[0]?.text||"") + "\n" + (state.directive||""));
   if(cardText) lines.push("THẺ NHÂN VẬT KÍCH HOẠT (tối đa 5):\n" + clip(cardText, 2400));
 
   /* QUAN TRỌNG: danh sách nhân vật đã có trong truyện — nếu không liệt kê ở đây,
      model không biết họ tồn tại nên sẽ tự bịa nhân vật mới dù prompt cấm. */
-  const rosterChars = relevantCharacters(22);
-  if(rosterChars.length) lines.push("NHÂN VẬT ĐÃ CÓ TRONG TRUYỆN (BẮT BUỘC ưu tiên dùng lại, KHÔNG tạo mới nếu chưa cần):\n" + characterSummaryForPrompt(rosterChars));
+  const rosterChars = relevantCharacters(8);
+  if(rosterChars.length) lines.push("NHÂN VẬT CÒN SỐNG CÓ LIÊN QUAN (chỉ tham khảo khi phù hợp; không bắt buộc xuất hiện):\n" + characterSummaryForPrompt(rosterChars));
 
   if(state.mainCharProfile && state.mainCharProfile.name){
     const mc = state.mainCharProfile;
@@ -1825,7 +1815,7 @@ function buildContextBlock(options){
   } else if((state.chapters || []).length){
     lines.push("CURRENT STATUS: Chưa có bản trạng thái được xác nhận. Dựa vào tóm tắt và đoạn kết các chương đã lưu; không bịa trạng thái không có bằng chứng.");
   }
-  const trackers=Object.values(state.characterStateTracker||{}).slice(-20);
+  const trackers=Object.values(state.characterStateTracker||{}).filter(x=>x && !x.dead && !x.isDead).slice(-8);
   if(trackers.length) lines.push("CHARACTER STATE TRACKER:\n"+trackers.map(x=>"- "+x.name+" | Ch"+x.chapter+" | cấp:"+(x.powerLevel||"?")+" | vị trí:"+(x.location||"?")+" | sức khỏe:"+(x.health||"?")+" | vật phẩm:"+(x.itemsHeld||"?")+" | "+(x.dead?"đã chết":"còn sống")).join("\n"));
   if((state.glossaryLock||[]).length) lines.push("GLOSSARY LOCK:\n"+state.glossaryLock.map(x=>"- "+x).join("\n"));
   if((state.banWords||[]).length) lines.push("CẤM TỪ / ANTI-AI TROPES:\n"+state.banWords.slice(0,80).map(x=>"- "+x).join("\n"));
@@ -2030,24 +2020,30 @@ function buildStoryBibleSummary(options){
 }
 
 function relevantCharacters(limit){
-  limit = limit || 22;
-  const recentText = normalizeName(state.chapters.slice(-4).map(c=> (c.text||"") + " " + (c.summary||"")).join(" "));
-  const scored = state.characters.map(c=>{
+  limit = limit || 8;
+  const chapters = Array.isArray(state.chapters) ? state.chapters : [];
+  const recentText = normalizeName(chapters.slice(-2).map(c=> (c.text||"") + " " + (c.summary||"")).join(" "));
+  const mainName = normalizeName(state.mainCharProfile && state.mainCharProfile.name || "");
+  const scored = (state.characters || []).filter(c=>{
+    if(!c || !c.name || c.dead || c.isDead) return false;
+    if(mainName && normalizeName(c.name) === mainName) return false;
+    const gap = c.lastAppearance == null ? 999 : chapters.length - Number(c.lastAppearance);
+    if(c.tier === 'minor' && gap > 2 && !recentText.includes(normalizeName(c.name))) return false;
+    if(c.tier === 'supporting' && gap > 8 && !recentText.includes(normalizeName(c.name)) && !c.locked) return false;
+    return true;
+  }).map(c=>{
     let score = 0;
     if(c.locked) score += 8;
-    if(c.dead) score -= 15;
     if(c.tier === 'major') score += 7;
     if(c.tier === 'important') score += 5;
     if(c.tier === 'supporting') score += 2;
     if(c.tier === 'minor') score += 0.5;
     const nName = normalizeName(c.name);
-    if(nName && recentText.includes(nName)) score += 10;
-    if(c.lastAppearance!=null){
-      const gap = state.chapters.length - c.lastAppearance;
-      if(gap <= 1) score += 5;
-      else if(gap <= 3) score += 3;
-      else score += Math.max(0, 2 - gap*0.15);
-    }
+    if(nName && recentText.includes(nName)) score += 12;
+    const gap = c.lastAppearance == null ? 999 : chapters.length - Number(c.lastAppearance);
+    if(gap <= 1) score += 6;
+    else if(gap <= 3) score += 3;
+    else if(gap <= 8) score += Math.max(0, 2 - gap*0.15);
     if(c.attractionToMC || c.tensionWithMC) score += 1.5;
     return { c, score };
   });

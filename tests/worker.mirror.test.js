@@ -20,7 +20,7 @@ const state = {
 t("Hàm của viết thường có mặt trong worker", () => { ["buildContextBlock", "buildMainWritePrompt", "buildRecentBlocks"].forEach(n => assert.strictEqual(typeof T[n], "function", n)); });
 t("buildContextBlock chạy trong worker và có cả địa điểm/vật phẩm/threads (worker cũ không có)", () => {
   T.__setMirrorState(state); const c = T.buildContextBlock();
-  assert(/Biệt thự/.test(c) && /Hồ sơ/.test(c) && /THREADS/.test(c) && /NHÂN VẬT ĐÃ CÓ TRONG TRUYỆN/.test(c), c.slice(0, 300));
+  assert(/Biệt thự/.test(c) && /Hồ sơ/.test(c) && /THREADS/.test(c) && /NHÂN VẬT CÒN SỐNG CÓ LIÊN QUAN/.test(c), c.slice(0, 300));
 });
 t("buildMainWritePrompt (proseOnly) có đủ quy tắc của viết thường và không đòi TIÊU ĐỀ/NỘI DUNG", () => {
   T.__setMirrorState(state);
