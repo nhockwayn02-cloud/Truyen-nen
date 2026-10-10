@@ -96,7 +96,7 @@ function validOutput() {
     const state=baseState(); const before=JSON.stringify(state); const chapter={text:source,summary:'Tóm tắt cũ'};
     let calls=0; sandbox.callWithRetry=async()=>{calls++; return {text:'{"summary":"bị cắt',finishReason:'length'};};
     const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
-    assert.strictEqual(calls,1,'lỗi JSON không kích hoạt một lượt sửa JSON AI khác');
+    assert.strictEqual(calls,4,'V12.32.2: JSON gộp bị cắt -> thử 3 nhóm nhỏ (không gọi AI sửa JSON)');
     assert.strictEqual(r.ok,false,'JSON bị cắt phải thất bại an toàn');
     assert.strictEqual(JSON.stringify(state),before,'state phải rollback nguyên vẹn');
     assert.strictEqual(chapter.summary,'Tóm tắt cũ','summary cũ phải nguyên vẹn');
@@ -116,5 +116,20 @@ function validOutput() {
     assert.strictEqual(state.lastMemorySyncChapter,1,'không đánh dấu đã sync memory nếu schema thiếu');
     assert.strictEqual(r.tasks.Memory.ok,false,'task Memory phải báo thiếu schema');
     console.log('PASS V12.30: incomplete memory output leaves all memory intact');
+  }
+  // Case 4 (V12.32.2): combined call truncated, but split groups succeed -> data still updates.
+  {
+    const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ'}; const out=validOutput(); let calls=0;
+    sandbox.callWithRetry=async(a)=>{ calls++; const p=a.messages[a.messages.length-1].content;
+      if(calls===1) return {text:'{"summary":"bị cắt',finishReason:'length'};
+      const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:'';
+      const o={}; ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('"'+k+'"')) o[k]=out[k]!==undefined?out[k]:(k==='continuityWarnings'?[]:''); });
+      return {text:JSON.stringify(o),finishReason:'stop'}; };
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    assert.strictEqual(r.ok,true,'fallback theo nhóm phải thành công');
+    assert.strictEqual(calls,4,'1 lần gộp + 3 nhóm');
+    assert(r.tasks.Memory.ok&&r.tasks.Status.ok&&r.tasks.NV.ok&&r.tasks['Thế giới'].ok,'mọi task cập nhật sau fallback');
+    assert(state.timeline.length>1,'timeline được thêm');
+    console.log('PASS V12.32.2: truncated combined JSON falls back to grouped calls');
   }
 })().catch(e=>{console.error('FAIL V12.30 unified postprocess:',e.stack||e.message);process.exit(1);});

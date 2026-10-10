@@ -41,7 +41,7 @@ const worker=require(path.join(__dirname,"../netlify/functions/write-chapter-bac
   assert.strictEqual(job.storyState.lastMemorySyncChapter,0,"không tăng cursor khi Memory thất bại");
   assert(!((ch.autoUpdateIssues||[]).some(x=>/^Status(?:\\b|:)|^Memory(?:\\b|:)/i.test(String(x)))),"Status/Memory lỗi mềm không được đưa vào autoUpdateIssues");
   assert.strictEqual(ch.sync.status,"SYNCED","chương đã lưu vẫn SYNCED dù hậu kỳ mềm lỗi");
-  assert.strictEqual(ch.postProcess.status,"DONE");
+  assert.strictEqual(ch.postProcess.status,"FAILED","V12.32.2: hậu kỳ lỗi phải báo FAILED thật, không báo DONE giả");
   assert.strictEqual(ch.postProcess.tasks.Status.status,"FAILED");
   assert.strictEqual(ch.postProcess.tasks.Memory.status,"FAILED");
   console.log("PASS V12.30 soft failure: một API call; Status/Memory giữ nguyên khi lỗi");

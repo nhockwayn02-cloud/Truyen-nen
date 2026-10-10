@@ -1809,6 +1809,17 @@ function knownNameMentions(text, names) {
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
 const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
+/* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
+   Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
+   độ khó, từ cấm...), rồi nếu vẫn dài thì giữ đầu 40% + cuối 60% (có Current Status/Threads). */
+const GATE_CTX_DROP_ALWAYS = /^(MỨC MIÊU TẢ|MỨC 18\+|VĂN PHONG|ĐỘ KHÓ|TỪ MUỐN DÙNG|TỪ CẦN TRÁNH|CỤM ĐÃ LẶP|CÁCH GỌI BỘ PHẬN)/;
+const GATE_CTX_DROP_REVIEW = /^(STYLE:|CẤM TỪ)/;
+function compactGateContext(ctx, maxChars, forReview) {
+  const blocks = String(ctx || "").split(/\n\n+/).filter(b => b && !GATE_CTX_DROP_ALWAYS.test(b.trim()) && !(forReview && GATE_CTX_DROP_REVIEW.test(b.trim())));
+  const s = blocks.join("\n\n");
+  if (s.length <= maxChars) return s;
+  return s.slice(0, Math.floor(maxChars * 0.4)) + "\n[...]\n" + s.slice(-Math.floor(maxChars * 0.6));
+}
 function buildQualityReviewPrompt(p) {
   const evN = Number(p.maxMainEvents) || 3, chN = Number(p.maxNamedCharacters) || 4;
   const known = (p.knownNames || []);
@@ -1818,7 +1829,7 @@ function buildQualityReviewPrompt(p) {
     "Trả DUY NHẤT JSON object theo schema cuối.",
     "STORY CONTROL:", p.storyControl || "",
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
-    "BỐI CẢNH/CANON TÓM LƯỢC:", String(p.context || "").slice(0, 18000),
+    "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
     p.prevEnding ? ("ĐOẠN KẾT CHƯƠNG TRƯỚC (để đối chiếu địa điểm/thời điểm/người có mặt ở cảnh mở đầu):\n" + String(p.prevEnding).slice(-1500)) : "",
     "BẢN THẢO CHƯƠNG:", String(p.draft || "").slice(0, 50000),
@@ -1844,7 +1855,7 @@ function buildRewritePrompt(p) {
     "TUYỆT ĐỐI không thêm sự kiện chính mới, không tạo nhân vật quan trọng mới, không mở thread mới chỉ để làm bản sửa dài hơn.",
     p.storyControl || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
-    p.context ? "CANON CONTEXT:\n" + String(p.context).slice(0, 15000) : "",
+    p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
     "QUALITY REVIEW:\n" + JSON.stringify(p.review || {}),
     "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(p.review),
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || ""),
@@ -6951,11 +6962,15 @@ async function runQualityGate(chapter, chapterNumber, plan, contextSummary, opts
   opts=opts||{};
   normalizeChapterPipelineState(chapter);
   return runGateLoop(chapter,{
-    selfCheck:async()=>{
+    selfCheck:async(attempt)=>{
       chapter.selfCheck={status:"running",checks:gateHardChecks(chapter),checkedAt:null}; renderQualityReview(chapter);
-      const warnings=await runContinuityCheck(chapter.text,chapterNumber,contextSummary,true);
-      /* mỗi lượt thay cảnh báo AI cũ bằng cảnh báo mới, không cộng dồn */
-      chapter.continuityWarnings=mergeAiContinuityWarnings(chapter.continuityWarnings,warnings,20);
+      /* V12.32.3: gọi AI kiểm tra continuity (gửi cả chương) CHỈ ở vòng 1; các vòng sau chỉ chạy kiểm tra cứng (không tốn token).
+         Review và hậu kỳ server vẫn kiểm continuity lại. */
+      if(!attempt||attempt<=1){
+        const warnings=await runContinuityCheck(chapter.text,chapterNumber,contextSummary,true);
+        /* mỗi lượt thay cảnh báo AI cũ bằng cảnh báo mới, không cộng dồn */
+        chapter.continuityWarnings=mergeAiContinuityWarnings(chapter.continuityWarnings,warnings,20);
+      }
       chapter.selfCheck={status:"passed",checks:gateHardChecks(chapter),checkedAt:Date.now()};
     },
     review:()=>qualityReviewDraft(chapter,chapterNumber,plan,contextSummary),
@@ -8563,7 +8578,7 @@ function pollBackgroundJob(record){
         await mergeBackgroundChapter(data,record);
         try{ if(typeof persistNow==="function") await persistNow(); }catch(e){}
         if((!record.storyId||record.storyId===state.storyId)&&data.storyState&&Array.isArray(data.storyState.chapters)&&state.chapters.length>=data.storyState.chapters.length) ackBackgroundJob(record);
-        localStorage.removeItem(BG_JOB_KEY);setBgStatus(isGateFailedResult(data)?"⚠ Background xong nhưng chưa vượt Quality Gate — chưa ghi Canon.":(record.mode==="postprocess"?"✓ Đã hoàn tất hậu kỳ server và đồng bộ Canon.":"✓ Đã đồng bộ background v9."),true);setTimeout(()=>setBgStatus("",false),9000);
+        localStorage.removeItem(BG_JOB_KEY);setBgStatus(isGateFailedResult(data)?"⚠ Background xong nhưng chưa vượt Quality Gate — chưa ghi Canon.":(data.postProcessStatus&&data.postProcessStatus!=="DONE"?"⚠ Hậu kỳ "+(data.postProcessStatus==="FAILED"?"thất bại":"chỉ cập nhật một phần")+(data.postProcessError?": "+data.postProcessError:""):record.mode==="postprocess"?"✓ Đã hoàn tất hậu kỳ server và đồng bộ Canon.":"✓ Đã đồng bộ background v9."),true);setTimeout(()=>setBgStatus("",false),9000);
       }else if(data.status==="failed"){
         clearInterval(bgPollTimer);bgPollTimer=null;
         if(record.mode==="postprocess" && record.storyId===state.storyId && record.chapterNumber && state.chapters[record.chapterNumber-1]){
@@ -8607,6 +8622,14 @@ async function mergeBackgroundChapter(statusData,record){
     // Local đã có thêm chương sau khi job bắt đầu: tuyệt đối KHÔNG ghi đè toàn bộ state.
     const known=new Set(state.chapters.map(c=>String(c.title||"")+"|"+(c.wordCount||0)));
     serverNew.forEach(ch=>{const k=String(ch.title||"")+"|"+(ch.wordCount||0);if(!known.has(k)){state.chapters.push(ch);known.add(k);}});
+    /* V12.32.2: hậu kỳ chương N xong khi người dùng đã viết thêm chương -> trước đây kết quả của chương N
+       (tóm tắt, continuity, trạng thái hậu kỳ) bị bỏ, chip kẹt "RUNNING". Chỉ chép các trường hậu kỳ vào đúng chương N. */
+    if(record && record.mode==="postprocess" && statusData.resultChapter){
+      const rc=statusData.resultChapter, li=Number(record.chapterNumber||statusData.chapterNumber||0)-1, lc=state.chapters[li];
+      if(lc && String(lc.title||"")===String(rc.title||"")){
+        ["summary","continuityWarnings","autoUpdateIssues","updateDiagnostics","postProcess","review"].forEach(k=>{ if(rc[k]!==undefined) lc[k]=rc[k]; });
+      }
+    }
     setStatus("✓ Background hoàn tất. Đã hợp nhất chương mới mà không ghi đè các chương local.",false);
   }else{
     /* V12.23: payload đã bỏ stateSnapshots/versions của các chương cũ -> khôi phục từ bản local (khớp theo vị trí + tiêu đề). */
@@ -8645,6 +8668,11 @@ async function mergeBackgroundChapter(statusData,record){
   const last=state.chapters[state.chapters.length-1];
   const gateFailed=isGateFailedResult(statusData)||!!(last&&last.status==="REVISION_REQUIRED");
   if(gateFailed) setStatus("⛔ Background: chương "+(last?last.title:"")+" chưa vượt Quality Gate — bản nháp đã lưu, CHƯA ghi Canon. Bấm 🔍 Duyệt lại hoặc ↻ Viết lại.",false);
+  else if(statusData.postProcessStatus && statusData.postProcessStatus!=="DONE"){
+    /* V12.32.2: hậu kỳ server lỗi/chỉ cập nhật một phần -> KHÔNG báo "Đã đồng bộ" giả. */
+    const failedTxt=(statusData.postProcessFailed||[]).join(", ");
+    setStatus((statusData.postProcessStatus==="FAILED"?"⚠ Hậu kỳ THẤT BẠI — NV/World/Status/Memory CHƯA được cập nhật":"⚠ Hậu kỳ chỉ cập nhật một phần"+(failedTxt?" (chưa cập nhật: "+failedTxt+")":""))+(statusData.postProcessError?". Lý do: "+statusData.postProcessError:"")+" Bấm nút thử lại hậu kỳ.",false);
+  }
   else setStatus("☁ Đã đồng bộ: "+(last?last.title:"")+" ("+(last?last.wordCount:0)+" từ). NV/World/Status/Scene đã hợp nhất.",false);
 }
 function checkPendingBackgroundJob(){

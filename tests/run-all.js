@@ -15,6 +15,7 @@ const dir = __dirname; const suites = [
   ["V12.28.3 getEndingTarget helper", process.execPath, ["v12_28_3_ending_target.test.js"]],
   ["V12.29 tối ưu chi phí không đổi model", process.execPath, ["v12_29_cost_optimization.test.js"]],
   ["V12.30 hậu kỳ một lần gọi + bảo vệ canon/memory", process.execPath, ["v12_30_unified_postprocess.test.js"]],
+  ["V12.32.3 ngữ cảnh Gate gọn + continuity vòng 1", process.execPath, ["v12_32_3_gate_context.test.js"]],
   ["V12.30 khôi phục phản hồi streaming rỗng", process.execPath, ["v12_30_streaming_fix.test.js"]],
   ["V12.31 prompt context audit", process.execPath, ["v12_31_prompt_context.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],

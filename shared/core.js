@@ -825,6 +825,17 @@ function knownNameMentions(text, names) {
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
 const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
+/* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
+   Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
+   độ khó, từ cấm...), rồi nếu vẫn dài thì giữ đầu 40% + cuối 60% (có Current Status/Threads). */
+const GATE_CTX_DROP_ALWAYS = /^(MỨC MIÊU TẢ|MỨC 18\+|VĂN PHONG|ĐỘ KHÓ|TỪ MUỐN DÙNG|TỪ CẦN TRÁNH|CỤM ĐÃ LẶP|CÁCH GỌI BỘ PHẬN)/;
+const GATE_CTX_DROP_REVIEW = /^(STYLE:|CẤM TỪ)/;
+function compactGateContext(ctx, maxChars, forReview) {
+  const blocks = String(ctx || "").split(/\n\n+/).filter(b => b && !GATE_CTX_DROP_ALWAYS.test(b.trim()) && !(forReview && GATE_CTX_DROP_REVIEW.test(b.trim())));
+  const s = blocks.join("\n\n");
+  if (s.length <= maxChars) return s;
+  return s.slice(0, Math.floor(maxChars * 0.4)) + "\n[...]\n" + s.slice(-Math.floor(maxChars * 0.6));
+}
 function buildQualityReviewPrompt(p) {
   const evN = Number(p.maxMainEvents) || 3, chN = Number(p.maxNamedCharacters) || 4;
   const known = (p.knownNames || []);
@@ -834,7 +845,7 @@ function buildQualityReviewPrompt(p) {
     "Trả DUY NHẤT JSON object theo schema cuối.",
     "STORY CONTROL:", p.storyControl || "",
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
-    "BỐI CẢNH/CANON TÓM LƯỢC:", String(p.context || "").slice(0, 18000),
+    "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
     p.prevEnding ? ("ĐOẠN KẾT CHƯƠNG TRƯỚC (để đối chiếu địa điểm/thời điểm/người có mặt ở cảnh mở đầu):\n" + String(p.prevEnding).slice(-1500)) : "",
     "BẢN THẢO CHƯƠNG:", String(p.draft || "").slice(0, 50000),
@@ -860,7 +871,7 @@ function buildRewritePrompt(p) {
     "TUYỆT ĐỐI không thêm sự kiện chính mới, không tạo nhân vật quan trọng mới, không mở thread mới chỉ để làm bản sửa dài hơn.",
     p.storyControl || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
-    p.context ? "CANON CONTEXT:\n" + String(p.context).slice(0, 15000) : "",
+    p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
     "QUALITY REVIEW:\n" + JSON.stringify(p.review || {}),
     "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(p.review),
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || ""),
