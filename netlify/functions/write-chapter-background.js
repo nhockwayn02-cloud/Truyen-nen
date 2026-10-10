@@ -3407,7 +3407,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         { role:"system", content:"Bạn là bộ đồng bộ canon và bộ nhớ tiểu thuyết dài kỳ tiếng Việt. Chỉ trả một JSON object hoàn chỉnh, không markdown. Ưu tiên dữ liệu cũ; chỉ đề xuất delta có evidence lấy từ chương." },
         { role:"user", content: unifiedPostprocessPrompt(job, chapter, n, state) }
       ],
-      maxTokens:16000, temperature:0.1
+      maxTokens:7800, temperature:0.1 /* keep below AnonRouter models capped at 8192 */
     }, 1); // V12.30: không gọi lại AI lần 2; lỗi tạm thời thì fail-safe, giữ dữ liệu cũ.
     res.callCount = 1;
     if (r.finishReason === "length") throw new Error("Kết quả JSON bị cắt ở giới hạn token; đã giữ nguyên toàn bộ dữ liệu cũ để tránh cập nhật thiếu.");
