@@ -16,6 +16,8 @@ const dir = __dirname; const suites = [
   ["V12.29 tối ưu chi phí không đổi model", process.execPath, ["v12_29_cost_optimization.test.js"]],
   ["V12.30 hậu kỳ một lần gọi + bảo vệ canon/memory", process.execPath, ["v12_30_unified_postprocess.test.js"]],
   ["V12.32.3 ngữ cảnh Gate gọn + continuity vòng 1", process.execPath, ["v12_32_3_gate_context.test.js"]],
+  ["V12.32.4 hồ sơ khóa nhân vật", process.execPath, ["v12_32_4_character_lock.test.js"]],
+  ["V12.32.5 tiến triển + trí nhớ truyện", process.execPath, ["v12_32_5_progress_memory.test.js"]],
   ["V12.30 khôi phục phản hồi streaming rỗng", process.execPath, ["v12_30_streaming_fix.test.js"]],
   ["V12.31 prompt context audit", process.execPath, ["v12_31_prompt_context.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],

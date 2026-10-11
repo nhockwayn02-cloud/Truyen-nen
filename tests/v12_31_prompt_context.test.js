@@ -37,6 +37,10 @@ function makeContext(state) {
     EXPLICIT_PROMPTS: { sensual: 'sensual description' },
     ageGuardPrompt: () => '',
     storyControlPromptClient: () => 'story control',
+    characterLockPromptClient: () => '',
+    storySoFarPrompt: () => '',
+    openLoopsPrompt: () => '',
+    progressRulesPrompt: () => '',
     buildLengthPlan: () => ''
   };
   vm.createContext(ctx);

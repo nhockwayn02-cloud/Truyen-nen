@@ -153,7 +153,8 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "6. SCENE BEATS: MỖI nhịp của brief là MỘT beat (không giới hạn số beat), ghi gợi ý độ dài từng beat để cả chương đạt mục tiêu từ; KHÔNG tự sinh thêm sự kiện lớn ngoài brief"
                  : "6. SCENE BEATS (tối đa 5 beat) — chỉ triển khai 1-3 sự kiện trên, KHÔNG tự sinh thêm sự kiện lớn",
     "7. Kết chương — phải khớp mốc kết thúc người dùng yêu cầu nếu có",
-    "8. Nếu có cảnh trưởng thành: mức intensity + structure, nhưng không thay đổi phạm vi sự kiện người dùng đã chỉ định",
+    "7b. THAY ĐỔI/TIẾN TRIỂN: ghi rõ điều gì ĐÃ ĐỔI giữa đầu và cuối chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả); không được để trống",
+    "8. Nếu có cảnh trưởng thành: mức intensity + structure + cảnh đó làm đổi điều gì (quan hệ/quyền lực/bí mật/hậu quả) và dẫn tới bước nào kế tiếp; không thay đổi phạm vi sự kiện người dùng đã chỉ định",
     "",
     hasUserBrief ? "QUY TẮC CỨNG: Không thêm sự kiện lớn ngoài brief. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có."
                  : "QUY TẮC CỨNG: Không thêm sự kiện lớn thứ 4. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có.",
@@ -792,6 +793,14 @@ function evaluateReview(obj, opts) {
   if (obj.unauthorizedImportantCharacter) hard.push("Có nhân vật mới quan trọng không được outline/brief cho phép.");
   if (obj.knowledgeViolation) hard.push("Vi phạm Knowledge Ledger / nhân vật biết thông tin chưa thể biết.");
   if (obj.retcon) hard.push("Có dấu hiệu retcon canon đã xác nhận.");
+  if (obj.stagnation) {
+    const sn = (Array.isArray(obj.stagnationNotes) ? obj.stagnationNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    hard.push("Chương dậm chân tại chỗ: cảnh lặp/kéo dài, cuối chương không có thay đổi nào so với đầu chương" + (sn ? ": " + sn : "."));
+  }
+  if (obj.profileViolation) {
+    const pv = (Array.isArray(obj.profileViolations) ? obj.profileViolations : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    hard.push("Nhân vật hành xử/nói vượt thiết lập hồ sơ (địa vị, nghề, quyền hạn, năng lực, kiến thức, cách nói)" + (pv ? ": " + pv : "."));
+  }
   const score = Math.max(0, Math.min(100, Number(obj.score) || 0));
   const verdict = hard.length ? "HARD_FAIL" : (score >= passScore ? "PASS" : (score >= softScore ? "SOFT_FAIL" : "HARD_FAIL"));
   return Object.assign({}, obj, {
@@ -846,6 +855,82 @@ function normalizeStoryControl(st) {
     agencyRequired: sc.agencyRequired !== false
   };
 }
+// --- V12.32.5: TIẾN TRIỂN BẮT BUỘC + TRÍ NHỚ TRUYỆN (chống dậm chân tại chỗ, tăng liền lạc giữa các chương) ---
+function progressRulesPrompt(st) {
+  const mf = normalizeChapterMatureFocus(st && st.chapterMatureFocus);
+  return [
+    "TIẾN TRIỂN BẮT BUỘC (chống dậm chân tại chỗ):",
+    "- Cuối chương, ít nhất MỘT điều phải đã THAY ĐỔI so với đầu chương: quan hệ giữa các nhân vật, thông tin/bí mật được lộ, quyền lực/vị thế, mục tiêu, hoặc một hậu quả mới. Không kết chương ở đúng trạng thái đã có lúc mở chương.",
+    "- Mỗi cảnh phải có hành động hoặc lựa chọn làm tình thế dịch chuyển; cấm lặp lại cùng một hành động, cùng một kiểu miêu tả hay cùng nhịp cảm xúc chỉ để kéo dài. Muốn dài hơn thì đẩy tình huống sang bước kế tiếp, không nhắc lại bước vừa qua.",
+    "- Chương phải tiếp nối từ điểm kết chương trước và các việc ĐANG DANG DỞ (nếu có trong bối cảnh); không bỏ quên và không làm như chưa từng xảy ra.",
+    mf === "primary" ? "- Cảnh trưởng thành là trọng tâm nhưng KHÔNG phải toàn bộ chương: chỉ chiếm khoảng một nửa đến hai phần ba nội dung; phần còn lại (trước, xen kẽ, sau) là diễn biến cốt truyện/quan hệ. Cảnh nóng phải tự làm đổi điều gì đó (quan hệ, quyền lực, bí mật, hậu quả, quyết định) và mở ra bước kế tiếp; đừng lặp lại cùng một động tác hay cùng một đoạn tả." : ""
+  ].filter(Boolean).join("\n");
+}
+// Tóm tắt truyện đến nay: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tổng không quá maxChars.
+function storySoFarPrompt(chapters, maxChars) {
+  const cs = Array.isArray(chapters) ? chapters.slice(0, -1) : [];
+  maxChars = Number(maxChars) || 2800;
+  const clean = c => String((c && c.summary) || "").replace(/\*\*[^*]*\*\*:?/g, " ").replace(/\s+/g, " ").trim();
+  const items = [];
+  cs.forEach((c, i) => { const t = clean(c); if (t) items.push({ n: i + 1, t }); });
+  if (!items.length) return "";
+  const N = Math.min(items.length, Math.max(1, Math.floor(maxChars / 90)));
+  const use = items.slice(-N), per = Math.max(80, Math.min(260, Math.floor(maxChars / N) - 8));
+  const cutSentence = (t, n) => { if (t.length <= n) return t; const h = t.slice(0, n); const k = Math.max(h.lastIndexOf(". "), h.lastIndexOf("! "), h.lastIndexOf("? ")); return (k > n * 0.5 ? h.slice(0, k + 1) : h.trimEnd() + "…"); };
+  const lines = use.map(x => "Ch" + x.n + ": " + cutSentence(x.t, per));
+  return "TRUYỆN ĐẾN NAY (tóm tắt các chương trước" + (use.length < items.length ? ", chỉ " + use.length + " chương gần nhất" : "") + " — giữ liền mạch, không mâu thuẫn):\n" + lines.join("\n");
+}
+// Các việc đang dang dở lấy từ Current Status có cấu trúc.
+function openLoopsPrompt(st) {
+  const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
+  const cur = ss.currentState || {}, lt = ss.longTerm || {};
+  const pick = (k) => { const v = cur[k] != null && cur[k] !== "" ? cur[k] : lt[k]; return typeof v === "string" ? v.trim() : (v ? JSON.stringify(v) : ""); };
+  const rows = [["Chưa giải quyết", "unresolved"], ["Mâu thuẫn", "conflict"], ["Mục tiêu kế tiếp", "nextGoal"], ["Móc nối chương sau", "nextHooks"]]
+    .map(([l, k]) => { const v = pick(k); return v ? "- " + l + ": " + (v.length > 260 ? v.slice(0, 260) + "…" : v) : ""; }).filter(Boolean);
+  return rows.length ? "ĐANG DANG DỞ (phải tiếp nối, không bỏ quên):\n" + rows.join("\n") : "";
+}
+
+// --- V12.32.4: HỒ SƠ KHÓA — buộc AI không để nhân vật vượt thiết lập (địa vị/nghề/quyền hạn/tài sản/năng lực/kiến thức/giọng nói). ---
+// Nhân vật có tên xuất hiện trong text (kèm nhân vật chính) — dùng cho Review/Rewrite.
+function lockCharsForText(st, text, limit) {
+  const t = String(text || ""), out = [], seen = new Set();
+  const push = c => { if (c && c.name && !seen.has(c.name) && out.length < (limit || 8)) { seen.add(c.name); out.push(c); } };
+  ((st && st.characters) || []).forEach(c => { if (c && c.name && !c.dead && knownNameMentions(t, [c.name]).length) push(c); });
+  return out;
+}
+function characterLockPrompt(mc, chars, short) {
+  const cut = (v, n) => { v = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return v.length > n ? v.slice(0, n) + "…" : v; };
+  const line = (c, isMain) => {
+    const f = [];
+    if (c.occupation) f.push("nghề: " + cut(c.occupation, 50));
+    if (c.role) f.push("vai trò: " + cut(c.role, 50));
+    if (c.position) f.push("chức vụ/địa vị: " + cut(c.position, 50));
+    if (c.faction) f.push("phe/tổ chức: " + cut(c.faction, 40));
+    if (c.age) f.push("tuổi: " + cut(c.age, 10));
+    if (c.skills || c.strength) f.push("năng lực: " + cut(c.skills || c.strength, 60));
+    if (c.speech || c.voice) f.push("cách nói: " + cut(c.speech || c.voice, 60));
+    if (c.personality) f.push("tính: " + cut(c.personality, 60));
+    if (c.knowledge) f.push("biết: " + cut(c.knowledge, 60));
+    if (c.relevanceToMC) f.push("với NVC: " + cut(c.relevanceToMC, 50));
+    return f.length ? "- " + (c.name || "?") + (isMain ? " (NVC)" : "") + " | " + f.join(" | ") : "";
+  };
+  const rows = [];
+  if (mc && mc.name) rows.push(line(mc, true));
+  (chars || []).forEach(c => { if (c && c.name && !(mc && mc.name === c.name)) rows.push(line(c, false)); });
+  const lines = rows.filter(Boolean);
+  if (!lines.length) return "";
+  if (short) return ["HỒ SƠ KHÓA — giữ đúng nghề/địa vị/quyền hạn/năng lực/cách nói của từng nhân vật, không tự nâng cấp hay vượt thiết lập:", ...lines].join("\n");
+  return [
+    "HỒ SƠ KHÓA — NHÂN VẬT PHẢI ĐÚNG THIẾT LẬP (ưu tiên hơn sự hấp dẫn của cảnh):",
+    "- Mỗi nhân vật chỉ được nói, nghĩ và hành xử trong phạm vi nghề, địa vị, quyền hạn, tài sản, năng lực, tuổi, hiểu biết và tính cách ghi dưới đây. Không tự nâng cấp (quyền lực, giàu có, võ công, quan hệ, chức danh) và không tự hạ cấp.",
+    "- Lời thoại và cách xưng hô phải hợp địa vị: người cấp thấp không ra lệnh như cấp trên, không nhận tài sản/tổ chức/quyền không có trong hồ sơ là của mình; người chưa biết một bí mật thì không được nói hay hành động như đã biết.",
+    "- Muốn nhân vật vượt hồ sơ (thăng chức, lộ thân phận, có năng lực mới) thì phải có sự kiện RÕ RÀNG trong chính chương làm nguyên nhân (và brief cho phép); nếu không, giữ đúng hồ sơ.",
+    "- Hồ sơ trống ở một mục = chưa xác định: đừng bịa chi tiết quan trọng cho mục đó, dùng chi tiết trung tính hoặc để mở.",
+    "- Trước khi viết mỗi cảnh, tự hỏi: nhân vật này có THẬT SỰ được phép nói/làm điều này theo hồ sơ không? Nếu không, đổi cách viết.",
+    "HỒ SƠ:", ...lines
+  ].join("\n");
+}
+
 function storyControlPrompt(st) {
   const sc = normalizeStoryControl(st);
   return [
@@ -861,7 +946,8 @@ function storyControlPrompt(st) {
     "- Không tạo năng lực, quy tắc thế giới hoặc vật phẩm quan trọng mới chỉ để giải quyết vấn đề tức thời.",
     "- Chapter Focus chỉ kiểm soát phạm vi chủ đề trưởng thành; không được dùng nó để mở rộng cốt truyện ngoài brief.",
     "- Nếu Directive/Story Bible/Current Status xung đột, không âm thầm sửa canon; ưu tiên dữ liệu canon và ghi nhận xung đột khi cần.",
-    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ, chi tiết đời thường BÊN TRONG các sự kiện chính; không được dùng quyền này để mở arc lớn, thêm nhân vật quan trọng mới hay tiết lộ thông tin để dành cho chương sau.",
+    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ, chi tiết đời thường BÊN TRONG các sự kiện chính; không được dùng quyền này để mở arc lớn, thêm nhân vật quan trọng mới hay tiết lộ thông tin để dành cho chương sau. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
+    "- TIẾN TRIỂN: chiều sâu KHÔNG có nghĩa là đứng yên — cuối chương phải có ít nhất một thay đổi thật (quan hệ, thông tin, quyền lực, mục tiêu hoặc hậu quả); không lặp cùng hành động/miêu tả để kéo dài.",
     "- Mục tiêu là chiều sâu và tính liên tục, không phải nhồi thêm biến cố lớn."
   ].filter(Boolean).join("\n");
 }
@@ -895,7 +981,7 @@ function knownNameMentions(text, names) {
 }
 
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
-const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
+const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"stagnation":false,"stagnationNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
 /* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
    Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
@@ -916,6 +1002,7 @@ function buildQualityReviewPrompt(p) {
     "Mục tiêu: kiểm tra bản thảo so với Chapter Contract, Story Bible và continuity. KHÔNG viết lại chương.",
     "Trả DUY NHẤT JSON object theo schema cuối.",
     "STORY CONTROL:", p.storyControl || "",
+    p.characterLock || "",
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
     "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
@@ -929,6 +1016,8 @@ function buildQualityReviewPrompt(p) {
     "- unauthorizedImportantCharacter=true nếu xuất hiện nhân vật mới quan trọng mà outline/brief không cho phép.",
     "- knowledgeViolation=true nếu nhân vật biết điều họ chưa thể biết.",
     "- retcon=true nếu mâu thuẫn canon đã xác nhận.",
+    "- stagnation=true CHỈ KHI cuối chương hầu như không có thay đổi nào so với đầu chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả) HOẶC một cảnh lặp lại cùng hành động/miêu tả nhiều lần chỉ để kéo dài. Ghi 1–2 ví dụ ngắn vào stagnationNotes. Cảnh trưởng thành đủ dài nhưng có đổi quan hệ/quyền lực/hậu quả thì KHÔNG phải stagnation.",
+    p.characterLock ? "- profileViolation=true CHỈ KHI có câu/đoạn CỤ THỂ trong bản thảo trái rõ ràng với HỒ SƠ KHÓA (nhân vật nói hoặc hành xử như có địa vị/quyền/tài sản/năng lực/kiến thức cao hơn hồ sơ; xưng hô hoặc giọng nói sai thiết lập; đổi nghề). Ghi trích dẫn ngắn + mục hồ sơ bị vi phạm vào profileViolations; không báo nếu chỉ suy đoán hoặc thiếu thông tin." : "",
     p.prevEnding ? "- ĐỊA ĐIỂM MỞ CHƯƠNG: nếu cảnh mở đầu của bản thảo KHÁC địa điểm/thời điểm/người có mặt so với ĐOẠN KẾT CHƯƠNG TRƯỚC mà không có đoạn chuyển cảnh hợp lý (ví dụ chương trước kết ở biệt thự của A nhưng chương này mở ở phòng trọ của B), phải ghi vào hardFailures (nêu rõ kết ở đâu, mở ở đâu) và đặt continuity thấp." : "",
     "- outlineDeviation=true nếu bỏ mốc bắt buộc hoặc mở tuyến lớn ngoài contract.",
     "- hardFailures phải chứa mọi lỗi chặn Sync. Nếu có hard failure thì verdict phải HARD_FAIL dù score cao.",
@@ -942,6 +1031,7 @@ function buildRewritePrompt(p) {
     "Chỉ sửa đúng các lỗi được nêu; giữ nguyên các sự kiện hợp lệ, nhân vật hợp lệ, POV, xưng hô và giọng văn.",
     "TUYỆT ĐỐI không thêm sự kiện chính mới, không tạo nhân vật quan trọng mới, không mở thread mới chỉ để làm bản sửa dài hơn.",
     p.storyControl || "",
+    p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
     "QUALITY REVIEW:\n" + JSON.stringify(p.review || {}),
@@ -1773,6 +1863,9 @@ function buildContextBlock(options){
   if(state.storyClock) lines.push("THỜI ĐIỂM: " + state.storyClock);
 
   // V12.32: không chèn tóm tắt chương cũ lần thứ hai vào khối ngữ cảnh.
+  /* V12.32.5: nhưng cần TRÍ NHỚ TRUYỆN: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tối đa ~2800 ký tự. */
+  const soFar = storySoFarPrompt(Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters : state.chapters, 2800); if(soFar) lines.push(soFar);
+  const loops = openLoopsPrompt(state); if(loops) lines.push(loops);
   /* NV: bóc thẻ tự động, tối đa 5 thẻ cho mỗi prompt */
   const cardText = characterCardsForPromptV102((state.chapters.slice(-1)[0]?.text||"") + "\n" + (state.directive||""));
   if(cardText) lines.push("THẺ NHÂN VẬT KÍCH HOẠT (tối đa 5):\n" + clip(cardText, 2400));
@@ -2169,7 +2262,7 @@ function buildConsentBlock(){
 
 function matureFocusPrompt(){
   const f=normalizeChapterMatureFocus(state.chapterMatureFocus);
-  if(f === "primary") return "TRỌNG TÂM TRƯỞNG THÀNH: PRIMARY. Chủ đề trưởng thành là một trọng tâm được người dùng chỉ định cho chương này. Chỉ triển khai trong phạm vi brief/mạch truyện đã có; không tự mở tuyến mới.";
+  if(f === "primary") return "TRỌNG TÂM TRƯỞNG THÀNH: PRIMARY. Chủ đề trưởng thành là một trọng tâm được người dùng chỉ định cho chương này. Chỉ triển khai trong phạm vi brief/mạch truyện đã có; không tự mở tuyến mới. Cốt truyện vẫn phải tiến triển song song: cảnh nóng phải làm đổi quan hệ/quyền lực/bí mật/hậu quả, không lặp một cảnh để kéo dài.";
   if(f === "secondary") return "TRỌNG TÂM TRƯỞNG THÀNH: SECONDARY. Chỉ sử dụng nội dung trưởng thành khi brief hoặc diễn biến hiện tại yêu cầu rõ. Không biến nó thành trọng tâm và không tự chèn cảnh chỉ để tăng nhiệt.";
   return "TRỌNG TÂM TRƯỞNG THÀNH: NONE. Tuyệt đối không tự chèn hoặc kéo dài nội dung trưởng thành trong chương này, kể cả khi mạch truyện trước đó có nội dung trưởng thành.";
 }
@@ -2192,6 +2285,10 @@ function buildVocabularyBlock(){ return buildVocabularyBlockFrom(state); }
 function estimateTokens(text){ return text ? Math.ceil(text.length / 3.2) : 0; }
 
 function storyControlPromptClient(){ return storyControlPrompt(state); }
+
+function characterLockPromptClient(short){
+  try{ return characterLockPrompt(state.mainCharProfile, relevantCharacters(8), !!short); }catch(e){ return ""; }
+}
 
 function buildMainWritePrompt(o){
   const { chapterNumber, isRegen, regenIndex, regenMode, descPrompt, explicitPrompt, vocabBlock, usingNsfw, context, lastChapterEnding, recentFullText, olderSummaries, plan } = o;
@@ -2217,6 +2314,8 @@ function buildMainWritePrompt(o){
     "",
     "Bối cảnh:", context || "(chưa có — tự sáng tạo hợp lý)", "",
     storyControlPromptClient(), "",
+    characterLockPromptClient(false), "",
+    progressRulesPrompt(state), "",
     lastChapterEnding ? ("===== ĐOẠN KẾT CHƯƠNG TRƯỚC (PHẢI TIẾP NỐI) =====\n" + lastChapterEnding + "\n===== HẾT =====\n\nChương mới PHẢI bắt đầu từ việc tiếp nối trực tiếp đoạn kết trên.\nĐỊA ĐIỂM MỞ CHƯƠNG — KHÓA CỨNG: đoạn mở đầu PHẢI diễn ra ĐÚNG địa điểm, thời điểm và với đúng những người đang có mặt như trong đoạn kết chương trước (ví dụ chương trước kết ở biệt thự của A thì chương này vẫn bắt đầu ở biệt thự của A). Chỉ được chuyển địa điểm khi đoạn kết đã nói rõ nhân vật sắp rời đi/đến nơi khác, hoặc sau một câu chuyển cảnh rõ ràng (di chuyển + mốc thời gian). Tuyệt đối không nhảy sang nhà/phòng trọ/nơi ở của nhân vật khác ngay từ câu đầu.") : "",
     recentFullText ? ("\nChương gần (tránh lặp sự kiện / cấu trúc):\n" + recentFullText) : "",
     olderSummaries ? ("\nTÓM TẮT CHƯƠNG XA:\n" + olderSummaries) : "",
@@ -3695,6 +3794,7 @@ function qualityReviewPromptWorker(state, chapter, n) {
   const hardChecks = gateHardChecks(chapter);
   return buildQualityReviewPrompt({
     storyControl: storyControlPrompt(state),
+    characterLock: characterLockPrompt(state.mainCharProfile, lockCharsForText(state, chapter.text), true),
     contract: String(state.directive || "") + "\n" + String(state.nextChapterHint || ""), contractLabel: "CHAPTER BRIEF",
     context: buildContext(state), warnings: chapter.continuityWarnings, draft: chapter.text, prevEnding: (((state.chapters || [])[n - 2] || {}).text || "").slice(-1500), hardChecks,
     knownNames: knownNameMentions(chapter.text, gateKnownNames(state)),
@@ -3721,6 +3821,7 @@ async function rewriteWorkerDraft(job, chapter, n, review) {
   const st = job.storyState;
   const prompt = buildRewritePrompt({
     chapterNumber: n, storyControl: storyControlPrompt(st),
+    characterLock: characterLockPrompt(st.mainCharProfile, lockCharsForText(st, chapter.text), true),
     contract: String(st.directive || "") + "\n" + String(st.nextChapterHint || ""), contractLabel: "BRIEF",
     context: buildContext(st), review, draft: chapter.text
   });
