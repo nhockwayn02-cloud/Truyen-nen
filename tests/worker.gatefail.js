@@ -5,13 +5,14 @@ const db = new Map();
 const mockBlobs = { connectLambda() {}, getStore() { return { async get(k) { const v = db.get(k); return v ? JSON.parse(v) : null; }, async setJSON(k, v) { db.set(k, JSON.stringify(v)); } }; } };
 const origLoad = Module._load;
 Module._load = function (req, ...a) { return req === "@netlify/blobs" ? mockBlobs : origLoad.call(this, req, ...a); };
-const c = { review: 0, rewrite: 0, nv: 0, world: 0, summary: 0, other: 0 };
+const c = { review: 0, patch: 0, rewrite: 0, nv: 0, world: 0, summary: 0, other: 0 };
 const LONG = ("Gió thổi qua con phố vắng, cô bước đi giữa đêm mưa lạnh. ".repeat(1100)).trim();
 global.fetch = async (url, init) => {
   const prompt = JSON.stringify(JSON.parse(init.body).messages);
   let content;
   if (/VIẾT CHƯƠNG|Viết TIẾP chương|Bạn đang viết CHƯƠNG THỨ/.test(prompt)) content = LONG;
   else if (prompt.includes("QUALITY AUDITOR")) { c.review++; content = JSON.stringify({ score: 50, verdict: "HARD_FAIL", mainEventCount: 6, namedCharacterCount: 2, hardFailures: ["Sai outline"], rewriteInstructions: ["Bỏ bớt sự kiện"] }); }
+  else if (prompt.includes("VÁ CỤC BỘ BẢN THẢO")) { c.patch++; content = "Không có thao tác vá."; }  /* V12.32.10: vá không được → dự phòng viết lại cả chương */
   else if (prompt.includes("SỬA LẠI BẢN THẢO")) { c.rewrite++; content = LONG; }
   else if (prompt.includes("CẬP NHẬT NHÂN VẬT")) { c.nv++; content = "[]"; }
   else if (prompt.includes("CẬP NHẬT THẾ GIỚI")) { c.world++; content = "{}"; }
@@ -30,7 +31,7 @@ const worker = require(path.join(__dirname, "../netlify/functions/write-chapter-
   const job = JSON.parse(db.get(jobId)); const rc = job.resultChapter;
   assert.strictEqual(res.statusCode, 200); assert.strictEqual(JSON.parse(res.body).qualityGateFailed, true, "phản hồi handler phải có qualityGateFailed");
   assert.strictEqual(job.status, "completed"); assert.strictEqual(job.qualityGateFailed, true);
-  assert.strictEqual(c.review, 3, "chấm đúng 3 lần, thực tế " + c.review); assert.strictEqual(c.rewrite, 2, "sửa đúng 2 lần, thực tế " + c.rewrite);
+  assert.strictEqual(c.review, 3, "chấm đúng 3 lần, thực tế " + c.review); assert.strictEqual(c.rewrite, 2, "sửa đúng 2 lần, thực tế " + c.rewrite); assert.strictEqual(c.patch, 2, "vá cục bộ thử trước mỗi lần sửa, thực tế " + c.patch);
   assert.strictEqual(rc.status, "REVISION_REQUIRED"); assert.strictEqual(rc.review.verdict, "HARD_FAIL"); assert.strictEqual(rc.review.attempt, 3);
   assert(rc.review.hardFailures.some(h => /ngân sách sự kiện/.test(h)), "phải có hard failure vượt ngân sách: " + JSON.stringify(rc.review.hardFailures));
   assert(Array.isArray(rc.versions) && rc.versions.length >= 1, "bản gốc phải được lưu vào versions");

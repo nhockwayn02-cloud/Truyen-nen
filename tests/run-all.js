@@ -23,6 +23,7 @@ const dir = __dirname; const suites = [
   ["V12.32.7 thời gian truyện", process.execPath, ["v12_32_7_story_time.test.js"]],
   ["V12.32.8 neo ngoại hình + số đo", process.execPath, ["v12_32_8_appearance.test.js"]],
   ["V12.32.9 cảnh & người có mặt", process.execPath, ["v12_32_9_scene_presence.test.js"]],
+  ["V12.32.10 AI tự sửa cục bộ (patch)", process.execPath, ["v12_32_10_patch_rewrite.test.js"]],
   ["V12.30 khôi phục phản hồi streaming rỗng", process.execPath, ["v12_30_streaming_fix.test.js"]],
   ["V12.31 prompt context audit", process.execPath, ["v12_31_prompt_context.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],

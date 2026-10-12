@@ -184,7 +184,7 @@ function scripted(replies, log) {
   let i = 0;
   sandbox.callWithRetry = async (args) => {
     const prompt = args.messages[args.messages.length - 1].content;
-    log && log.push(prompt.startsWith("SỬA LẠI") ? "rewrite" : "review");
+    log && log.push(prompt.startsWith("SỬA LẠI") ? "rewrite" : prompt.startsWith("VÁ CỤC BỘ") ? "patch" : "review");
     return { text: replies[Math.min(i++, replies.length - 1)] };
   };
 }
@@ -228,12 +228,22 @@ tg("Gate (worker): prompt Auditor có quy tắc + schema dùng chung và tên NV
   assert(/QUALITY AUDITOR/.test(seen) && /SCHEMA:/.test(seen) && /QUY TẮC:/.test(seen) && /CHAPTER BRIEF/.test(seen));
   assert(/TÊN NHÂN VẬT ĐÃ BIẾT[^\n]*\n\nMinh Khoa, Lan|Minh Khoa, Lan/.test(seen), "thiếu danh sách tên đã biết");
 });
-tg("Gate: trượt → viết lại → đạt; bản gốc được lưu vào versions", async () => {
-  const log = []; const orig = longText("cũ", 300), fixed = longText("mới", 300);
-  scripted([review({ score: 60 }), fixed, review()], log);
+tg("Gate (V12.32.10): trượt → AI vá cục bộ → đạt; chỉ đổi đúng chỗ, bản gốc lưu vào versions", async () => {
+  const log = []; const orig = longText("cũ", 300);
+  const patchJson = JSON.stringify({ patches: [{ op: "insert_start", text: "Chiều thứ Sáu, trời đã nhá nhem." }] });
+  scripted([review({ score: 60 }), patchJson, review()], log);
   const ch = { text: orig, versions: [] };
   const r = await T.runWorkerQualityGate(gateJob(), ch, 1);
-  assert.strictEqual(r.approved, true); assert.deepStrictEqual(log, ["review", "rewrite", "review"]);
+  assert.strictEqual(r.approved, true); assert.deepStrictEqual(log, ["review", "patch", "review"], "vá cục bộ, KHÔNG gọi viết lại cả chương");
+  assert(ch.text.startsWith("Chiều thứ Sáu") && ch.text.includes(orig.slice(0, 200)), "phần còn lại giữ nguyên");
+  assert.strictEqual(ch.versions.length, 1); assert(ch.versions[0].text === orig && /vá cục bộ/.test(ch.versions[0].note));
+});
+tg("Gate: vá cục bộ không ghép được → dự phòng viết lại cả chương → đạt; bản gốc được lưu vào versions", async () => {
+  const log = []; const orig = longText("cũ", 300), fixed = longText("mới", 300);
+  scripted([review({ score: 60 }), "AI không trả JSON", fixed, review()], log);
+  const ch = { text: orig, versions: [] };
+  const r = await T.runWorkerQualityGate(gateJob(), ch, 1);
+  assert.strictEqual(r.approved, true); assert.deepStrictEqual(log, ["review", "patch", "rewrite", "review"]);
   assert(ch.text.includes("mới") && !ch.text.includes("cũ"), "bản sửa phải thay bản nháp");
   assert.strictEqual(ch.versions.length, 1); assert(ch.versions[0].text.includes("cũ"), "bản gốc phải còn trong versions");
 });

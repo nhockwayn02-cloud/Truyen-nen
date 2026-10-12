@@ -844,6 +844,106 @@ function checkRewriteAcceptable(oldWc, newText, newWc) {
   return { ok: true };
 }
 
+// ===== V12.32.10: SỬA CỤC BỘ (patch) — AI chỉ trả các đoạn cần xoá/thêm/thay, app tự ghép vào bản thảo =====
+// Lý do: viết lại cả chương dài thường bị cắt/tóm tắt (vd 1159/5309 từ) → Gate từ chối bản sửa. Vá cục bộ không có rủi ro đó.
+const PATCH_MAX_COUNT = 12;            // tối đa số thao tác vá một lượt
+const PATCH_MIN_RATIO = 0.6;           // sau vá, chương ngắn hơn 60% bản gốc bị từ chối
+const PATCH_MAX_RATIO = 1.35;          // sau vá, chương dài hơn 135% bản gốc bị từ chối
+function buildPatchPrompt(p) {
+  p = p || {};
+  const rv = p.review || {};
+  return [
+    "VÁ CỤC BỘ BẢN THẢO CHƯƠNG " + p.chapterNumber + " THEO QUALITY REVIEW.",
+    "KHÔNG viết lại cả chương. Chỉ trả về danh sách thao tác nhỏ để app tự ghép vào bản thảo. Phần không nhắc đến sẽ được giữ nguyên 100%.",
+    "Chỉ sửa đúng các lỗi được nêu. Không thêm sự kiện chính mới, không tạo nhân vật quan trọng mới. Giữ POV, xưng hô, giọng văn.",
+    p.storyControl || "",
+    p.characterLock || "",
+    (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
+    p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 6000, false) : "",
+    "LỖI CẦN SỬA:\n" + (rv.hardFailures || []).concat((rv.warnings || []).slice(0, 8)).map(gateItemText).join("\n"),
+    "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(rv),
+    "ĐỊNH DẠNG TRẢ VỀ — CHỈ MỘT JSON, không markdown, không giải thích:",
+    '{"patches":[{"op":"replace|delete|insert_after|insert_before|insert_start|insert_end","find":"...","from":"...","to":"...","which":1,"text":"..."}]}',
+    "QUY TẮC:",
+    "- find / from / to: chép NGUYÊN VĂN từ bản thảo, 6–25 từ liên tiếp, nằm trong một đoạn. Không sửa dấu, không đổi dấu câu.",
+    "- Xoá/thay một đoạn dài: dùng from (6–12 từ đầu đoạn) + to (6–12 từ cuối đoạn), không chép cả đoạn. Xoá/thay một câu ngắn: dùng find.",
+    '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
+    "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh, mốc thời gian…) sau/trước find. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
+    "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
+    "- Tối đa " + PATCH_MAX_COUNT + " thao tác. Mỗi lỗi một thao tác ngắn nhất có thể.",
+    "BẢN THẢO HIỆN TẠI:\n" + (p.draft || "")
+  ].filter(Boolean).join("\n\n");
+}
+// Đọc JSON do AI trả về (chịu được ```json … ``` và chữ thừa quanh JSON). Trả mảng patch hoặc null.
+function parsePatchResponse(raw) {
+  const s = String(raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const tryParse = t => { try { return JSON.parse(t); } catch (_) { return undefined; } };
+  let obj = tryParse(s);
+  if (obj === undefined) { const a = s.indexOf("{"), b = s.lastIndexOf("}"); if (a >= 0 && b > a) obj = tryParse(s.slice(a, b + 1)); }
+  if (obj === undefined) { const a = s.indexOf("["), b = s.lastIndexOf("]"); if (a >= 0 && b > a) obj = tryParse(s.slice(a, b + 1)); }
+  const arr = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.patches) ? obj.patches : null);
+  return arr ? arr.filter(x => x && typeof x === "object").slice(0, PATCH_MAX_COUNT) : null;
+}
+// Tìm mọi vị trí của snippet: khớp nguyên văn trước, không được thì khớp linh hoạt khoảng trắng/xuống dòng.
+function _patchLocate(text, snippet, fromPos) {
+  const sn = String(snippet || "").trim(); if (!sn) return [];
+  const out = []; let i = text.indexOf(sn, fromPos || 0);
+  while (i >= 0) { out.push({ start: i, end: i + sn.length }); i = text.indexOf(sn, i + sn.length); }
+  if (out.length) return out;
+  const re = new RegExp(sn.split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+"), "g");
+  re.lastIndex = fromPos || 0; let m;
+  while ((m = re.exec(text))) { out.push({ start: m.index, end: m.index + m[0].length }); if (m[0].length === 0) re.lastIndex++; }
+  return out;
+}
+function _patchPick(hits, which) {
+  if (!hits.length) return { err: "không tìm thấy đoạn trong bản thảo" };
+  const w = String(which === undefined || which === null ? "" : which).toLowerCase();
+  if (w === "last") return { hit: hits[hits.length - 1] };
+  const n = Number(w);
+  if (n >= 1) return n <= hits.length ? { hit: hits[n - 1] } : { err: "which=" + n + " nhưng chỉ có " + hits.length + " chỗ khớp" };
+  if (hits.length > 1) return { err: "đoạn khớp " + hits.length + " chỗ (cần which)" };
+  return { hit: hits[0] };
+}
+// Ghép các patch vào văn bản. Trả { text, applied, skipped:[{index,reason}] }. Patch lỗi bị bỏ qua, không làm hỏng cả lượt.
+function applyChapterPatches(text, patches) {
+  let cur = String(text || ""); const skipped = []; let applied = 0;
+  (Array.isArray(patches) ? patches : []).slice(0, PATCH_MAX_COUNT).forEach((p, index) => {
+    const op = String((p && p.op) || "").toLowerCase(), add = String((p && p.text) || "").trim();
+    const skip = r => skipped.push({ index, reason: op + ": " + r });
+    if (op === "insert_start") { if (!add) return skip("thiếu text"); cur = add + "\n\n" + cur.replace(/^\s+/, ""); applied++; return; }
+    if (op === "insert_end") { if (!add) return skip("thiếu text"); cur = cur.replace(/\s+$/, "") + "\n\n" + add; applied++; return; }
+    if (!["replace", "delete", "insert_after", "insert_before"].includes(op)) return skip("thao tác không hợp lệ");
+    if (op !== "delete" && !add) return skip("thiếu text");
+    let start, end;
+    if (p.from && p.to && (op === "replace" || op === "delete")) {
+      const a = _patchPick(_patchLocate(cur, p.from), p.which); if (a.err) return skip("from: " + a.err);
+      const bh = _patchLocate(cur, p.to, a.hit.end).filter(h => h.start >= a.hit.start);
+      if (!bh.length) return skip("to: không tìm thấy phía sau from");
+      start = a.hit.start; end = bh[0].end;
+      if (end - start > cur.length * 0.4) return skip("đoạn from→to quá dài (>40% chương)");
+    } else {
+      const f = p.find || p.from; if (!f) return skip("thiếu find");
+      const a = _patchPick(_patchLocate(cur, f), p.which); if (a.err) return skip(a.err);
+      start = a.hit.start; end = a.hit.end;
+    }
+    if (op === "replace") cur = cur.slice(0, start) + add + cur.slice(end);
+    else if (op === "delete") cur = cur.slice(0, start) + cur.slice(end);
+    else if (op === "insert_after") { const para = end >= cur.length || cur[end] === "\n"; cur = cur.slice(0, end) + (para ? "\n\n" : " ") + add + cur.slice(end); }
+    else { const para = start === 0 || cur[start - 1] === "\n"; cur = cur.slice(0, start) + add + (para ? "\n\n" : " ") + cur.slice(start); }
+    applied++;
+  });
+  cur = cur.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { text: cur, applied, skipped };
+}
+// Bản vá có được thay bản thảo không? (đã ghép ≥1 patch, độ dài không lệch quá nhiều)
+function checkPatchAcceptable(oldText, res) {
+  const oldWc = countWords(oldText), newWc = countWords(res && res.text);
+  if (!res || !res.applied) return { ok: false, reason: "không có thao tác vá nào ghép được" + (res && res.skipped && res.skipped.length ? " (" + res.skipped.slice(0, 2).map(s => s.reason).join("; ") + ")" : "") };
+  if (newWc < Math.max(20, Math.floor(oldWc * PATCH_MIN_RATIO))) return { ok: false, reason: "bản vá làm chương ngắn bất thường (" + newWc + " từ so với " + oldWc + ")" };
+  if (newWc > Math.ceil(oldWc * PATCH_MAX_RATIO)) return { ok: false, reason: "bản vá làm chương dài bất thường (" + newWc + " từ so với " + oldWc + ")" };
+  return { ok: true, wordCount: newWc };
+}
+
 // Lưu bản gốc vào chapter.versions (mới nhất đứng đầu, giữ tối đa GATE_MAX_VERSIONS).
 function backupBeforeRewrite(chapter, note) {
   if (!Array.isArray(chapter.versions)) chapter.versions = [];

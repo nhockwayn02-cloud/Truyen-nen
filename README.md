@@ -1,3 +1,5 @@
+> **V12.32.10:** thêm nút 🛠 AI tự sửa + sửa cục bộ (xem PATCH_NOTES_V12.32.10_PATCH_REWRITE.md)
+
 # V12.22 — AI tự do sáng tác thân chương (bỏ chia đoạn làm dày); chỉ khóa Ending Anchor. Xem PATCH_NOTES_V12.22_FREE_WRITING.md và PROMPT_V12.22.md.
 
 # V12 — Writing Engine Upgrade
