@@ -9,7 +9,7 @@ Module._load = function (req, ...a) { return req === "@netlify/blobs" ? mockBlob
 
 const counts = { nv: 0, world: 0, other: 0, chapter: 0, unified: 0 };
 let inflight = 0, maxInflightNV = 0, inflightNV = 0;
-const LONG = ("Lan gặp Minh tại Phố cũ. Minh nhận được chìa khóa từ Lan.\n\n" + "Gió thổi qua con phố vắng, cô bước đi giữa đêm mưa lạnh. ".repeat(1100)).trim(); // ~60k ký tự + evidence ở đầu để test cả khi draft bị cắt theo mục tiêu
+const LONG = ("Lan gặp Minh tại Phố cũ. Minh nhận được chìa khóa từ Lan.\n\n" + Array.from({length:1100},(_,i)=>"Gió thổi qua con phố vắng lần thứ "+i+", cô bước đi giữa đêm mưa lạnh. ").join("")).trim(); // ~60k ký tự + evidence ở đầu để test cả khi draft bị cắt theo mục tiêu
 global.fetch = async (url, init) => {
   const body = JSON.parse(init.body); const prompt = JSON.stringify(body.messages);
   const isUnified = prompt.includes("HẬU KỲ TỔNG HỢP CHO CHƯƠNG");

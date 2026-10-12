@@ -40,6 +40,8 @@ function makeContext(state) {
     characterLockPromptClient: () => '',
     storySoFarPrompt: () => '',
     openLoopsPrompt: () => '',
+    currentTimeMark: () => '',
+    appearanceAnchorPrompt: () => '',
     progressRulesPrompt: () => '',
     buildLengthPlan: () => ''
   };

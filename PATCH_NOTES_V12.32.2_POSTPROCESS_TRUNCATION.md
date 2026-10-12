@@ -30,3 +30,28 @@
 - Kế hoạch chương: thêm mục 7b "THAY ĐỔI/TIẾN TRIỂN" và mục 8 yêu cầu nêu cảnh nóng làm đổi điều gì.
 - Quality Gate: cờ `stagnation` (+`stagnationNotes`) = lỗi nặng → viết lại; chỉ báo khi cuối chương gần như không đổi hoặc cảnh lặp để kéo dài.
 - Trí nhớ truyện: khối "TRUYỆN ĐẾN NAY" (1–2 câu mỗi chương cũ, ≤~2800 ký tự, chỉ lấy chương trước chương đang viết khi viết lại) + "ĐANG DANG DỞ" (unresolved/conflict/nextGoal/nextHooks từ Current Status).
+
+## V12.32.6b/c (văn xuôi thuần tiếng Việt)
+- `cleanProseArtifacts` (chạy trong mọi đường viết qua `stripForeign`): Unicode NFC, Ð→Đ, bỏ HTML/markdown/emoji, bỏ nhãn rò rỉ "(tiếng Anh/Trung/Việt…)" (đoạn có ≥2 nhãn bị bỏ), bỏ dòng meta của AI (Ghi chú/Lưu ý/(Còn tiếp)… ở đầu dòng, không đụng lời thoại), chuẩn dấu câu bất thường, chặn lặp ký tự/từ thoái hóa, bỏ dòng trùng liền kề.
+- `formatParagraphs`: nối dòng bị ngắt cứng giữa câu, không tách ở viết tắt (TP. TS. Mr. N.V.A…), bỏ đoạn rác/trùng, nối mảnh vụn chưa kết thúc.
+- Nút "¶ Chuẩn hóa" (trước là "Ngắt đoạn"): làm sạch → bỏ cảnh viết lặp → ngắt đoạn → báo số ký tự đã dọn → kiểm tra từ lạ (AI sửa, rồi hỏi xóa hẳn các từ còn lại, khớp nguyên từ).
+
+## V12.32.7 — Thời gian truyện (chống "10 chương vẫn một ngày")
+- Mốc thời gian tự cập nhật: hậu kỳ ghi `statusState.currentState.time` + `timeLog` theo chương; nếu ô Story Clock trống, prompt dùng mốc này ("THỜI ĐIỂM").
+- Story Control có mục THỜI GIAN TRUYỆN: chương phải nêu mốc thời gian, cho phép nhảy thời gian khi sự kiện trước đã khép trọn, tiến triển theo thời gian.
+- Ô chọn "Nhịp thời gian giữa các chương" (Tự do / cùng ngày / 1 ngày / vài ngày / 1 tuần) — mặc định Tự do.
+- Phát hiện ≥3 chương liên tiếp cùng mốc thời gian → prompt ép chương sau chuyển sang mốc sau.
+- Kế hoạch chương có mốc thời gian từng beat; prompt viết bỏ ràng buộc "nối từng giây"; gợi ý chương sau cho phép nhảy thời gian.
+- Gate: cờ mềm `timeStagnation` (chỉ cảnh báo, không chặn).
+
+## V12.32.8 — Neo ngoại hình + số đo cụ thể
+- Trường mới `measurements` (Số đo / kích thước cơ thể) cho nhân vật chính (ô nhập) và NV phụ (bảng hồ sơ); hậu kỳ trích/điền khi trống, không ghi đè khi đã có.
+- Prompt viết chương: NEO NGOẠI HÌNH — tả 2–4 câu khi xuất hiện lần đầu, cấm tính từ trống ("to", "đầy đặn") nếu không kèm kích thước/so sánh; hồ sơ trống thì tự đặt và giữ nhất quán. Cảnh 18+: nêu kích thước cụ thể cho nhân vật đủ 18 tuổi; dưới 18/không rõ tuổi thì không tả số đo.
+- Hồ sơ khóa: ngoại lệ cho ngoại hình trống (được tự đặt).
+- Gate: cờ mềm `appearanceVague` (chỉ cảnh báo).
+
+## V12.32.9 — Chuyển cảnh & người có mặt
+- Story Control có mục CẢNH & NGƯỜI CÓ MẶT: người vào/rời cảnh phải có câu chuyển; người đã rời không được nói tiếp; chuyển địa điểm/thời điểm phải có câu chuyển cảnh.
+- Kế hoạch chương: mỗi beat ghi địa điểm | ai có mặt | ai vào | ai rời.
+- Gate: cờ cứng `sceneViolation` (nhân vật nói/hành động khi không có mặt, lẫn cảnh) -> HARD_FAIL -> viết lại.
+- Làm sạch: `{phương án tài chính}` -> giữ chữ, bỏ ngoặc nhọn.

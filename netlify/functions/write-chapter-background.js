@@ -149,7 +149,8 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
                  : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
-    "5. Địa điểm",
+    "5. Địa điểm + THỜI GIAN: ghi mốc thời gian mở chương, quãng thời gian đã trôi từ chương trước (nếu có nhảy), và mốc thời gian từng beat/chuyển cảnh + mốc kết chương",
+    "5b. CẢNH & NGƯỜI CÓ MẶT: với MỖI beat ghi: địa điểm | ai có mặt | ai VÀO cảnh (cách vào) | ai RỜI cảnh (cách rời). Người không được ghi có mặt thì không được nói/hành động trong beat đó.",
     hasUserBrief ? "6. SCENE BEATS: MỖI nhịp của brief là MỘT beat (không giới hạn số beat), ghi gợi ý độ dài từng beat để cả chương đạt mục tiêu từ; KHÔNG tự sinh thêm sự kiện lớn ngoài brief"
                  : "6. SCENE BEATS (tối đa 5 beat) — chỉ triển khai 1-3 sự kiện trên, KHÔNG tự sinh thêm sự kiện lớn",
     "7. Kết chương — phải khớp mốc kết thúc người dùng yêu cầu nếu có",
@@ -290,13 +291,75 @@ function removeEnglishLeaks(text) { return removeEnglishLeaksDetailed(text).text
 
 function stripForeign(text) {
   text = stripThinkingOutput(text); // V12.21
+  if (!text) return text;
+  return sanitizeChapterText(text);
+}
+// V12.32.6c: bước làm sạch thuần (không có stripThinkingOutput) — dùng cho nút Chuẩn hóa trên chương đã lưu.
+function sanitizeChapterText(text) {
   // V12.10: dọn chữ Hán/Nhật/Hàn/Cyrillic/Thái/Ả Rập/Hindi còn sót (kể cả khi dưới ngưỡng viết lại).
   if (!text) return text;
   text = removeEnglishLeaks(text);   // V12.23
   let t = String(text)
     .replace(/，/g, ", ").replace(/。/g, ". ").replace(/！/g, "! ").replace(/？/g, "? ").replace(/：/g, ": ").replace(/、/g, ", ")
     .replace(/[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0600-\u06FF\u0900-\u097F]+/g, "");
+  t = stripJunkSymbols(t);
+  t = cleanProseArtifacts(t);
   return t.replace(/[ \t]{2,}/g, " ").replace(/ +([,.!?;:])/g, "$1").replace(/\( *\)|“ *”|" *"/g, "");
+}
+// Xóa hẳn các từ lạ (khớp nguyên từ, phân biệt hoa/thường) khỏi văn bản rồi dọn khoảng trắng/dấu câu.
+function removeStrayWords(text, words) {
+  let t = String(text || "");
+  (words || []).forEach(w => {
+    const esc = String(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!esc) return;
+    t = t.replace(new RegExp("(?<![\\p{L}\\p{N}])" + esc + "(?![\\p{L}\\p{N}])", "gu"), "");
+  });
+  return t.replace(/[ \t]{2,}/g, " ").replace(/ +([,.!?;:…])/g, "$1").replace(/([,;:]) *([.!?…])/g, "$2").replace(/\( *\)|“ *”|" *"/g, "").replace(/[ \t]+\n/g, "\n");
+}
+/* V12.32.6b: làm sạch "tạp chất" thường gặp trong output model để chương là văn xuôi thuần tiếng Việt:
+   Unicode NFC, Ð→Đ, markdown/HTML, emoji, ghi chú meta của AI, nhãn "(tiếng Anh)", lặp từ/ký tự/dấu câu bất thường. */
+function cleanProseArtifacts(text) {
+  let t = String(text || "");
+  if (!t) return t;
+  t = t.normalize("NFC").replace(/Ð/g, "Đ").replace(/ð/g, "đ");
+  // HTML / markdown (giữ chữ, bỏ ký hiệu). Không đụng dấu gạch đầu dòng thoại (— – -).
+  t = t.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(?:p|div|span|b|i|u|em|strong|center|h[1-6])\b[^>]*>/gi, "");
+  t = t.replace(/`{1,3}/g, "").replace(/^[ \t]*#{1,6}[ \t]+/gm, "").replace(/^[ \t]*>[ \t]?/gm, "");
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/(?<![\p{L}\p{N}*])\*([^*\n]+)\*(?![\p{L}\p{N}*])/gu, "$1").replace(/(?<![\p{L}\p{N}_])_([^_\n]+)_(?![\p{L}\p{N}_])/gu, "$1");
+  t = t.replace(/\*{2,}/g, "");
+  // Biến mẫu/ngoặc nhọn model để rò ("{phương án tài chính}") -> giữ chữ bên trong, bỏ ngoặc.
+  t = t.replace(/\{\{?\s*([^{}\n]{1,120}?)\s*\}?\}/g, "$1");
+  // Emoji / ký hiệu hình ảnh (văn xuôi thuần).
+  t = t.replace(/[\p{Extended_Pictographic}\uFE0F\u20E3]/gu, "");
+  // Nhãn ngôn ngữ do model rò rỉ: đoạn có >=2 nhãn bị bỏ cả đoạn; 1 nhãn thì bỏ nhãn.
+  t = t.split("\n").filter(l => (l.match(/\((?:bằng\s+)?tiếng\s+(?:Việt|Anh|Trung|Nhật|Hàn|Pháp|Nga)\)/gi) || []).length < 2).join("\n")
+       .replace(/\s*\((?:bằng\s+)?tiếng\s+(?:Việt|Anh|Trung|Nhật|Hàn|Pháp|Nga)\)/gi, "");
+  // Dòng meta của AI (không phải lời thoại: không bắt đầu bằng nháy/gạch thoại).
+  t = t.split("\n").filter(l => !/^\s*[\[(]?\s*(?:ghi chú|lưu ý|chú thích|note|word count|số từ|tổng số từ|hết chương|còn tiếp|to be continued|end of chapter)(?![\p{L}])[^\n]{0,160}$/iu.test(l)).join("\n");
+  // Dấu câu bất thường.
+  t = t.replace(/\.{4,}/g, "…").replace(/…{2,}/g, "…").replace(/([!?]){4,}/g, "$1$1$1").replace(/([,;:]){2,}/g, "$1").replace(/(?<=[\p{L}\p{N}”"’)]) ?\.{2}(?!\.)/gu, ".");
+  // Lặp ký tự/từ bất thường (thoái hóa của model).
+  t = t.replace(/(\p{L})\1{6,}/gu, "$1$1$1$1$1$1");
+  t = t.replace(/\b([\p{L}]+)(?:[ \t]+\1\b){5,}/giu, "$1 $1 $1");
+  // Dòng/đoạn lặp liền kề.
+  const lines = t.split("\n"), out = [];
+  for (const l of lines) { if (l.trim() && out.length && out[out.length - 1].trim() === l.trim() && l.trim().length > 12) continue; out.push(l); }
+  return out.join("\n");
+}
+
+/* V12.32.6: model nhỏ đôi khi xả ký tự rác (chữ thuộc bảng chữ cái lạ như ᒞ, tổ hợp "/…/", ",/", dòng chỉ có ký hiệu).
+   stripForeign trước đây chỉ bỏ Hán/Nhật/Hàn/Cyrillic/Thái/Ả Rập/Hindi nên các ký tự này lọt vào truyện và còn bị tách thành đoạn riêng. */
+function stripJunkSymbols(text) {
+  let t = String(text || "");
+  // 1) Chữ cái không phải Latin (Canadian syllabics, Hy Lạp, Do Thái, Armenia, Georgia, Ethiopia, Cherokee...).
+  t = t.replace(/(?![\p{Script=Latin}])\p{L}+/gu, "");
+  // 2) Các ký tự điều khiển/ẩn lạ (giữ \n và \t).
+  t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\uFEFF\uFFFC\uFFFD]/g, "");
+  // 3) Mảnh rác: token (tách bằng khoảng trắng) không có chữ/số nhưng chứa / \ | ^ ~ < > = _ (vd: "/…/", ",/", "\\|").
+  t = t.replace(/(^|[ \t])[^\s\p{L}\p{N}]*[\/\\|^~<>=_][^\s\p{L}\p{N}]*(?=[ \t]|$)/gmu, "$1");
+  // 4) Dòng không có chữ/số (trừ dòng ngăn cảnh như ---, ***, * * *, —, …).
+  t = t.split("\n").filter(l => !l.trim() || (/[\p{L}\p{N}]/u.test(l) && !/^\s*\p{L}\s*$/u.test(l)) || /^[\s\-–—*_=~•·#…]+$/.test(l)).join("\n"); // bỏ cả dòng chỉ còn đúng 1 chữ cái lẻ (tàn dư sau khi lọc rác)
+  return t;
 }
 
 function detectNonVietnamese(text) {
@@ -399,8 +462,12 @@ function summaryRetryNote(g){
 
 function formatParagraphs(text) {
   // V12.15: tự ngắt đoạn khi AI trả về khối văn đặc; mỗi lượt thoại một đoạn riêng; các đoạn cách nhau 1 dòng trống.
-  const src = String(text || "").replace(/\r\n?/g, "\n").trim();
+  let src = String(text || "").replace(/\r\n?/g, "\n").trim();
   if (!src) return src;
+  // V12.32.6b: model đôi khi xuống dòng cứng giữa câu -> nối lại khi dòng trước chưa kết thúc và dòng sau bắt đầu bằng chữ thường.
+  src = src.replace(/([\p{L}\p{N},;])[ \t]*\n(?!\n)[ \t]*(?=\p{Ll})/gu, "$1 ");
+  // Viết tắt/tên viết tắt không phải điểm ngắt câu (TP. Hồ Chí Minh, TS. Nam, N. V. A...).
+  const isAbbrevEnd = s0 => /(?:^|[\s“"(])(?:TP|TS|GS|PGS|BS|ThS|KS|Mr|Mrs|Ms|Dr|St|Q|P|TT|VN|Cty|CT|PTGĐ|GĐ)\.$/.test(s0.trim()) || /(?:^|[\s“"(])\p{Lu}\.$/u.test(s0.trim());
   const OPEN = /^[“"«‘'—–-]\s*/;
   const isTerm = c => ".!?…".indexOf(c) >= 0;
   const splitSentences = block => {
@@ -414,7 +481,7 @@ function formatParagraphs(text) {
       if (isTerm(last) && (j === i ? isTerm(ch) : true) && /\s/.test(block[j + 1] || " ")) {
         let k = j + 1; while (k < block.length && /\s/.test(block[k])) k++;
         const nx = block.slice(k, k + 1);
-        if (!nx || /[\p{Lu}“"«‘—–-]/u.test(nx)) { out.push(cur.trim()); cur = ""; }
+        if ((!nx || /[\p{Lu}“"«‘—–-]/u.test(nx)) && !(last === "." && isAbbrevEnd(cur.replace(/["”’»)\s]+$/, "")))) { out.push(cur.trim()); cur = ""; }
         i = j;
       } else i = j;
     }
@@ -438,7 +505,18 @@ function formatParagraphs(text) {
     }
     flush();
   }
-  return paras.join("\n\n");
+  // V12.32.6b: bỏ đoạn rỗng chữ/số (trừ dòng ngăn cảnh), nối mảnh vụn chưa kết thúc vào đoạn trước, bỏ đoạn trùng liền kề.
+  const fin = [];
+  for (const p0 of paras) {
+    const p1 = p0.trim(); if (!p1) continue;
+    const hasText = /[\p{L}\p{N}]/u.test(p1), isSep = /^[\s\-–—*_=~•·#…]+$/.test(p1);
+    if (!hasText && !isSep) continue;
+    if (fin.length && fin[fin.length - 1] === p1 && p1.length > 12) continue;
+    const words = p1.split(/\s+/).length;
+    if (fin.length && hasText && words <= 3 && !/[.!?…”"’»)]$/.test(p1) && /^\p{Ll}/u.test(p1) && !OPEN.test(p1) && !/^[\s\-–—*_=~•·#…]+$/.test(fin[fin.length - 1])) { fin[fin.length - 1] += " " + p1; continue; }
+    fin.push(p1);
+  }
+  return fin.join("\n\n");
 }
 
 // ===== V12.15: chống lặp cảnh + phát hiện từ lạ =====
@@ -797,16 +875,29 @@ function evaluateReview(obj, opts) {
     const sn = (Array.isArray(obj.stagnationNotes) ? obj.stagnationNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     hard.push("Chương dậm chân tại chỗ: cảnh lặp/kéo dài, cuối chương không có thay đổi nào so với đầu chương" + (sn ? ": " + sn : "."));
   }
+  if (obj.sceneViolation) {
+    const sn2 = (Array.isArray(obj.sceneNotes) ? obj.sceneNotes : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    hard.push("Lỗi cảnh/người có mặt: nhân vật tự xuất hiện hoặc nói khi không có mặt/đã rời đi, hoặc lẫn cảnh" + (sn2 ? ": " + sn2 : "."));
+  }
   if (obj.profileViolation) {
     const pv = (Array.isArray(obj.profileViolations) ? obj.profileViolations : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     hard.push("Nhân vật hành xử/nói vượt thiết lập hồ sơ (địa vị, nghề, quyền hạn, năng lực, kiến thức, cách nói)" + (pv ? ": " + pv : "."));
+  }
+  const timeWarn = [];
+  if (obj.timeStagnation) {
+    const tn = (Array.isArray(obj.timeNotes) ? obj.timeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Thời gian truyện đứng yên/thiếu mốc thời gian" + (tn ? ": " + tn : "."));
+  }
+  if (obj.appearanceVague) {
+    const an = (Array.isArray(obj.appearanceNotes) ? obj.appearanceNotes : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.name)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Miêu tả ngoại hình chung chung, thiếu kích thước/chi tiết cụ thể" + (an ? ": " + an : "."));
   }
   const score = Math.max(0, Math.min(100, Number(obj.score) || 0));
   const verdict = hard.length ? "HARD_FAIL" : (score >= passScore ? "PASS" : (score >= softScore ? "SOFT_FAIL" : "HARD_FAIL"));
   return Object.assign({}, obj, {
     score, verdict, hardFailures: hard,
     dimensions: obj.dimensions && typeof obj.dimensions === "object" ? obj.dimensions : {},
-    warnings: arr(obj.warnings, 20).concat(opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
+    warnings: arr(obj.warnings, 20).concat(timeWarn, opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
     reviewedAt: opts.now || Date.now()
   });
 }
@@ -851,6 +942,7 @@ function normalizeStoryControl(st) {
     maxNamedCharacters: Math.max(1, Math.min(6, Number(sc.maxNamedCharacters) || 4)),
     maxNewThreads: Math.max(0, Math.min(5, Number(sc.maxNewThreads) || 3)),
     noRetcon: sc.noRetcon !== false,
+    timePace: ["scene","day","fewdays","week"].includes(sc.timePace) ? sc.timePace : "",
     lockedFields: Array.isArray(sc.lockedFields) ? sc.lockedFields : ["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"],
     agencyRequired: sc.agencyRequired !== false
   };
@@ -864,6 +956,17 @@ function progressRulesPrompt(st) {
     "- Mỗi cảnh phải có hành động hoặc lựa chọn làm tình thế dịch chuyển; cấm lặp lại cùng một hành động, cùng một kiểu miêu tả hay cùng nhịp cảm xúc chỉ để kéo dài. Muốn dài hơn thì đẩy tình huống sang bước kế tiếp, không nhắc lại bước vừa qua.",
     "- Chương phải tiếp nối từ điểm kết chương trước và các việc ĐANG DANG DỞ (nếu có trong bối cảnh); không bỏ quên và không làm như chưa từng xảy ra.",
     mf === "primary" ? "- Cảnh trưởng thành là trọng tâm nhưng KHÔNG phải toàn bộ chương: chỉ chiếm khoảng một nửa đến hai phần ba nội dung; phần còn lại (trước, xen kẽ, sau) là diễn biến cốt truyện/quan hệ. Cảnh nóng phải tự làm đổi điều gì đó (quan hệ, quyền lực, bí mật, hậu quả, quyết định) và mở ra bước kế tiếp; đừng lặp lại cùng một động tác hay cùng một đoạn tả." : ""
+  ].filter(Boolean).join("\n");
+}
+// --- V12.32.8: NEO NGOẠI HÌNH — người đọc phải hình dung được nhân vật (kích thước/số đo cụ thể, không tính từ trống). ---
+function appearanceAnchorPrompt(st, adult) {
+  const mature = !!(adult || (st && st.mature));
+  return [
+    "NEO NGOẠI HÌNH (để người đọc hình dung được nhân vật):",
+    "- Khi nhân vật có tên xuất hiện LẦN ĐẦU (và khi quay lại sau nhiều chương vắng mặt): tả 2–4 câu gồm tuổi/vẻ ngoài, chiều cao, vóc dáng, mặt-tóc-mắt-da, trang phục và MỘT nét nhận dạng riêng. Dùng con số hoặc so sánh cụ thể (VD: cao khoảng 1m65, vai hẹp, tóc ngang vai, mắt một mí), không chỉ tính từ chung chung.",
+    "- Cấm tính từ trống đứng một mình như \"đẹp\", \"quyến rũ\", \"to\", \"đầy đặn\", \"cao ráo\": phải kèm kích thước, hình dáng hoặc so sánh cụ thể để người đọc hình dung ra.",
+    "- Hồ sơ có chiều cao/dáng/SỐ ĐO thì dùng ĐÚNG. Hồ sơ còn trống mục ngoại hình thì TỰ ĐẶT chi tiết hợp lý ngay lần tả đầu và giữ nhất quán ở các chương sau (chi tiết này sẽ được lưu vào hồ sơ).",
+    mature ? "- Khi tả cơ thể của nhân vật ĐÃ ĐỦ 18 TUỔI trong cảnh người lớn: nêu kích thước cụ thể ít nhất ở lần tả đầu tiên (ngực: cỡ/cup hoặc so sánh vật thể kèm độ đầy, độ nảy; eo, mông, đùi; chiều cao, cân nặng; với nam: kích thước và hình dạng) theo mục SỐ ĐO trong hồ sơ; hồ sơ trống thì tự đặt số hợp lý và giữ nhất quán. Nhân vật dưới 18 tuổi hoặc không rõ tuổi: KHÔNG tả số đo hay đặc điểm tình dục của cơ thể." : ""
   ].filter(Boolean).join("\n");
 }
 // Tóm tắt truyện đến nay: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tổng không quá maxChars.
@@ -925,10 +1028,61 @@ function characterLockPrompt(mc, chars, short) {
     "- Mỗi nhân vật chỉ được nói, nghĩ và hành xử trong phạm vi nghề, địa vị, quyền hạn, tài sản, năng lực, tuổi, hiểu biết và tính cách ghi dưới đây. Không tự nâng cấp (quyền lực, giàu có, võ công, quan hệ, chức danh) và không tự hạ cấp.",
     "- Lời thoại và cách xưng hô phải hợp địa vị: người cấp thấp không ra lệnh như cấp trên, không nhận tài sản/tổ chức/quyền không có trong hồ sơ là của mình; người chưa biết một bí mật thì không được nói hay hành động như đã biết.",
     "- Muốn nhân vật vượt hồ sơ (thăng chức, lộ thân phận, có năng lực mới) thì phải có sự kiện RÕ RÀNG trong chính chương làm nguyên nhân (và brief cho phép); nếu không, giữ đúng hồ sơ.",
-    "- Hồ sơ trống ở một mục = chưa xác định: đừng bịa chi tiết quan trọng cho mục đó, dùng chi tiết trung tính hoặc để mở.",
+    "- Hồ sơ trống ở một mục nghề/địa vị/quyền hạn/tài sản/năng lực = chưa xác định: đừng bịa chi tiết quan trọng cho mục đó, dùng chi tiết trung tính hoặc để mở. (NGOẠI LỆ: ngoại hình/vóc dáng/số đo trống thì được tự đặt chi tiết cụ thể, hợp lý.)",
     "- Trước khi viết mỗi cảnh, tự hỏi: nhân vật này có THẬT SỰ được phép nói/làm điều này theo hồ sơ không? Nếu không, đổi cách viết.",
     "HỒ SƠ:", ...lines
   ].join("\n");
+}
+
+// --- V12.32.9: CHUYỂN CẢNH + NGƯỜI CÓ MẶT (chống nhân vật "tự xuất hiện" hoặc biến mất vô cớ) ---
+function scenePresencePrompt() {
+  return [
+    "CẢNH & NGƯỜI CÓ MẶT — BẮT BUỘC:",
+    "- Mỗi cảnh có một địa điểm và một danh sách người có mặt rõ ràng. Nhân vật chỉ được nói/hành động khi đang ở trong cảnh.",
+    "- Người MỚI vào cảnh phải có câu cho thấy họ đến (gõ cửa, bước vào, gọi điện/nhắn tin, xuất hiện ở cửa…) và vì sao họ biết/đến đúng lúc đó. Người RỜI cảnh phải có câu cho thấy họ đi (ra ngoài, cúp máy, bị đưa đi…). Không để ai tự xuất hiện hay biến mất giữa chừng.",
+    "- Người đã rời đi thì KHÔNG còn nói, nghe hay phản ứng trong cảnh đó cho tới khi có câu cho họ quay lại.",
+    "- Chuyển sang địa điểm/thời điểm khác: dùng một câu chuyển cảnh rõ (di chuyển + mốc thời gian) hoặc dòng ngăn cảnh, và nêu ai có mặt ở cảnh mới. Không lẫn lời thoại/hành động của cảnh cũ vào cảnh mới.",
+    "- Cảnh có ≥3 người: mỗi lượt lời thoại phải rõ ai nói; không để người không có mặt (hoặc đã đi) nói chen vào."
+  ].join("\n");
+}
+// --- V12.32.7: THỜI GIAN TRUYỆN (chống "10 chương vẫn là một ngày") ---
+const TIME_PACE_TEXT = {
+  scene: "mỗi chương nằm trong khoảng vài giờ đến hết một ngày",
+  day: "mỗi chương cách chương trước khoảng MỘT NGÀY (có thể nhảy sang ngày kế tiếp)",
+  fewdays: "mỗi chương cách chương trước khoảng VÀI NGÀY",
+  week: "mỗi chương cách chương trước khoảng MỘT TUẦN trở lên"
+};
+// Mốc thời gian hiện tại: ô Story Clock (nhập tay) ưu tiên, nếu trống dùng mốc Status tự trích từ chương.
+function currentTimeMark(st) {
+  const manual = String((st && st.storyClock) || "").trim();
+  if (manual) return manual;
+  const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
+  return String((ss.currentState && ss.currentState.time) || "").trim();
+}
+// Phát hiện nhiều chương liền không đổi mốc thời gian (so mốc chuẩn hóa trong statusState.timeLog).
+function timeStallInfo(st) {
+  const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
+  const log = Array.isArray(ss.timeLog) ? ss.timeLog.filter(x => x && x.time) : [];
+  if (log.length < 3) return null;
+  const norm = t => String(t).toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+  const last = norm(log[log.length - 1].time);
+  let run = 1;
+  for (let i = log.length - 2; i >= 0 && norm(log[i].time) === last; i--) run++;
+  const span = Math.max(1, (Number(log[log.length - 1].chapter) || 0) - (Number(log[log.length - run].chapter) || 0) + 1);
+  return run >= 3 ? { run, span, time: log[log.length - 1].time } : null;
+}
+function timePrompt(st) {
+  const sc = normalizeStoryControl(st);
+  const mark = currentTimeMark(st), stall = timeStallInfo(st);
+  return [
+    "THỜI GIAN TRUYỆN — BẮT BUỘC:",
+    mark ? "- Mốc hiện tại (cuối chương trước): " + mark + "." : "",
+    "- Chương phải cho người đọc biết thời điểm: ngay đầu chương và mỗi lần chuyển cảnh nêu mốc (buổi/ngày/giờ hoặc \"hôm sau\", \"ba ngày sau\", \"đến tối\"); cuối chương để thời điểm rõ ràng. Không để cả chương lơ lửng không mốc thời gian.",
+    "- Thời gian chỉ trôi về phía trước. Nếu sự kiện chương trước ĐÃ KẾT THÚC TRỌN (không còn cảnh đang dở), chương mới ĐƯỢC PHÉP nhảy thời gian (qua đêm, vài ngày, vài tuần) bằng một câu chuyển cảnh rõ; việc dang dở thì phải tiếp nối đúng thời điểm đó. Nhân vật ăn/ngủ/đi lại/hồi phục/thay đổi theo đúng khoảng thời gian trôi qua.",
+    "- Quan hệ, vết thương, kế hoạch, công việc phải tiến triển theo thời gian trôi; không để nhiều chương liên tiếp dồn vào cùng một buổi/một ngày nếu không có lý do cốt truyện.",
+    sc.timePace ? "- NHỊP THỜI GIAN do tác giả chọn: " + TIME_PACE_TEXT[sc.timePace] + "." : "",
+    stall ? "- CẢNH BÁO: " + stall.run + " chương liên tiếp (khoảng " + stall.span + " chương gần nhất) vẫn cùng một mốc \"" + String(stall.time).slice(0, 80) + "\". Chương này PHẢI chuyển sang mốc thời gian sau (hết sự kiện đang dở rồi nhảy qua đêm/ngày/vài ngày bằng câu chuyển cảnh rõ), không được tiếp tục cùng một ngày." : ""
+  ].filter(Boolean).join("\n");
 }
 
 function storyControlPrompt(st) {
@@ -948,7 +1102,9 @@ function storyControlPrompt(st) {
     "- Nếu Directive/Story Bible/Current Status xung đột, không âm thầm sửa canon; ưu tiên dữ liệu canon và ghi nhận xung đột khi cần.",
     "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ, chi tiết đời thường BÊN TRONG các sự kiện chính; không được dùng quyền này để mở arc lớn, thêm nhân vật quan trọng mới hay tiết lộ thông tin để dành cho chương sau. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
     "- TIẾN TRIỂN: chiều sâu KHÔNG có nghĩa là đứng yên — cuối chương phải có ít nhất một thay đổi thật (quan hệ, thông tin, quyền lực, mục tiêu hoặc hậu quả); không lặp cùng hành động/miêu tả để kéo dài.",
-    "- Mục tiêu là chiều sâu và tính liên tục, không phải nhồi thêm biến cố lớn."
+    "- Mục tiêu là chiều sâu và tính liên tục, không phải nhồi thêm biến cố lớn.",
+    scenePresencePrompt(),
+    timePrompt(st)
   ].filter(Boolean).join("\n");
 }
 
@@ -981,7 +1137,7 @@ function knownNameMentions(text, names) {
 }
 
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
-const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"stagnation":false,"stagnationNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
+const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
 /* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
    Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
@@ -1017,6 +1173,9 @@ function buildQualityReviewPrompt(p) {
     "- knowledgeViolation=true nếu nhân vật biết điều họ chưa thể biết.",
     "- retcon=true nếu mâu thuẫn canon đã xác nhận.",
     "- stagnation=true CHỈ KHI cuối chương hầu như không có thay đổi nào so với đầu chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả) HOẶC một cảnh lặp lại cùng hành động/miêu tả nhiều lần chỉ để kéo dài. Ghi 1–2 ví dụ ngắn vào stagnationNotes. Cảnh trưởng thành đủ dài nhưng có đổi quan hệ/quyền lực/hậu quả thì KHÔNG phải stagnation.",
+    "- sceneViolation=true CHỈ KHI có CÂU CỤ THỂ trong bản thảo cho nhân vật nói/hành động/phản ứng khi họ KHÔNG có mặt trong cảnh (chưa được nói là đến, hoặc đã rời đi mà không quay lại), hoặc lời thoại/hành động của cảnh cũ lẫn sang cảnh mới không có chuyển cảnh. Ghi trích dẫn ngắn + tên nhân vật vào sceneNotes. Không báo nếu chỉ là nhân vật ở gần/đang nghe được hợp lý.",
+    "- timeStagnation=true CHỈ KHI cả chương hoàn toàn không có mốc thời gian nào (không buổi/ngày/giờ/chuyển cảnh theo thời gian) HOẶC chương mở lại đúng thời điểm chương trước dù sự kiện trước đã kết thúc trọn và không có lý do cốt truyện; ghi 1 dẫn chứng ngắn vào timeNotes. Đây chỉ là CẢNH BÁO mềm, không chặn.",
+    "- appearanceVague=true CHỈ KHI có nhân vật có tên xuất hiện lần đầu hoặc cảnh tả cơ thể mà chỉ dùng tính từ trống (đẹp, to, đầy đặn…) không kèm kích thước/hình dáng/so sánh cụ thể nào để hình dung. Ghi tên nhân vật vào appearanceNotes. Chỉ là CẢNH BÁO mềm.",
     p.characterLock ? "- profileViolation=true CHỈ KHI có câu/đoạn CỤ THỂ trong bản thảo trái rõ ràng với HỒ SƠ KHÓA (nhân vật nói hoặc hành xử như có địa vị/quyền/tài sản/năng lực/kiến thức cao hơn hồ sơ; xưng hô hoặc giọng nói sai thiết lập; đổi nghề). Ghi trích dẫn ngắn + mục hồ sơ bị vi phạm vào profileViolations; không báo nếu chỉ suy đoán hoặc thiếu thông tin." : "",
     p.prevEnding ? "- ĐỊA ĐIỂM MỞ CHƯƠNG: nếu cảnh mở đầu của bản thảo KHÁC địa điểm/thời điểm/người có mặt so với ĐOẠN KẾT CHƯƠNG TRƯỚC mà không có đoạn chuyển cảnh hợp lý (ví dụ chương trước kết ở biệt thự của A nhưng chương này mở ở phòng trọ của B), phải ghi vào hardFailures (nêu rõ kết ở đâu, mở ở đâu) và đặt continuity thấp." : "",
     "- outlineDeviation=true nếu bỏ mốc bắt buộc hoặc mở tuyến lớn ngoài contract.",
@@ -1860,7 +2019,7 @@ function buildContextBlock(options){
   const outline = currentOutline();
   if(outline) lines.push("OUTLINE (" + outline.from + "–" + outline.to + "):\n" + clip(outline.content, 800));
 
-  if(state.storyClock) lines.push("THỜI ĐIỂM: " + state.storyClock);
+  { const tm = currentTimeMark(state); if(tm) lines.push("THỜI ĐIỂM: " + tm); }
 
   // V12.32: không chèn tóm tắt chương cũ lần thứ hai vào khối ngữ cảnh.
   /* V12.32.5: nhưng cần TRÍ NHỚ TRUYỆN: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tối đa ~2800 ký tự. */
@@ -2057,6 +2216,7 @@ function characterSummaryForPrompt(list){
     /* Ngoại hình / số đo — ƯU TIÊN (để cảnh 18+ bám hồ sơ) */
     if(c.height) parts.push("cao:"+cut(c.height, 30));
     if(c.bodyType) parts.push("dáng:"+cut(c.bodyType, 40));
+    if(c.measurements) parts.push("SỐ ĐO:"+cut(c.measurements, 60));
     if(c.appearance) parts.push("ngoại hình:"+cut(c.appearance, 160));
     if(c.hair) parts.push("tóc:"+cut(c.hair, 40));
     if(c.eyes) parts.push("mắt:"+cut(c.eyes, 40));
@@ -2099,6 +2259,7 @@ function buildStoryBibleSummary(options){
     if(p.occupation) parts.push("nghề:"+p.occupation);
     if(p.height) parts.push("cao:"+p.height);
     if(p.bodyType) parts.push("dáng:"+p.bodyType);
+    if(p.measurements) parts.push("SỐ ĐO:"+String(p.measurements).slice(0,80));
     if(p.appearance) parts.push("ngoại hình:"+String(p.appearance).slice(0,200));
     if(p.hair) parts.push("tóc:"+p.hair);
     if(p.eyes) parts.push("mắt:"+p.eyes);
@@ -2316,7 +2477,8 @@ function buildMainWritePrompt(o){
     storyControlPromptClient(), "",
     characterLockPromptClient(false), "",
     progressRulesPrompt(state), "",
-    lastChapterEnding ? ("===== ĐOẠN KẾT CHƯƠNG TRƯỚC (PHẢI TIẾP NỐI) =====\n" + lastChapterEnding + "\n===== HẾT =====\n\nChương mới PHẢI bắt đầu từ việc tiếp nối trực tiếp đoạn kết trên.\nĐỊA ĐIỂM MỞ CHƯƠNG — KHÓA CỨNG: đoạn mở đầu PHẢI diễn ra ĐÚNG địa điểm, thời điểm và với đúng những người đang có mặt như trong đoạn kết chương trước (ví dụ chương trước kết ở biệt thự của A thì chương này vẫn bắt đầu ở biệt thự của A). Chỉ được chuyển địa điểm khi đoạn kết đã nói rõ nhân vật sắp rời đi/đến nơi khác, hoặc sau một câu chuyển cảnh rõ ràng (di chuyển + mốc thời gian). Tuyệt đối không nhảy sang nhà/phòng trọ/nơi ở của nhân vật khác ngay từ câu đầu.") : "",
+    appearanceAnchorPrompt(state, usingNsfw), "",
+    lastChapterEnding ? ("===== ĐOẠN KẾT CHƯƠNG TRƯỚC (PHẢI TIẾP NỐI) =====\n" + lastChapterEnding + "\n===== HẾT =====\n\nChương mới tiếp nối đoạn kết trên: nếu đoạn kết còn một cảnh đang dở thì PHẢI bắt đầu từ đúng cảnh đó; nếu sự kiện đã khép trọn thì ĐƯỢC nhảy thời gian bằng một câu chuyển cảnh rõ (hôm sau, vài ngày sau…) theo mục THỜI GIAN TRUYỆN.\nĐỊA ĐIỂM MỞ CHƯƠNG — KHÓA CỨNG: đoạn mở đầu PHẢI diễn ra ĐÚNG địa điểm, thời điểm và với đúng những người đang có mặt như trong đoạn kết chương trước (ví dụ chương trước kết ở biệt thự của A thì chương này vẫn bắt đầu ở biệt thự của A). Chỉ được chuyển địa điểm khi đoạn kết đã nói rõ nhân vật sắp rời đi/đến nơi khác, hoặc sau một câu chuyển cảnh rõ ràng (di chuyển + mốc thời gian). Tuyệt đối không nhảy sang nhà/phòng trọ/nơi ở của nhân vật khác ngay từ câu đầu.") : "",
     recentFullText ? ("\nChương gần (tránh lặp sự kiện / cấu trúc):\n" + recentFullText) : "",
     olderSummaries ? ("\nTÓM TẮT CHƯƠNG XA:\n" + olderSummaries) : "",
     plan ? ("\nKẾ HOẠCH CHƯƠNG " + chapterNumber + ":\n" + plan) : "",
@@ -2805,7 +2967,7 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
   let created = false;
   if (!c) {
     c = {
-      id: genId("c"), name, tier: u.tier || "supporting", age: u.age || "", gender: u.gender || "", position: u.position || "", speech: u.speech || "", height: u.height || "", bodyType: u.bodyType || "", hair: u.hair || "", eyes: u.eyes || "", skin: u.skin || "", role: u.role || "", relevanceToMC: u.relevanceToMC || "",
+      id: genId("c"), name, tier: u.tier || "supporting", age: u.age || "", gender: u.gender || "", position: u.position || "", speech: u.speech || "", height: u.height || "", bodyType: u.bodyType || "", measurements: u.measurements || "", hair: u.hair || "", eyes: u.eyes || "", skin: u.skin || "", role: u.role || "", relevanceToMC: u.relevanceToMC || "",
       appearance: u.appearance || "", personality: u.personality || "", occupation: u.occupation || "", faction: u.faction || "",
       goals: u.goals || "", secret: u.secret || "", weakness: u.weakness || "", fear: u.fear || "", knowledge: u.knowledge || "",
       currentLocation: u.currentLocation || "", physicalState: u.physicalState || "", mentalState: u.mentalState || "", independentPlot: u.independentPlot || "", strength: u.strength || "", voice: u.voice || "", scent: u.scent || "", style: u.style || "", scars: u.scars || "", tattoos: u.tattoos || "", schedule: u.schedule || "",
@@ -2831,7 +2993,7 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
       c[k] = mergeTextField(c[k], u[k]);
       if (coreFields.includes(k) && (!coreLocked || emptyNow)) c.coreIdentity[k] = c[k];
     });
-    ["age","gender","position","speech","height","bodyType","hair","eyes","skin"].forEach(k => {
+    ["age","gender","position","speech","height","bodyType","measurements","hair","eyes","skin"].forEach(k => {
       if (u[k] && !String(c[k] || "").trim()) { c[k] = u[k]; if (coreFields.includes(k)) c.coreIdentity[k] = c[k]; }
     });
     /* V12.19: nghề/chức vụ đã có chỉ đổi khi có sự kiện + bằng chứng trích đúng từ chương (kể cả NV đã mở khóa). */
@@ -2905,7 +3067,7 @@ async function updateCharacters(job, chapter, n, state) {
       "Giải thích thêm: speech = cách nói riêng (giọng, khẩu ngữ, câu cửa miệng); strength = điểm mạnh/kỹ năng thể hiện trong chương; independentPlot = TUYẾN TRUYỆN RIÊNG của NV (việc họ tự làm/âm mưu ngoài tuyến chính, chỉ ghi diễn biến MỚI); các trường 18+ (sexualExperience, boundaries, taboos, preferences, attractionToMC, tensionWithMC, consentNotes) CHỈ ghi khi chương thể hiện rõ về NV trưởng thành, nếu không thì để trống.",
       "Danh sách tên đã biết:", compactCharacterList(state),
       "NỘI DUNG PHẦN:", chunks[i],
-      'JSON: [{"name":"","tier":"background|minor|supporting|important|major","age":"","gender":"","position":"","speech":"","height":"","bodyType":"","hair":"","eyes":"","skin":"","role":"","relevanceToMC":"","voice":"","scent":"","style":"","scars":"","tattoos":"","schedule":"","strength":"","independentPlot":"","sexualExperience":"","boundaries":"","taboos":"","preferences":"","attractionToMC":"","tensionWithMC":"","consentNotes":"","appearance":"","personality":"","occupation":"","faction":"","goals":"","secret":"","weakness":"","fear":"","knowledge":"","currentLocation":"","physicalState":"","mentalState":"","chapterEvent":"","relationshipWithMain":{"trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","stage":"","notes":""},"relationships":[{"withName":"","stage":"","trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","notes":""}],"isDead":false,"explicitCoreChange":false,"changeEvidence":""}]'
+      'JSON: [{"name":"","tier":"background|minor|supporting|important|major","age":"","gender":"","position":"","speech":"","height":"","bodyType":"","measurements":"","hair":"","eyes":"","skin":"","role":"","relevanceToMC":"","voice":"","scent":"","style":"","scars":"","tattoos":"","schedule":"","strength":"","independentPlot":"","sexualExperience":"","boundaries":"","taboos":"","preferences":"","attractionToMC":"","tensionWithMC":"","consentNotes":"","appearance":"","personality":"","occupation":"","faction":"","goals":"","secret":"","weakness":"","fear":"","knowledge":"","currentLocation":"","physicalState":"","mentalState":"","chapterEvent":"","relationshipWithMain":{"trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","stage":"","notes":""},"relationships":[{"withName":"","stage":"","trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","notes":""}],"isDead":false,"explicitCoreChange":false,"changeEvidence":""}]'
     ].join("\n\n");
     try {
       const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "system", content: "Bạn là bộ máy trích xuất dữ liệu nhân vật. Không được viết văn xuôi. Chỉ trả JSON hợp lệ." }, { role: "user", content: prompt }], maxTokens: 11500, temperature: 0.15 }, 2);
@@ -3168,7 +3330,16 @@ function mergeStatusChanges(state, n, extraction) {
   };
   let applied = 0;
   Object.keys(fieldMap).forEach(k => {
-    if (setIfValid(status.currentState, fieldMap[k], changes[k])) applied++;
+    if (setIfValid(status.currentState, fieldMap[k], changes[k])) {
+      applied++;
+      /* V12.32.7: nhật ký mốc thời gian theo chương -> phát hiện truyện "đứng một ngày" và tự cập nhật đồng hồ truyện. */
+      if (k === "time") {
+        if (!Array.isArray(status.timeLog)) status.timeLog = [];
+        status.timeLog = status.timeLog.filter(x => x && x.chapter !== n);
+        status.timeLog.push({ chapter: n, time: String(changes[k].value).trim().slice(0, 160) });
+        status.timeLog = status.timeLog.slice(-8);
+      }
+    }
   });
 
   const ltMap = {
@@ -3433,7 +3604,7 @@ async function updateLongMemory(job, chapter, n, state) {
    deterministic: no JSON-repair model call, and a missing/invalid section never clears stored data. */
 const UNIFIED_SCHEMA_PARTS = {
   summary: "\"summary\":\"\"",
-  characters: "\"characters\":[{\"name\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"role\":\"\",\"occupation\":\"\",\"faction\":\"\",\"appearance\":\"\",\"personality\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"chapterEvent\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\"},\"stateEvidence\":{\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"secret\":\"\"},\"relationshipWithMainEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"},\"deathEvidence\":\"\",\"tier\":\"\",\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"role\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\",\"appearance\":\"\",\"personality\":\"\",\"occupation\":\"\",\"faction\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"chapterEvent\":\"\",\"relationshipWithMain\":{},\"relationships\":[{\"withName\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"}}],\"isDead\":false,\"explicitCoreChange\":false,\"changeEvidence\":\"\"}]",
+  characters: "\"characters\":[{\"name\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"role\":\"\",\"occupation\":\"\",\"faction\":\"\",\"appearance\":\"\",\"personality\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"chapterEvent\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"measurements\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\"},\"stateEvidence\":{\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"secret\":\"\"},\"relationshipWithMainEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"},\"deathEvidence\":\"\",\"tier\":\"\",\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"measurements\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"role\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\",\"appearance\":\"\",\"personality\":\"\",\"occupation\":\"\",\"faction\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"chapterEvent\":\"\",\"relationshipWithMain\":{},\"relationships\":[{\"withName\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"}}],\"isDead\":false,\"explicitCoreChange\":false,\"changeEvidence\":\"\"}]",
   world: "\"world\":{\"locations\":[{\"name\":\"\",\"description\":\"\",\"status\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"status\":\"\"}}],\"items\":[{\"name\":\"\",\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"owner\":\"\",\"status\":\"\"}}],\"threads\":[{\"type\":\"\",\"desc\":\"\",\"status\":\"\",\"matchExistingDesc\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"desc\":\"\",\"status\":\"\"}}]}",
   status: "\"status\":{\"changes\":{\"time\":{},\"situation\":{},\"mainEvent\":{},\"location\":{},\"overall\":{},\"mainCharacter\":{},\"relationships\":{},\"power\":{},\"rules\":{},\"conflict\":{},\"nextGoal\":{},\"knowledge\":{},\"unresolved\":{},\"secrets\":{},\"weaknesses\":{},\"characterChanges\":[{\"characterId\":\"\",\"characterName\":\"\",\"status\":\"updated\",\"changes\":{},\"changeEvidence\":{},\"evidence\":\"\"}],\"conflicts\":[{\"characterName\":\"\",\"field\":\"\",\"oldValue\":\"\",\"newValue\":\"\",\"description\":\"\",\"evidence\":\"\"}]}}",
   memory: "\"memory\":{\"events\":[{\"type\":\"event\",\"summary\":\"\",\"causes\":\"\",\"consequences\":\"\",\"evidence\":\"\"}],\"foreshadowing\":[{\"description\":\"\",\"status\":\"seeded\",\"match\":\"\",\"characters\":\"\",\"evidence\":\"\"}],\"knowledge\":[{\"character\":\"\",\"fact\":\"\",\"confidence\":\"direct\",\"evidence\":\"\"}]}",
@@ -3491,11 +3662,11 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys) {
     "NGUYÊN TẮC AN TOÀN: dữ liệu hiện có là canon. Chỉ trả các thay đổi được chương mới chứng minh. Không có thay đổi thì trả mảng rỗng/chuỗi rỗng; KHÔNG lặp lại hoặc thay thế dữ liệu cũ. Mọi mục cập nhật phải có evidence là một trích đoạn ngắn 5–18 từ lấy từ chính chương. Không dùng bằng chứng bịa.",
     "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. Hồ sơ gốc role/occupation/position/faction/identity không được đổi. Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
     "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
-    "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
+    "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: nếu chương có mốc thời gian (buổi/ngày/giờ/\"hôm sau\"/quãng nhảy) thì BẮT BUỘC cập nhật changes.time = mốc ở CUỐI chương, ghi cả buổi/ngày và quãng đã trôi so với đầu chương; evidence trích câu có mốc đó. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
     "LONG-TERM MEMORY: chỉ thêm sự kiện có ý nghĩa, tri thức của từng nhân vật và thay đổi foreshadowing có bằng chứng; không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
     "CONTINUITY: rà mâu thuẫn cụ thể với hồ sơ nhân vật, Current Status, world rules, tri thức đã biết và đoạn cuối chương trước. Chỉ cảnh báo mâu thuẫn thực sự; không báo chỉ vì thiếu thông tin. Mỗi cảnh báo phải có evidence trích từ chương hiện tại và canonReference nêu quy tắc/dữ kiện đối chiếu. Nếu không có, trả mảng []. Không tự sửa canon ở bước này.",
     "SUMMARY: tiếng Việt, mở đầu bằng **Tóm tắt chương:**, 250–400 từ, theo đúng thứ tự, giữ sự kiện/nhân vật thật, không bổ sung. " + (adult ? "Với cảnh trưởng thành, tóm tắt trung lập nhưng không bỏ qua sự kiện/quyết định/hệ quả quan trọng." : ""),
-    "NEXT HINT: tiếng Việt, khoảng 150–260 từ, tiếp nối trực tiếp điểm kết; 1–3 sự kiện chính; dùng nhân vật/thread hiện có, không mở tuyến lớn mới, không tự thêm nhân vật quan trọng. Nêu điểm kết chương rõ ràng.",
+    "NEXT HINT: tiếng Việt, khoảng 150–260 từ, tiếp nối trực tiếp điểm kết; 1–3 sự kiện chính; dùng nhân vật/thread hiện có, không mở tuyến lớn mới, không tự thêm nhân vật quan trọng. Nêu điểm kết chương rõ ràng và mốc thời gian mở đầu gợi ý (nếu sự kiện đã khép trọn thì cho phép nhảy thời gian: hôm sau/vài ngày sau).",
     "Không trả markdown fence. Toàn bộ phản hồi phải là MỘT JSON object hợp lệ. Không dùng dấu nháy kép trong nội dung chuỗi trừ escaping JSON đúng chuẩn.",
     "NHÂN VẬT ĐÃ CÓ TRONG CHƯƠNG (nguồn sự thật):\n" + JSON.stringify(characters),
     "TÊN CÁC NHÂN VẬT ĐÃ CÓ KHÁC (không xuất hiện ở chương này; nếu gặp lại hãy dùng đúng tên này, không tạo trùng):\n" + otherNames.join(", "),
@@ -3623,7 +3794,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
           const safeU = Object.assign({}, u);
           const fe = safeU.fieldEvidence && typeof safeU.fieldEvidence === "object" ? safeU.fieldEvidence : {};
           const se = safeU.stateEvidence && typeof safeU.stateEvidence === "object" ? safeU.stateEvidence : {};
-          const fieldNames = ["age","gender","position","role","occupation","faction","appearance","personality","goals","secret","weakness","fear","knowledge","chapterEvent","speech","height","bodyType","hair","eyes","skin","relevanceToMC","voice","scent","style","scars","tattoos","schedule","strength","independentPlot","sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"];
+          const fieldNames = ["age","gender","position","role","occupation","faction","appearance","personality","goals","secret","weakness","fear","knowledge","chapterEvent","speech","height","bodyType","measurements","hair","eyes","skin","relevanceToMC","voice","scent","style","scars","tattoos","schedule","strength","independentPlot","sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"];
           fieldNames.forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], fe[field] || (field === "secret" ? se.secret : ""), source, 0.55)) safeU[field] = ""; });
           ["currentLocation","physicalState","mentalState"].forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], se[field], source, 0.55)) safeU[field] = ""; });
           if (safeU.secret && !fieldEvidenceSupports(safeU.secret, se.secret || fe.secret, source, 0.55)) safeU.secret = "";
