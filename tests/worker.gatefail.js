@@ -31,8 +31,8 @@ const worker = require(path.join(__dirname, "../netlify/functions/write-chapter-
   const job = JSON.parse(db.get(jobId)); const rc = job.resultChapter;
   assert.strictEqual(res.statusCode, 200); assert.strictEqual(JSON.parse(res.body).qualityGateFailed, true, "phản hồi handler phải có qualityGateFailed");
   assert.strictEqual(job.status, "completed"); assert.strictEqual(job.qualityGateFailed, true);
-  assert.strictEqual(c.review, 3, "chấm đúng 3 lần, thực tế " + c.review); assert.strictEqual(c.rewrite, 2, "sửa đúng 2 lần, thực tế " + c.rewrite); assert.strictEqual(c.patch, 2, "vá cục bộ thử trước mỗi lần sửa, thực tế " + c.patch);
-  assert.strictEqual(rc.status, "REVISION_REQUIRED"); assert.strictEqual(rc.review.verdict, "HARD_FAIL"); assert.strictEqual(rc.review.attempt, 3);
+  assert.strictEqual(c.review, 5, "chấm đúng 5 lần, thực tế " + c.review); assert.strictEqual(c.rewrite, 4, "sửa đúng 4 lần, thực tế " + c.rewrite); assert.strictEqual(c.patch, 4, "vá cục bộ thử trước mỗi lần sửa, thực tế " + c.patch);
+  assert.strictEqual(rc.status, "REVISION_REQUIRED"); assert.strictEqual(rc.review.verdict, "HARD_FAIL"); assert.strictEqual(rc.review.attempt, 5);
   assert(rc.review.hardFailures.some(h => /ngân sách sự kiện/.test(h)), "phải có hard failure vượt ngân sách: " + JSON.stringify(rc.review.hardFailures));
   assert(Array.isArray(rc.versions) && rc.versions.length >= 1, "bản gốc phải được lưu vào versions");
   assert.strictEqual(c.nv + c.world + c.summary + c.other, 0, "KHÔNG được chạy cập nhật NV/Thế giới/Tóm tắt/Memory khi chưa PASS: " + JSON.stringify(c));

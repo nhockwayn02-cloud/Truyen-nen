@@ -18,3 +18,16 @@ Nút 🔍 Duyệt lại chỉ chấm lại (rewrite:false) nên cũng không s�
 
 ## Test
 `tests/v12_32_10_patch_rewrite.test.js` (mới) + cập nhật mock `worker.test.js`, `worker.gatefail.js` cho luồng vá-trước.
+
+## V12.32.11 (sửa tiếp)
+- **Lỗi:** bộ chấm được xem ĐOẠN KẾT CHƯƠNG TRƯỚC để đối chiếu cảnh mở đầu, nhưng AI sửa (cả vá cục bộ lẫn viết lại cả chương) thì KHÔNG → vá mù, tự đoán địa điểm
+  (vd chương trước kết ở hành lang nhưng AI nối vào "văn phòng"/"bãi xe") nên lần chấm sau lại báo lỗi continuity mới.
+- **Sửa:** truyền `prevEnding` (1500 ký tự cuối chương trước) vào prompt vá và prompt viết lại, ở cả client lẫn worker nền;
+  thêm quy tắc "câu chuyển cảnh phải nối đúng từ đoạn kết chương trước, không dời sang địa điểm khác; chi tiết thêm vào phải khớp canon".
+
+## V12.32.12 (AI tự làm hết trước khi giao chương)
+- **Tối đa 5 vòng** chấm → vá (trước là 3). Mặc định 5; giá trị lưu cũ = 3 (mặc định cũ, không có ô chỉnh trên giao diện) cũng được hiểu là 5.
+- **Nhớ lỗi đã sửa:** lỗi nặng của các vòng trước mà vòng này không còn bị truyền vào prompt vá/viết lại ("giữ nguyên chỗ đã sửa, đừng hoàn tác"), tránh sửa chỗ này làm hỏng chỗ khác.
+- **Duyệt kèm cảnh báo:** nếu chỉ còn SOFT_FAIL (điểm ≥ ngưỡng mềm 75) và KHÔNG có hard failure thì duyệt luôn, ghi cảnh báo, không chạy thêm vòng.
+  Tắt bằng `qualityAcceptSoft:false` trong state nếu muốn giữ chuẩn PASS ≥ 90 nghiêm ngặt.
+- Tốn thêm: tối đa 2 vòng chấm+vá so với trước, chỉ khi chương vẫn còn lỗi nặng.

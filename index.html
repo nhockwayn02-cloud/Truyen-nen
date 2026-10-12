@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.32.10</title>
+<title>Xưởng Truyện AI Pro Max v12.32.12</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -328,7 +328,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.32.10 · AI tự sửa cục bộ · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
+<div class="brand-sub">v12.32.12 · AI tự sửa tới 5 vòng · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
 </div>
 </div>
 <div class="topbar-actions">
@@ -1765,13 +1765,14 @@ function endingGateInstruction(anchor) {
 
 // ===== V12.17: Quality Gate — phần THUẦN (không gọi AI, không đụng DOM/state toàn cục) =====
 // Client và worker cùng dùng các hàm này; phần gọi AI / dựng prompt vẫn nằm riêng ở từng nơi.
-const GATE_MAX_ATTEMPTS = 3;          // tối đa số lần chấm (và sửa) cho một chương
+const GATE_MAX_ATTEMPTS = 5;          // tối đa số lần chấm (và sửa) cho một chương (V12.32.12: 3 → 5)
+const GATE_DEFAULT_ATTEMPTS = 5;     // mặc định; giá trị lưu cũ = 3 (mặc định cũ, không có ô chỉnh trên giao diện) cũng được nâng lên 5
 const GATE_MAX_VERSIONS = 3;          // số bản gốc giữ lại trong chapter.versions
 const GATE_MIN_REWRITE_RATIO = 0.6;   // bản sửa ngắn hơn 60% bản gốc bị từ chối
 
 function gateItemText(x) { return typeof x === "string" ? x : ((x && (x.description || x.problem)) || JSON.stringify(x)); }
 
-function gateMaxAttempts(v) { return Math.max(1, Math.min(GATE_MAX_ATTEMPTS, Number(v) || GATE_MAX_ATTEMPTS)); }
+function gateMaxAttempts(v) { const n = Number(v); const eff = (!n || n === 3) ? GATE_DEFAULT_ATTEMPTS : n; return Math.max(1, Math.min(GATE_MAX_ATTEMPTS, eff)); }
 
 // Chuẩn hoá kết quả Auditor → review có verdict cuối cùng. Trả null nếu obj không phải object JSON.
 // opts: { maxMainEvents, maxNamedCharacters, passScore, softFailScore, extraHard: string[], now }
@@ -1849,6 +1850,8 @@ function buildPatchPrompt(p) {
     p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 6000, false) : "",
+    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu chương này PHẢI nối tiếp đúng địa điểm / thời điểm / người có mặt ở đây — đây là sự thật, không được tự bịa địa điểm khác):\n" + String(p.prevEnding).slice(-1500) : "",
+    (rv.alreadyFixed && rv.alreadyFixed.length) ? "LỖI ĐÃ SỬA Ở VÒNG TRƯỚC — GIỮ NGUYÊN các chỗ đã sửa, tuyệt đối không làm hỏng hoặc hoàn tác:\n- " + rv.alreadyFixed.join("\n- ") : "",
     "LỖI CẦN SỬA:\n" + (rv.hardFailures || []).concat((rv.warnings || []).slice(0, 8)).map(gateItemText).join("\n"),
     "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(rv),
     "ĐỊNH DẠNG TRẢ VỀ — CHỈ MỘT JSON, không markdown, không giải thích:",
@@ -1859,6 +1862,8 @@ function buildPatchPrompt(p) {
     '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
     "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh, mốc thời gian…) sau/trước find. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
     "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
+    p.prevEnding ? "- Khi sửa lỗi nối cảnh/địa điểm: đọc ĐOẠN KẾT CHƯƠNG TRƯỚC, rồi viết câu chuyển cảnh nối đúng từ chỗ đó vào cảnh mở đầu của bản thảo (ví dụ chương trước kết ở hành lang thì phải có hành động đi tiếp/mở cửa/bước vào trước khi tả cảnh trong phòng). Không dời cảnh sang địa điểm mới nào khác." : "",
+    "- Chi tiết thêm vào (ngoại hình, đồ vật, mốc thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
     "- Tối đa " + PATCH_MAX_COUNT + " thao tác. Mỗi lỗi một thao tác ngắn nhất có thể.",
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || "")
   ].filter(Boolean).join("\n\n");
@@ -2210,6 +2215,8 @@ function buildRewritePrompt(p) {
     p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
+    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu phải nối tiếp đúng địa điểm/thời điểm/người có mặt ở đây):\n" + String(p.prevEnding).slice(-1500) : "",
+    (p.review && p.review.alreadyFixed && p.review.alreadyFixed.length) ? "LỖI ĐÃ SỬA Ở VÒNG TRƯỚC — giữ nguyên các chỗ đã sửa, không làm hỏng lại:\n- " + p.review.alreadyFixed.join("\n- ") : "",
     "QUALITY REVIEW:\n" + JSON.stringify(p.review || {}),
     "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(p.review),
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || ""),
@@ -2229,6 +2236,7 @@ async function runGateLoop(chapter, deps, opts) {
   const stopped = () => !!(deps.shouldStop && deps.shouldStop());
   if (opts.enabled === false) { chapter.status = "APPROVED"; chapter.review = bypassReview(); notify(); return { approved: true }; }
   const maxAttempts = opts.allowRewrite === false ? 1 : gateMaxAttempts(opts.maxAttempts);
+  const seenHard = []; // lỗi nặng của từng vòng đã chấm, để vòng sau không làm hỏng lại chỗ đã sửa
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (stopped()) return { approved: false, stopped: true };
     if (deps.selfCheck) { chapter.status = "SELF_CHECKING"; notify(); await deps.selfCheck(attempt); }
@@ -2242,10 +2250,20 @@ async function runGateLoop(chapter, deps, opts) {
     }
     chapter.review = Object.assign({}, chapter.review, rr.review, { status: "completed", attempt, reviewedAt: Date.now() });
     if (rr.review.verdict === "PASS") { chapter.status = "APPROVED"; notify(); return { approved: true, review: rr.review }; }
+    // V12.32.12: chỉ còn cảnh báo nhẹ (điểm ≥ ngưỡng mềm, KHÔNG có hard failure) → duyệt kèm cảnh báo, không chạy thêm vòng.
+    if (opts.acceptSoft !== false && rr.review.verdict === "SOFT_FAIL" && !(rr.review.hardFailures || []).length) {
+      chapter.review.softAccepted = true;
+      chapter.review.warnings = (chapter.review.warnings || []).concat(["Duyệt kèm cảnh báo: điểm " + rr.review.score + " chưa tới ngưỡng PASS nhưng không có lỗi nặng."]);
+      chapter.status = "APPROVED"; notify(); return { approved: true, softAccepted: true, review: chapter.review };
+    }
+    seenHard.push((rr.review.hardFailures || []).map(gateItemText));
     chapter.status = "REVISION_REQUIRED"; notify();
     if (attempt >= maxAttempts) break;
     if (deps.onStatus) deps.onStatus("Quality Gate: " + rr.review.verdict + " — đang sửa lần " + (attempt + 1) + "/" + maxAttempts + "...");
-    const rw = await deps.rewrite(rr.review, attempt);
+    const normKey = s => String(s || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
+    const nowKeys = new Set((rr.review.hardFailures || []).map(gateItemText).map(normKey));
+    const alreadyFixed = [].concat(...seenHard.slice(0, -1)).filter((s, i, a) => !nowKeys.has(normKey(s)) && a.findIndex(x => normKey(x) === normKey(s)) === i).slice(-6);
+    const rw = await deps.rewrite(alreadyFixed.length ? Object.assign({}, rr.review, { alreadyFixed }) : rr.review, attempt);
     if (rw && rw.stopped) return { approved: false, stopped: true };
     if (!rw || !rw.ok) {
       chapter.review.warnings = (chapter.review.warnings || []).concat(["Bản sửa bị từ chối: " + ((rw && rw.reason) || "không rõ") + " — giữ nguyên bản thảo."]);
@@ -2725,7 +2743,7 @@ function buildChapterData(source){
     characterStateTracker:s.characterStateTracker||{},
     plotArchive:s.plotArchive||[],
     canonVersion:Number(s.canonVersion||0),
-    qualityGate:{enabled:s.qualityGateEnabled!==false,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||3)},
+    qualityGate:{enabled:s.qualityGateEnabled!==false,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||5)},
     version:3
   };
 }
@@ -2756,7 +2774,7 @@ function hydrateFromRecord(record){
     out.chapters=ch.chapters||[];
     out.chapterDrafts=ch.chapterDrafts||[];
     out.canonVersion=Number(ch.canonVersion||0);
-    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||3);
+    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||5);
     out.chapters.forEach(c=>{ if(c && c.sync && c.sync.status==="SYNCED" && !c.status) c.status="SYNCED"; });
     out.scenes=ch.scenes||out.scenes||[];
     out.knowledgeLedger=ch.knowledgeLedger||out.knowledgeLedger||[];
@@ -2887,7 +2905,7 @@ const state = {
   snapshotLimit: 7,
   wakeLockEnabled: true,
   slidingWindowWords: 1500,
-  qualityGateEnabled: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 3
+  qualityGateEnabled: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5
 };
 
 function newMainCharProfile(){
@@ -2921,7 +2939,7 @@ function newStoryState(name){
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
     characterCards: [], banWords: [], glossaryLock: [], characterStateTracker:{}, plotArchive:[],
     tokenCapPerPrompt:5, snapshotLimit:7, wakeLockEnabled:true, slidingWindowWords:1500,
-    qualityGateEnabled:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:3
+    qualityGateEnabled:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5
   };
 }
 
@@ -7319,7 +7337,7 @@ async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
 /* V12.32.10: sửa theo từng đoạn (patch) trước; chỉ khi không vá được mới thử viết lại cả chương. */
 async function patchDraftFromReview(chapter, review, chapterNumber, plan, contextSummary){
   const oldText=String(chapter.text||"");
-  const prompt=buildPatchPrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:oldText});
+  const prompt=buildPatchPrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:oldText,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500)});
   try{
     const r=await callAI(prompt,{maxTokens:4000,temperature:0.3,modelOverride:chapter.modelUsed||state.model});
     const patches=parsePatchResponse(r.text);
@@ -7345,7 +7363,7 @@ async function rewriteDraftFromReview(chapter, review, chapterNumber, plan, cont
 }
 async function rewriteWholeDraft(chapter, review, chapterNumber, plan, contextSummary){
   const oldText=String(chapter.text||""), oldWc=countWords(oldText);
-  const prompt=buildRewritePrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:chapter.text});
+  const prompt=buildRewritePrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:chapter.text,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500)});
   try{
     const r=await callAI(prompt,{maxTokens:16000,temperature:0.55,modelOverride:chapter.modelUsed||state.model});
     let text=String(r.text||"").trim().replace(/^\s*(?:TIÊU ĐỀ|TITLE)\s*:\s*[^\n]+\n+/i,"").replace(/^\s*NỘI DUNG\s*:\s*/i,"").trim();
@@ -7382,7 +7400,7 @@ async function runQualityGate(chapter, chapterNumber, plan, contextSummary, opts
     onStatus:(m)=>setStatus("⚠ "+m,true),
     onChange:()=>renderQualityReview(chapter),
     shouldStop:()=>userStopRequested
-  },{enabled:state.qualityGateEnabled!==false,allowRewrite:opts.rewrite!==false,maxAttempts:state.qualityMaxAttempts});
+  },{enabled:state.qualityGateEnabled!==false,allowRewrite:opts.rewrite!==false,maxAttempts:state.qualityMaxAttempts,acceptSoft:state.qualityAcceptSoft!==false});
 }
 /* V12.23: gợi ý chương sau phải HIỆN ở ô Gợi ý (trước đây chỉ lưu vào biến ẩn autoNextChapterHint nên ô luôn trống).
    - Ô trống, hoặc vẫn đúng là gợi ý đã dùng để viết chương vừa xong -> thay bằng gợi ý chương sau.

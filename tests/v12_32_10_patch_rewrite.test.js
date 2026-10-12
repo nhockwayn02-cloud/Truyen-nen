@@ -67,10 +67,16 @@ assert.deepStrictEqual(parsePatchResponse('[{"op":"insert_end","text":"a"}]').le
 const pr=buildPatchPrompt({chapterNumber:5,review:{hardFailures:['Địa điểm mở chương mâu thuẫn'],warnings:['Thiếu mốc thời gian'],rewriteInstructions:['Bổ sung mốc thời gian']},draft:'BẢN-THẢO-X'});
 assert(/KHÔNG viết lại cả chương/.test(pr)&&/Địa điểm mở chương mâu thuẫn/.test(pr)&&/Bổ sung mốc thời gian/.test(pr)&&/BẢN-THẢO-X/.test(pr)&&/"patches"/.test(pr));
 
+// V12.32.11: AI sửa phải THẤY đoạn kết chương trước (như bộ chấm), nếu không sẽ vá mù và tự bịa địa điểm
+const pe=buildPatchPrompt({chapterNumber:5,prevEnding:'Họ đi dọc hành lang tầng 7 tòa nhà Vĩnh Phát.',review:{hardFailures:['x']},draft:'D'});
+assert(/ĐOẠN KẾT CHƯƠNG TRƯỚC/.test(pe)&&/hành lang tầng 7/.test(pe)&&/nối tiếp đúng/.test(pe),'patch prompt có đoạn kết chương trước');
+assert(!/ĐOẠN KẾT CHƯƠNG TRƯỚC/.test(buildPatchPrompt({chapterNumber:1,review:{},draft:'D'})),'chương 1 không có đoạn kết trước');
 // --- nối dây trong client + worker ---
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 assert(/id="autoFixChapterBtn"/.test(html)&&/reviewCurrentChapter\(\{autoFix:true\}\)/.test(html));
 assert(/runQualityGate\(ch,n,ch\.plan\|\|"",ctx,\{rewrite:autoFix\}\)/.test(html));
+assert(/patchDraftFromReview[\s\S]{0,900}prevEnding:/.test(html)&&/rewriteWholeDraft[\s\S]{0,900}prevEnding:/.test(html),'client truyền prevEnding cho cả vá và viết lại');
+assert(/async function patchWorkerDraft[\s\S]{0,900}prevEnding:/.test(fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8')),'worker truyền prevEnding');
 assert(/async function rewriteDraftFromReview[\s\S]{0,400}patchDraftFromReview[\s\S]{0,400}rewriteWholeDraft/.test(html),'client: vá trước, viết lại cả chương là dự phòng');
 const wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
 assert(/async function rewriteWorkerDraft[\s\S]{0,300}patchWorkerDraft[\s\S]{0,300}rewriteWorkerWhole/.test(wk),'worker: vá trước, viết lại cả chương là dự phòng');

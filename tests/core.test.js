@@ -2,7 +2,7 @@
 const fs = require("fs"), vm = require("vm"), path = require("path"), assert = require("assert");
 const src = fs.readFileSync(path.join(__dirname, "../shared/core.js"), "utf8");
 const ctx = {}; vm.createContext(ctx);
-vm.runInContext(src + "\n;this.__t={evaluateReview,rewriteInstructionsText,checkRewriteAcceptable,backupBeforeRewrite,mergeAiContinuityWarnings,gateMaxAttempts,GATE_MAX_VERSIONS,normalizeStoryControl,storyControlPrompt,gateHardChecks,gateKnownNames,knownNameMentions,buildQualityReviewPrompt,buildRewritePrompt,runGateLoop,bypassReview,nextCanonVersion,applyCanonSync,mergeCanonVersion,isGateFailedResult};", ctx);
+vm.runInContext(src + "\n;this.__t={evaluateReview,rewriteInstructionsText,checkRewriteAcceptable,backupBeforeRewrite,mergeAiContinuityWarnings,gateMaxAttempts,GATE_MAX_VERSIONS,normalizeStoryControl,storyControlPrompt,gateHardChecks,gateKnownNames,knownNameMentions,buildQualityReviewPrompt,buildRewritePrompt,buildPatchPrompt,runGateLoop,bypassReview,nextCanonVersion,applyCanonSync,mergeCanonVersion,isGateFailedResult};", ctx);
 const T = ctx.__t; let pass = 0, fail = 0; const pending = [];
 function t(name, fn) { try { const r = fn(); if (r && r.then) { pending.push(r.then(() => { console.log("PASS " + name); pass++; }, e => { console.log("FAIL " + name + " — " + e.message); fail++; })); return; } console.log("PASS " + name); pass++; } catch (e) { console.log("FAIL " + name + " — " + e.message); fail++; } }
 const base = { score: 95, mainEventCount: 1, namedCharacterCount: 2, hardFailures: [] };
@@ -55,7 +55,7 @@ t("mergeAiContinuityWarnings: thay cảnh báo AI cũ, giữ cảnh báo khác n
   assert.strictEqual(T.mergeAiContinuityWarnings(null, null).length, 0);
   assert.strictEqual(T.mergeAiContinuityWarnings([], Array(30).fill({ m: 1 }), 20).length, 20);
 });
-t("gateMaxAttempts: 1..3", () => { assert.strictEqual(T.gateMaxAttempts(undefined), 3); assert.strictEqual(T.gateMaxAttempts(9), 3); assert.strictEqual(T.gateMaxAttempts(1), 1); assert.strictEqual(T.gateMaxAttempts(-2), 1); });
+t("gateMaxAttempts: 1..5", () => { assert.strictEqual(T.gateMaxAttempts(undefined), 5); assert.strictEqual(T.gateMaxAttempts(9), 5); assert.strictEqual(T.gateMaxAttempts(1), 1); assert.strictEqual(T.gateMaxAttempts(-2), 1); });
 
 /* ---- Story Control ---- */
 t("normalizeStoryControl: mặc định + kẹp giới hạn", () => {
@@ -111,12 +111,43 @@ t("runGateLoop: PASS ngay → APPROVED, không sửa", async () => {
 t("runGateLoop: trượt → sửa → PASS ở lần 2, có thông báo tiến độ", async () => {
   const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("HARD_FAIL"), R("PASS")], [{ ok: true }], log), {});
   assert(r.approved); assert.strictEqual(ch.review.attempt, 2); assert.deepStrictEqual(log.filter(x => !x.startsWith("status")), ["review", "rewrite", "review"]);
-  assert(log.some(x => x.includes("lần 2/3")));
+  assert(log.some(x => x.includes("lần 2/5")));
 });
-t("runGateLoop: luôn trượt → đúng 3 lần chấm, 2 lần sửa, REVISION_REQUIRED", async () => {
-  const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("SOFT_FAIL")], [{ ok: true }], log), {});
+t("runGateLoop: luôn có lỗi nặng → đúng 5 lần chấm, 4 lần sửa, REVISION_REQUIRED", async () => {
+  const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("HARD_FAIL", { hardFailures: ["lỗi nặng"] })], [{ ok: true }], log), {});
   assert.strictEqual(r.approved, false); assert.strictEqual(ch.status, "REVISION_REQUIRED");
-  assert.strictEqual(log.filter(x => x === "review").length, 3); assert.strictEqual(log.filter(x => x === "rewrite").length, 2);
+  assert.strictEqual(log.filter(x => x === "review").length, 5); assert.strictEqual(log.filter(x => x === "rewrite").length, 4);
+});
+t("V12.32.12: SOFT_FAIL không có lỗi nặng → duyệt kèm cảnh báo, KHÔNG chạy thêm vòng", async () => {
+  const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("SOFT_FAIL", { score: 82 })], [{ ok: true }], log), {});
+  assert(r.approved && r.softAccepted); assert.strictEqual(ch.status, "APPROVED"); assert.strictEqual(ch.review.softAccepted, true);
+  assert.deepStrictEqual(log.filter(x => x === "rewrite").length, 0); assert(ch.review.warnings.some(w => /Duyệt kèm cảnh báo/.test(w)));
+});
+t("V12.32.12: acceptSoft=false → SOFT_FAIL vẫn bị sửa như cũ", async () => {
+  const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("SOFT_FAIL", { score: 82 })], [{ ok: true }], log), { acceptSoft: false });
+  assert.strictEqual(r.approved, false); assert.strictEqual(log.filter(x => x === "review").length, 5);
+});
+t("V12.32.12: SOFT_FAIL nhưng CÓ hard failure thì không được duyệt", async () => {
+  const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("SOFT_FAIL", { score: 82, hardFailures: ["x"] })], [{ ok: true }], log), { maxAttempts: 2 });
+  assert.strictEqual(r.approved, false); assert.strictEqual(ch.status, "REVISION_REQUIRED");
+});
+t("V12.32.12: số vòng — mặc định/giá trị cũ 3 → 5, tối đa 5, 1–4 giữ nguyên", () => {
+  assert.strictEqual(T.gateMaxAttempts(undefined), 5); assert.strictEqual(T.gateMaxAttempts(3), 5); assert.strictEqual(T.gateMaxAttempts(9), 5);
+  assert.strictEqual(T.gateMaxAttempts(2), 2); assert.strictEqual(T.gateMaxAttempts(4), 4); assert.strictEqual(T.gateMaxAttempts(1), 1);
+});
+t("V12.32.12: lỗi đã sửa ở vòng trước được truyền cho lần sửa sau (không truyền lỗi còn tồn tại)", async () => {
+  const seen = []; const rs = [R("HARD_FAIL", { hardFailures: ["Lỗi A mở chương", "Lỗi B thời gian"] }), R("HARD_FAIL", { hardFailures: ["Lỗi B thời gian", "Lỗi C ly cà phê"] }), R("PASS")];
+  let i = 0; const ch = {};
+  await T.runGateLoop(ch, { review: async () => rs[i++], rewrite: async rv => { seen.push(rv.alreadyFixed || []); return { ok: true }; } }, {});
+  assert.deepStrictEqual(Array.from(seen[0]), [], "vòng 1: chưa có gì đã sửa");
+  assert.deepStrictEqual(Array.from(seen[1]), ["Lỗi A mở chương"], "vòng 2: A đã hết, B còn nên không tính là đã sửa");
+  assert(!("alreadyFixed" in (ch.review || {})), "không làm bẩn chapter.review");
+});
+t("V12.32.12: prompt vá/viết lại nhắc giữ các chỗ đã sửa", () => {
+  const rv = { hardFailures: ["x"], alreadyFixed: ["Lỗi A mở chương"] };
+  assert(/ĐÃ SỬA Ở VÒNG TRƯỚC[\s\S]*Lỗi A mở chương/.test(T.buildPatchPrompt({ chapterNumber: 2, review: rv, draft: "d" })));
+  assert(/ĐÃ SỬA Ở VÒNG TRƯỚC[\s\S]*Lỗi A mở chương/.test(T.buildRewritePrompt({ chapterNumber: 2, review: rv, draft: "d" })));
+  assert(!/ĐÃ SỬA Ở VÒNG TRƯỚC/.test(T.buildPatchPrompt({ chapterNumber: 2, review: { hardFailures: ["x"] }, draft: "d" })));
 });
 t("runGateLoop: allowRewrite=false → chỉ chấm 1 lần, không sửa", async () => {
   const log = [], ch = {}; const r = await T.runGateLoop(ch, deps([R("HARD_FAIL")], [{ ok: true }], log), { allowRewrite: false });
