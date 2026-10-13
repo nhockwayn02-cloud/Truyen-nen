@@ -140,7 +140,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
                  : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
-    "5. Địa điểm + THỜI GIAN: ghi mốc thời gian mở chương, quãng thời gian đã trôi từ chương trước (nếu có nhảy), và mốc thời gian từng beat/chuyển cảnh + mốc kết chương",
+    "5. Địa điểm + DÒNG THỜI GIAN (ghi chú NỘI BỘ để giữ nhất quán, KHÔNG phải để in thành nhãn trong văn): thời điểm tương đối khi mở chương, quãng đã trôi từ chương trước (nếu có nhảy), các beat nối nhau theo thời gian thế nào, cảnh nào thời gian thật sự quan trọng (hạn chót/khẩn cấp); nêu cách thể hiện tự nhiên trong văn (ánh sáng, việc đang làm, một câu chuyển trong mạch kể)",
     "5b. CẢNH & NGƯỜI CÓ MẶT: với MỖI beat ghi: địa điểm | ai có mặt | ai VÀO cảnh (cách vào) | ai RỜI cảnh (cách rời). Người không được ghi có mặt thì không được nói/hành động trong beat đó.",
     hasUserBrief ? "6. SCENE BEATS: MỖI nhịp của brief là MỘT beat (không giới hạn số beat), ghi gợi ý độ dài từng beat để cả chương đạt mục tiêu từ; KHÔNG tự sinh thêm sự kiện lớn ngoài brief"
                  : "6. SCENE BEATS (tối đa 5 beat) — chỉ triển khai 1-3 sự kiện trên, KHÔNG tự sinh thêm sự kiện lớn",
@@ -878,7 +878,7 @@ function evaluateReview(obj, opts) {
   const timeWarn = [];
   if (obj.timeStagnation) {
     const tn = (Array.isArray(obj.timeNotes) ? obj.timeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
-    timeWarn.push("Thời gian truyện đứng yên/thiếu mốc thời gian" + (tn ? ": " + tn : "."));
+    timeWarn.push("Thời gian truyện bất nhất hoặc đứng yên" + (tn ? ": " + tn : "."));
   }
   if (obj.appearanceVague) {
     const an = (Array.isArray(obj.appearanceNotes) ? obj.appearanceNotes : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.name)) || "").filter(Boolean).join(" | ");
@@ -934,10 +934,11 @@ function buildPatchPrompt(p) {
     "- find / from / to: chép NGUYÊN VĂN từ bản thảo, 6–25 từ liên tiếp, nằm trong một đoạn. Không sửa dấu, không đổi dấu câu.",
     "- Xoá/thay một đoạn dài: dùng from (6–12 từ đầu đoạn) + to (6–12 từ cuối đoạn), không chép cả đoạn. Xoá/thay một câu ngắn: dùng find.",
     '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
-    "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh, mốc thời gian…) sau/trước find. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
+    "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh tự nhiên, chi tiết bổ sung…) sau/trước find. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
     "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
     p.prevEnding ? "- Khi sửa lỗi nối cảnh/địa điểm: đọc ĐOẠN KẾT CHƯƠNG TRƯỚC, rồi viết câu chuyển cảnh nối đúng từ chỗ đó vào cảnh mở đầu của bản thảo (ví dụ chương trước kết ở hành lang thì phải có hành động đi tiếp/mở cửa/bước vào trước khi tả cảnh trong phòng). Không dời cảnh sang địa điểm mới nào khác." : "",
-    "- Chi tiết thêm vào (ngoại hình, đồ vật, mốc thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
+    "- Chi tiết thêm vào (ngoại hình, đồ vật, thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
+    "- KHÔNG thêm câu/dòng báo ngày giờ như một nhãn ở đầu hoặc cuối chương. Nếu cần sửa lỗi thời gian, lồng chi tiết thời gian vào mạch kể (ánh sáng, việc đang làm, một mệnh đề chuyển) như văn xuôi thuần túy.",
     "- Tối đa " + PATCH_MAX_COUNT + " thao tác. Mỗi lỗi một thao tác ngắn nhất có thể.",
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || "")
   ].filter(Boolean).join("\n\n");
@@ -1206,7 +1207,7 @@ function scenePresencePrompt() {
     "- Mỗi cảnh có một địa điểm và một danh sách người có mặt rõ ràng. Nhân vật chỉ được nói/hành động khi đang ở trong cảnh.",
     "- Người MỚI vào cảnh phải có câu cho thấy họ đến (gõ cửa, bước vào, gọi điện/nhắn tin, xuất hiện ở cửa…) và vì sao họ biết/đến đúng lúc đó. Người RỜI cảnh phải có câu cho thấy họ đi (ra ngoài, cúp máy, bị đưa đi…). Không để ai tự xuất hiện hay biến mất giữa chừng.",
     "- Người đã rời đi thì KHÔNG còn nói, nghe hay phản ứng trong cảnh đó cho tới khi có câu cho họ quay lại.",
-    "- Chuyển sang địa điểm/thời điểm khác: dùng một câu chuyển cảnh rõ (di chuyển + mốc thời gian) hoặc dòng ngăn cảnh, và nêu ai có mặt ở cảnh mới. Không lẫn lời thoại/hành động của cảnh cũ vào cảnh mới.",
+    "- Chuyển sang địa điểm/thời điểm khác: dùng một câu chuyển cảnh tự nhiên trong mạch kể (di chuyển, thời gian trôi) hoặc dòng ngăn cảnh, và cho thấy ai có mặt ở cảnh mới. Không lẫn lời thoại/hành động của cảnh cũ vào cảnh mới.",
     "- Cảnh có ≥3 người: mỗi lượt lời thoại phải rõ ai nói; không để người không có mặt (hoặc đã đi) nói chen vào."
   ].join("\n");
 }
@@ -1240,13 +1241,14 @@ function timePrompt(st) {
   const sc = normalizeStoryControl(st);
   const mark = currentTimeMark(st), stall = timeStallInfo(st);
   return [
-    "THỜI GIAN TRUYỆN — BẮT BUỘC:",
-    mark ? "- Mốc hiện tại (cuối chương trước): " + mark + "." : "",
-    "- Chương phải cho người đọc biết thời điểm: ngay đầu chương và mỗi lần chuyển cảnh nêu mốc (buổi/ngày/giờ hoặc \"hôm sau\", \"ba ngày sau\", \"đến tối\"); cuối chương để thời điểm rõ ràng. Không để cả chương lơ lửng không mốc thời gian.",
-    "- Thời gian chỉ trôi về phía trước. Nếu sự kiện chương trước ĐÃ KẾT THÚC TRỌN (không còn cảnh đang dở), chương mới ĐƯỢC PHÉP nhảy thời gian (qua đêm, vài ngày, vài tuần) bằng một câu chuyển cảnh rõ; việc dang dở thì phải tiếp nối đúng thời điểm đó. Nhân vật ăn/ngủ/đi lại/hồi phục/thay đổi theo đúng khoảng thời gian trôi qua.",
-    "- Quan hệ, vết thương, kế hoạch, công việc phải tiến triển theo thời gian trôi; không để nhiều chương liên tiếp dồn vào cùng một buổi/một ngày nếu không có lý do cốt truyện.",
+    "THỜI GIAN TRUYỆN — CHẢY THEO MẠCH KỂ, NHƯ VĂN XUÔI THUẦN TÚY:",
+    mark ? "- Dòng thời gian hiện tại (chỉ để bạn giữ nhất quán; KHÔNG cần nhắc lại trong văn): " + mark + "." : "",
+    "- Thời gian là một phần của câu chuyện, không phải nhãn. KHÔNG mở chương bằng dòng/câu báo ngày giờ kiểu tiêu đề (\"Chiều thứ Sáu, ...\", \"Ngày 3, 9 giờ sáng\"), KHÔNG kết chương bằng câu tổng kết thời điểm, không ghi \"Thời gian:\". Chỉ nêu giờ/ngày cụ thể khi nhân vật thực sự nhìn đồng hồ/lịch/điện thoại hoặc tình tiết cần (hạn chót, hẹn giờ, khẩn cấp).",
+    "- Chương có thể mở thẳng bằng hành động, cảnh hoặc lời thoại (tiếp nối đoạn kết chương trước). Để người đọc tự nhận ra thời điểm qua chi tiết trong cảnh: ánh sáng, thời tiết, bữa ăn, tiếng phố, độ mệt, việc nhân vật đang làm. Chương không nêu giờ giấc rõ ràng vẫn hoàn toàn đúng.",
+    "- Khi thời gian TRÔI hoặc NHẢY (qua đêm, vài ngày, vài tuần), thể hiện bằng một mệnh đề/câu nằm ngay trong mạch kể (\"Mãi tới sáng hôm sau, ...\", \"Ba hôm sau, khi vết bầm đã nhạt, ...\") hoặc qua hệ quả quan sát được; không dùng khối thông báo riêng. Nếu sự kiện chương trước ĐÃ KẾT THÚC TRỌN (không còn cảnh đang dở), chương mới ĐƯỢC PHÉP nhảy thời gian theo cách đó; việc dang dở thì phải tiếp nối đúng thời điểm đó.",
+    "- Nội bộ phải nhất quán: thời gian chỉ trôi về phía trước; nhân vật ăn/ngủ/đi lại/hồi phục/thay đổi hợp với khoảng thời gian đã trôi; quan hệ, vết thương, kế hoạch, công việc tiến triển theo thời gian, không dồn nhiều chương liên tiếp vào cùng một buổi/một ngày nếu không có lý do cốt truyện.",
     sc.timePace ? "- NHỊP THỜI GIAN do tác giả chọn: " + TIME_PACE_TEXT[sc.timePace] + "." : "",
-    stall ? "- CẢNH BÁO: " + stall.run + " chương liên tiếp (khoảng " + stall.span + " chương gần nhất) vẫn cùng một mốc \"" + String(stall.time).slice(0, 80) + "\". Chương này PHẢI chuyển sang mốc thời gian sau (hết sự kiện đang dở rồi nhảy qua đêm/ngày/vài ngày bằng câu chuyển cảnh rõ), không được tiếp tục cùng một ngày." : ""
+    stall ? "- CẢNH BÁO: " + stall.run + " chương liên tiếp (khoảng " + stall.span + " chương gần nhất) vẫn cùng một mốc \"" + String(stall.time).slice(0, 80) + "\". Chương này PHẢI cho thời gian trôi tiếp: khép việc đang dở rồi để thời gian chảy qua đêm/sang hôm sau/vài ngày bằng một câu chuyển tự nhiên trong mạch kể, không tiếp tục cùng một ngày." : ""
   ].filter(Boolean).join("\n");
 }
 
@@ -1339,7 +1341,7 @@ function buildQualityReviewPrompt(p) {
     "- retcon=true nếu mâu thuẫn canon đã xác nhận.",
     "- stagnation=true CHỈ KHI cuối chương hầu như không có thay đổi nào so với đầu chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả) HOẶC một cảnh lặp lại cùng hành động/miêu tả nhiều lần chỉ để kéo dài. Ghi 1–2 ví dụ ngắn vào stagnationNotes. Cảnh trưởng thành đủ dài nhưng có đổi quan hệ/quyền lực/hậu quả thì KHÔNG phải stagnation.",
     "- sceneViolation=true CHỈ KHI có CÂU CỤ THỂ trong bản thảo cho nhân vật nói/hành động/phản ứng khi họ KHÔNG có mặt trong cảnh (chưa được nói là đến, hoặc đã rời đi mà không quay lại), hoặc lời thoại/hành động của cảnh cũ lẫn sang cảnh mới không có chuyển cảnh. Ghi trích dẫn ngắn + tên nhân vật vào sceneNotes. Không báo nếu chỉ là nhân vật ở gần/đang nghe được hợp lý.",
-    "- timeStagnation=true CHỈ KHI cả chương hoàn toàn không có mốc thời gian nào (không buổi/ngày/giờ/chuyển cảnh theo thời gian) HOẶC chương mở lại đúng thời điểm chương trước dù sự kiện trước đã kết thúc trọn và không có lý do cốt truyện; ghi 1 dẫn chứng ngắn vào timeNotes. Đây chỉ là CẢNH BÁO mềm, không chặn.",
+    "- timeStagnation=true CHỈ KHI có BẰNG CHỨNG CỤ THỂ thời gian trong truyện sai hoặc đứng yên: (a) thời gian đi lùi/mâu thuẫn (vừa tối đã lại là buổi sáng cùng ngày không lý do; vết thương, hạn chót, tuổi, ngày tháng không khớp), hoặc (b) chương mở lại đúng thời điểm chương trước dù sự kiện trước đã kết thúc trọn và không có lý do cốt truyện. Ghi 1 dẫn chứng ngắn vào timeNotes. TUYỆT ĐỐI KHÔNG báo chỉ vì chương không ghi ngày/giờ/mốc rõ ràng ở đầu hay cuối chương: văn xuôi tự nhiên để thời gian ngầm hiểu qua chi tiết, thiếu nhãn thời gian KHÔNG phải lỗi. Đây chỉ là CẢNH BÁO mềm, không chặn.",
     "- appearanceVague=true CHỈ KHI có nhân vật có tên xuất hiện lần đầu hoặc cảnh tả cơ thể mà chỉ dùng tính từ trống (đẹp, to, đầy đặn…) không kèm kích thước/hình dáng/so sánh cụ thể nào để hình dung. Ghi tên nhân vật vào appearanceNotes. Chỉ là CẢNH BÁO mềm.",
     p.characterLock ? "- profileViolation=true CHỈ KHI có câu/đoạn CỤ THỂ trong bản thảo trái rõ ràng với HỒ SƠ KHÓA (nhân vật nói hoặc hành xử như có địa vị/quyền/tài sản/năng lực/kiến thức cao hơn hồ sơ; xưng hô hoặc giọng nói sai thiết lập; đổi nghề). Ghi trích dẫn ngắn + mục hồ sơ bị vi phạm vào profileViolations; không báo nếu chỉ suy đoán hoặc thiếu thông tin." : "",
     p.prevEnding ? "- ĐỊA ĐIỂM MỞ CHƯƠNG: nếu cảnh mở đầu của bản thảo KHÁC địa điểm/thời điểm/người có mặt so với ĐOẠN KẾT CHƯƠNG TRƯỚC mà không có đoạn chuyển cảnh hợp lý (ví dụ chương trước kết ở biệt thự của A nhưng chương này mở ở phòng trọ của B), phải ghi vào hardFailures (nêu rõ kết ở đâu, mở ở đâu) và đặt continuity thấp." : "",
@@ -2613,7 +2615,7 @@ function buildMainWritePrompt(o){
     characterLockPromptClient(false), "",
     progressRulesPrompt(state), "",
     appearanceAnchorPrompt(state, usingNsfw), "",
-    lastChapterEnding ? ("===== ĐOẠN KẾT CHƯƠNG TRƯỚC (PHẢI TIẾP NỐI) =====\n" + lastChapterEnding + "\n===== HẾT =====\n\nChương mới tiếp nối đoạn kết trên: nếu đoạn kết còn một cảnh đang dở thì PHẢI bắt đầu từ đúng cảnh đó; nếu sự kiện đã khép trọn thì ĐƯỢC nhảy thời gian bằng một câu chuyển cảnh rõ (hôm sau, vài ngày sau…) theo mục THỜI GIAN TRUYỆN.\nĐỊA ĐIỂM MỞ CHƯƠNG — KHÓA CỨNG: đoạn mở đầu PHẢI diễn ra ĐÚNG địa điểm, thời điểm và với đúng những người đang có mặt như trong đoạn kết chương trước (ví dụ chương trước kết ở biệt thự của A thì chương này vẫn bắt đầu ở biệt thự của A). Chỉ được chuyển địa điểm khi đoạn kết đã nói rõ nhân vật sắp rời đi/đến nơi khác, hoặc sau một câu chuyển cảnh rõ ràng (di chuyển + mốc thời gian). Tuyệt đối không nhảy sang nhà/phòng trọ/nơi ở của nhân vật khác ngay từ câu đầu.") : "",
+    lastChapterEnding ? ("===== ĐOẠN KẾT CHƯƠNG TRƯỚC (PHẢI TIẾP NỐI) =====\n" + lastChapterEnding + "\n===== HẾT =====\n\nChương mới tiếp nối đoạn kết trên: nếu đoạn kết còn một cảnh đang dở thì PHẢI bắt đầu từ đúng cảnh đó; nếu sự kiện đã khép trọn thì ĐƯỢC cho thời gian trôi bằng một câu chuyển tự nhiên trong mạch kể (hôm sau, vài ngày sau… — không dùng nhãn ngày giờ) theo mục THỜI GIAN TRUYỆN.\nĐỊA ĐIỂM MỞ CHƯƠNG — KHÓA CỨNG: đoạn mở đầu PHẢI diễn ra ĐÚNG địa điểm, thời điểm và với đúng những người đang có mặt như trong đoạn kết chương trước (ví dụ chương trước kết ở biệt thự của A thì chương này vẫn bắt đầu ở biệt thự của A). Chỉ được chuyển địa điểm khi đoạn kết đã nói rõ nhân vật sắp rời đi/đến nơi khác, hoặc sau một câu chuyển cảnh tự nhiên trong mạch kể (di chuyển, thời gian trôi). Tuyệt đối không nhảy sang nhà/phòng trọ/nơi ở của nhân vật khác ngay từ câu đầu.") : "",
     recentFullText ? ("\nChương gần (tránh lặp sự kiện / cấu trúc):\n" + recentFullText) : "",
     olderSummaries ? ("\nTÓM TẮT CHƯƠNG XA:\n" + olderSummaries) : "",
     plan ? ("\nKẾ HOẠCH CHƯƠNG " + chapterNumber + ":\n" + plan) : "",
@@ -3438,7 +3440,7 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys) {
     "NGUYÊN TẮC AN TOÀN: dữ liệu hiện có là canon. Chỉ trả các thay đổi được chương mới chứng minh. Không có thay đổi thì trả mảng rỗng/chuỗi rỗng; KHÔNG lặp lại hoặc thay thế dữ liệu cũ. Mọi mục cập nhật phải có evidence là một trích đoạn ngắn 5–18 từ lấy từ chính chương. Không dùng bằng chứng bịa.",
     "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. Hồ sơ gốc role/occupation/position/faction/identity không được đổi. Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
     "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
-    "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: nếu chương có mốc thời gian (buổi/ngày/giờ/\"hôm sau\"/quãng nhảy) thì BẮT BUỘC cập nhật changes.time = mốc ở CUỐI chương, ghi cả buổi/ngày và quãng đã trôi so với đầu chương; evidence trích câu có mốc đó. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
+    "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: cập nhật changes.time = thời điểm ở CUỐI chương khi xác định được từ mạch truyện — gồm mốc nói thẳng (buổi/ngày/giờ/\"hôm sau\") lẫn dấu hiệu ngầm (ánh sáng, bữa ăn, \"khuya\", việc đang làm, quãng đã trôi); ghi dạng tương đối cũng được (vd \"đêm cùng ngày, vài giờ sau cảnh ở quán\", \"sáng hôm sau\") kèm quãng đã trôi so với đầu chương; evidence trích câu cho thấy dấu hiệu đó. Nếu chương KHÔNG có dấu hiệu thời gian đáng tin thì KHÔNG cập nhật time (giữ mốc cũ), không bịa. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
     "LONG-TERM MEMORY: chỉ thêm sự kiện có ý nghĩa, tri thức của từng nhân vật và thay đổi foreshadowing có bằng chứng; không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
     "CONTINUITY: rà mâu thuẫn cụ thể với hồ sơ nhân vật, Current Status, world rules, tri thức đã biết và đoạn cuối chương trước. Chỉ cảnh báo mâu thuẫn thực sự; không báo chỉ vì thiếu thông tin. Mỗi cảnh báo phải có evidence trích từ chương hiện tại và canonReference nêu quy tắc/dữ kiện đối chiếu. Nếu không có, trả mảng []. Không tự sửa canon ở bước này.",
     "SUMMARY: tiếng Việt, mở đầu bằng **Tóm tắt chương:**, 250–400 từ, theo đúng thứ tự, giữ sự kiện/nhân vật thật, không bổ sung. " + (adult ? "Với cảnh trưởng thành, tóm tắt trung lập nhưng không bỏ qua sự kiện/quyết định/hệ quả quan trọng." : ""),

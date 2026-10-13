@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V12.32.14.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V12.32.15.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Cấu trúc
 | Thành phần | Vai trò |
@@ -21,7 +21,7 @@
 4. `netlify.toml` chặn truy cập công khai vào `tests/`, `netlify/`, `shared/`, `lib/`, `scripts/`, `docs/` và các file cấu hình/tài liệu gốc. Sau khi deploy, thử mở `/tests/core.test.js` — phải ra 404.
 
 ## Luồng viết một chương
-1. **Viết** theo từng đoạn, tự nối tiếp tới khi đủ số từ và tới điểm kết (Ending Anchor).
+1. **Viết** theo từng đoạn (thời gian chảy tự nhiên theo mạch kể, không nhãn ngày giờ đầu/cuối chương), tự nối tiếp tới khi đủ số từ và tới điểm kết (Ending Anchor).
 2. **Mở rộng cuối** nếu còn thiếu từ: AI chỉ viết các đoạn mới + chỗ chèn, app ghép vào (không viết lại cả chương).
 3. **Quality Gate:** chấm → vá cục bộ → chấm lại, tối đa 5 vòng. Chỉ còn cảnh báo nhẹ (không có lỗi nặng) thì duyệt kèm cảnh báo.
 4. **Hậu kỳ gộp:** một phản hồi JSON cho tóm tắt, nhân vật, thế giới, status, gợi ý chương sau; rồi **Sync Canon**.

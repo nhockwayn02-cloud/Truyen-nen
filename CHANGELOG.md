@@ -1,10 +1,20 @@
 # CHANGELOG — Xưởng Truyện AI
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.32.14** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.32.15** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
+
+## [V12.32.15] — Thời gian chảy theo mạch truyện (văn xuôi thuần túy)
+
+- **Vấn đề:** luật thời gian cũ ép AI "nêu mốc ngay đầu chương, mỗi lần chuyển cảnh, và cuối chương để thời điểm rõ ràng"; kế hoạch chương bắt ghi "mốc mở chương + mốc kết chương"; Quality Gate cảnh báo "thiếu mốc thời gian" nên các lần tự sửa lại chèn nhãn kiểu "Chiều thứ Sáu, …". Kết quả đọc như báo cáo, không giống văn xuôi.
+- **Prompt viết (`timePrompt`):** thời gian là một phần câu chuyện, không phải nhãn. Cấm mở chương bằng câu báo ngày giờ, cấm kết chương bằng câu tổng kết thời điểm, cấm nhãn "Thời gian:". Chỉ nêu giờ/ngày cụ thể khi nhân vật nhìn đồng hồ/lịch hoặc tình tiết cần (hạn chót, hẹn giờ). Thời điểm thể hiện qua chi tiết trong cảnh (ánh sáng, thời tiết, bữa ăn, độ mệt, việc đang làm). Thời gian trôi/nhảy được lồng thành một mệnh đề trong mạch kể. Vẫn giữ luật nhất quán: chỉ tiến về phía trước, hồi phục/quan hệ/kế hoạch tiến triển theo thời gian, nhịp thời gian do tác giả chọn, cảnh báo khi nhiều chương liền đứng yên.
+- **Kế hoạch chương:** mục 5 thành "DÒNG THỜI GIAN (ghi chú nội bộ, không in thành nhãn)", bỏ yêu cầu mốc mở/kết chương.
+- **Quality Gate:** `timeStagnation` chỉ báo khi có bằng chứng thời gian sai (đi lùi/mâu thuẫn ngày, vết thương, hạn chót…) hoặc đứng yên thật; **không** báo chỉ vì chương thiếu ngày/giờ. Cảnh báo đổi thành "Thời gian truyện bất nhất hoặc đứng yên". Vẫn là cảnh báo mềm, không chặn.
+- **AI tự sửa/vá:** cấm chèn câu/dòng báo ngày giờ làm nhãn ở đầu hoặc cuối chương; sửa lỗi thời gian phải lồng vào mạch kể. Chuyển cảnh/địa điểm cũng dùng "câu chuyển tự nhiên", không "di chuyển + mốc thời gian".
+- **Hậu kỳ (Current Status):** `changes.time` được suy từ cả mốc nói thẳng lẫn dấu hiệu ngầm, ghi dạng tương đối được ("sáng hôm sau", "đêm cùng ngày…"); không có dấu hiệu đáng tin thì giữ mốc cũ, không bịa. Nhật ký `timeLog` và phát hiện đứng yên vẫn hoạt động.
+- **Giao diện:** ô Story Clock ghi rõ là không bắt buộc, chỉ để AI giữ nhất quán, không in ra văn.
 
 ## [V12.32.14] — Dọn dẹp an toàn
 

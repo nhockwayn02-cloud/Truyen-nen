@@ -6,7 +6,7 @@ const removed={"index.html": ["extractBalancedJson", "idbGetAll", "loadStoryStat
 assert(fs.existsSync(path.join(root,'CHANGELOG.md'))&&fs.existsSync(path.join(root,'docs/ARCHITECTURE.md'))&&fs.existsSync(path.join(root,'docs/PROMPT_V12.22.md')),'thiếu CHANGELOG/docs');
 const stray=fs.readdirSync(root).filter(f=>/^(PATCH_NOTES.*|README_V.*|PROMPT_V.*)\.md$/.test(f));
 assert.deepStrictEqual(stray,[],'file ghi chú cũ nằm rải ở thư mục gốc: '+stray.join(', '));
-assert(/V12\.32\.14/.test(rd('README.md'))&&/V12\.32\.14/.test(rd('CHANGELOG.md')),'README/CHANGELOG chưa ghi bản hiện tại');
+const ver=JSON.parse(rd('package.json')).version; assert(rd('README.md').includes('V'+ver)&&rd('CHANGELOG.md').includes('V'+ver),'README/CHANGELOG chưa ghi bản hiện tại V'+ver);
 // 2) hàm chết không quay lại
 const wordRe=n=>new RegExp('(?<![\\w$])'+n.replace(/\$/g,'\\$')+'(?![\\w$])');
 for(const [file,key] of [['index.html','index.html'],['netlify/functions/write-chapter-background.js','worker']]){
