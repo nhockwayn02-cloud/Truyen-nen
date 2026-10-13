@@ -10,8 +10,9 @@ assert(body.includes('await startBackgroundPostProcess('), 'client unified postp
 assert(!body.includes('await updateCharactersIncremental') && !body.includes('await updateWorldIncremental') && !body.includes('await updateCurrentStatusIncremental') && !body.includes('await updateLongMemoryIncremental'), 'client still launches separate automatic extractor calls');
 assert(worker.includes('V12.30: one model request for the whole postprocess.'), 'unified backend postprocess missing');
 assert(worker.includes('V12.29 COST: avoid a third model call only to shorten the summary.') || worker.includes('if (wc > 450)'), 'worker summary handling missing');
-assert(worker.includes('chunkText(chapter.text, 12000, 400)'), 'character extraction chunk tuning missing');
-assert(worker.includes('chunkText(chapter.text, 13000, 400)'), 'world extraction chunk tuning missing');
-assert(worker.includes('state.threads.slice(-20).map(x => `${x.type}: ${String(x.desc || "").slice(0, 140)} [${x.status}]`)'), 'world prompt thread context cap missing');
+// V12.32.14: các hàm trích xuất riêng lẻ (nhân vật/thế giới/status/memory) của worker đã bị gỡ vì không còn ai gọi — chỉ còn hậu kỳ gộp một lệnh gọi (V12.30).
+for (const fn of ['updateCharacters', 'updateWorld', 'updateCurrentStatus', 'updateLongMemory', 'generateSummary', 'generateNextChapterHint', 'scanScenes']) {
+  assert(!new RegExp('function ' + fn + '\\(').test(worker), 'legacy worker function should be removed: ' + fn);
+}
 assert(html.includes('maxWords') && html.includes('endingGateInstruction'), 'chapter length / ending anchor logic appears missing');
 console.log('PASS V12.29/V12.30 cost and unified postprocess assertions');

@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.32.12</title>
+<title>Xưởng Truyện AI Pro Max v12.32.14</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -328,7 +328,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.32.12 · AI tự sửa tới 5 vòng · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
+<div class="brand-sub">v12.32.14 · gọn nhẹ hơn · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
 </div>
 </div>
 <div class="topbar-actions">
@@ -1922,8 +1922,15 @@ function applyChapterPatches(text, patches) {
     }
     if (op === "replace") cur = cur.slice(0, start) + add + cur.slice(end);
     else if (op === "delete") cur = cur.slice(0, start) + cur.slice(end);
-    else if (op === "insert_after") { const para = end >= cur.length || cur[end] === "\n"; cur = cur.slice(0, end) + (para ? "\n\n" : " ") + add + cur.slice(end); }
-    else { const para = start === 0 || cur[start - 1] === "\n"; cur = cur.slice(0, start) + add + (para ? "\n\n" : " ") + cur.slice(start); }
+    else if (op === "insert_after") {
+      let e2 = end; while (e2 < cur.length && /[.!?…”"’')\]]/.test(cur[e2])) e2++;   // neo thiếu dấu chấm/ngoặc đóng cuối đoạn vẫn tính là cuối đoạn
+      const para = e2 >= cur.length || cur[e2] === "\n", at = para ? e2 : end;
+      cur = cur.slice(0, at) + (para ? "\n\n" : " ") + add + cur.slice(at);
+    } else {
+      let s2 = start; while (s2 > 0 && /["“‘'(\[—\- \t]/.test(cur[s2 - 1])) s2--;          // neo thiếu ngoặc mở/gạch thoại đầu đoạn vẫn tính là đầu đoạn
+      const para = s2 === 0 || cur[s2 - 1] === "\n", at = para ? s2 : start;
+      cur = cur.slice(0, at) + add + (para ? "\n\n" : " ") + cur.slice(at);
+    }
     applied++;
   });
   cur = cur.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -1936,6 +1943,68 @@ function checkPatchAcceptable(oldText, res) {
   if (newWc < Math.max(20, Math.floor(oldWc * PATCH_MIN_RATIO))) return { ok: false, reason: "bản vá làm chương ngắn bất thường (" + newWc + " từ so với " + oldWc + ")" };
   if (newWc > Math.ceil(oldWc * PATCH_MAX_RATIO)) return { ok: false, reason: "bản vá làm chương dài bất thường (" + newWc + " từ so với " + oldWc + ")" };
   return { ok: true, wordCount: newWc };
+}
+
+// ===== V12.32.13: GIỚI HẠN OUTPUT & MỞ RỘNG CHƯƠNG BẰNG CHÈN ĐOẠN (không viết lại cả chương) =====
+// Mọi lệnh gọi AI bị chặn ở AI_MAX_OUTPUT_TOKENS token output (provider ~8192). Chương dài (vd 5000+ từ ≈ 9–11k token)
+// KHÔNG thể được "viết lại toàn bộ" trong một lệnh gọi → bị cắt/tóm tắt. Thay vào đó AI chỉ viết các đoạn mới cần chèn.
+const AI_MAX_OUTPUT_TOKENS = 7800;
+function estimateOutputTokens(text) { return Math.ceil(String(text || "").length / 3); }   // ước lượng thô cho tiếng Việt
+function wholeRewriteFits(text) {
+  const est = Math.ceil(estimateOutputTokens(text) * 1.12);
+  return { fits: est <= Math.floor(AI_MAX_OUTPUT_TOKENS * 0.9), est, cap: AI_MAX_OUTPUT_TOKENS };
+}
+function expandMaxTokens(needWords) { return Math.max(1500, Math.min(AI_MAX_OUTPUT_TOKENS, Math.ceil(Math.max(0, Number(needWords) || 0) * 2.6) + 1200)); }
+function buildExpandInsertPrompt(o) {
+  const wc = o.wc, need = Math.max(150, Math.ceil(o.goal * 1.04 - wc)), room = Math.max(0, o.maxWords - wc);
+  const brief = [o.directive ? ("MỆNH LỆNH: " + String(o.directive).trim()) : "", o.hint ? ("GỢI Ý: " + String(o.hint).trim()) : ""].filter(Boolean).join("\n");
+  return [
+    "BẮT BUỘC NGÔN NGỮ: 100% TIẾNG VIỆT CÓ DẤU.",
+    "MỞ RỘNG CHƯƠNG BẰNG CÁCH CHÈN THÊM ĐOẠN. Bản hiện tại " + wc + " từ, CHƯA ĐỦ độ dài: cần tối thiểu " + o.goal + " từ (mục tiêu " + o.target + ", tuyệt đối không vượt " + o.maxWords + "). Cần THÊM khoảng " + need + " từ (tối đa " + room + " từ).",
+    "KHÔNG viết lại chương. Giữ nguyên 100% văn bản hiện có. Chỉ viết các ĐOẠN MỚI để chèn vào những chỗ chương đang kể lướt/thiếu chi tiết, và nêu chỗ chèn.",
+    "CÁCH LÀM: chọn 4–8 chỗ khác nhau; mỗi chỗ viết 1–3 đoạn mới (không khí/bối cảnh, hành động từng bước, hội thoại, nội tâm, giác quan, phản ứng và hệ quả), cùng giọng văn, POV, xưng hô, nối mượt với câu trước và sau chỗ chèn.",
+    "CẤM: thêm biến cố lớn, nhân vật quan trọng mới, arc mới; lặp ý hoặc độn chữ; mâu thuẫn với phần có sẵn; chèn sau câu cuối chương hoặc đổi điểm kết chương; ghi chú/giải thích.",
+    o.style || "",
+    brief ? ("===== KẾ HOẠCH NGƯỜI DÙNG (không đổi) =====\n" + brief + (o.closing ? ("\nENDING ANCHOR: " + o.closing) : "") + "\n===== HẾT =====") : "",
+    "ĐỊNH DẠNG TRẢ VỀ — chỉ dùng đúng định dạng này, lặp lại cho từng chỗ chèn, không lời dẫn:",
+    ">>> SAU: <chép NGUYÊN VĂN 6–20 từ CUỐI của một đoạn có sẵn, đúng từng chữ, không sửa dấu>",
+    "<các đoạn mới, cách nhau một dòng trống>",
+    ">>> TRƯỚC: <chép NGUYÊN VĂN 6–20 từ ĐẦU của một đoạn có sẵn>",
+    "<các đoạn mới>",
+    "Mỗi chỗ chèn dùng cụm neo khác nhau và duy nhất trong chương. Không chèn sau đoạn cuối cùng của chương.",
+    "===== BẢN HIỆN TẠI (" + wc + " từ) =====",
+    String(o.text || ""),
+    "===== HẾT BẢN HIỆN TẠI ====="
+  ].filter(Boolean).join("\n");
+}
+// Đọc các khối ">>> SAU: <neo>" / ">>> TRƯỚC: <neo>" + đoạn mới. Không dùng JSON để khỏi vỡ vì dấu ngoặc kép trong lời thoại.
+function parseInsertBlocks(raw) {
+  const re = /^\s*>>>\s*(SAU|TRƯỚC|TRUOC)\s*:\s*(.+?)\s*$/i, out = []; let cur = null;
+  String(raw || "").replace(/\r/g, "").split("\n").forEach(ln => {
+    const m = ln.match(re);
+    if (m) { if (cur) out.push(cur); cur = { op: /^SAU$/i.test(m[1]) ? "insert_after" : "insert_before", find: m[2].replace(/^["“‘'`]+|["”’'`…]+$/g, "").trim(), body: [] }; }
+    else if (cur) cur.body.push(ln);
+  });
+  if (cur) out.push(cur);
+  return out.map(p => ({ op: p.op, find: p.find, text: p.body.join("\n").replace(/\n{3,}/g, "\n\n").trim() })).filter(p => p.find && p.text).slice(0, PATCH_MAX_COUNT);
+}
+// Chèn từng khối; bỏ khối nào làm đổi đoạn kết, vượt maxWords hoặc không tìm thấy neo. Trả { text, applied, skipped, added }.
+function applyExpandInserts(text, blocks, maxWords) {
+  const base = String(text || "").trim(), tail = base.slice(-160), skipped = []; let cur = base, applied = 0;
+  (Array.isArray(blocks) ? blocks : []).forEach((b, index) => {
+    if (!b || (b.op !== "insert_after" && b.op !== "insert_before")) return skipped.push({ index, reason: "chỉ cho phép chèn" });
+    const res = applyChapterPatches(cur, [b]);
+    if (!res.applied) return skipped.push({ index, reason: res.skipped[0] ? res.skipped[0].reason : "không ghép được" });
+    if (!res.text.endsWith(tail)) return skipped.push({ index, reason: "chèn vào đoạn kết chương" });
+    if (maxWords && countWords(res.text) > maxWords) return skipped.push({ index, reason: "vượt giới hạn " + maxWords + " từ" });
+    cur = res.text; applied++;
+  });
+  return { text: cur, applied, skipped, added: countWords(cur) - countWords(base) };
+}
+function acceptExpandInserts(oldText, res) {
+  if (!res || !res.applied) return { ok: false, reason: "không chèn được đoạn nào" + (res && res.skipped && res.skipped.length ? " (" + res.skipped.slice(0, 2).map(s => s.reason).join("; ") + ")" : "") };
+  if (res.added < 120) return { ok: false, reason: "đoạn chèn quá ít (+" + res.added + " từ)" };
+  return { ok: true, text: res.text, words: countWords(res.text), added: res.added };
 }
 
 // Lưu bản gốc vào chapter.versions (mới nhất đứng đầu, giữ tối đa GATE_MAX_VERSIONS).
@@ -2466,27 +2535,6 @@ function stripCodeFences(s){ return (s||"").replace(/```json/gi,"```").replace(/
    không cập nhật". Giờ tìm ĐÚNG cặp ngoặc khớp nhau (đếm độ sâu, bỏ qua
    ngoặc nằm trong chuỗi "...") rồi mới parse phần đó, nên chữ thừa phía sau
    không còn phá được nữa. */
-function extractBalancedJson(s){
-  for(let i=0;i<s.length;i++){
-    const ch = s[i];
-    if(ch !== '[' && ch !== '{') continue;
-    const open = ch, close = ch === '[' ? ']' : '}';
-    let depth = 0, inStr = false, esc = false;
-    for(let j=i;j<s.length;j++){
-      const c = s[j];
-      if(inStr){
-        if(esc) esc = false;
-        else if(c === '\\') esc = true;
-        else if(c === '"') inStr = false;
-        continue;
-      }
-      if(c === '"') { inStr = true; continue; }
-      if(c === open) depth++;
-      else if(c === close){ depth--; if(depth === 0) return s.slice(i, j+1); }
-    }
-  }
-  return null;
-}
 function repairTruncatedArray(raw){
   const s = stripCodeFences(raw || "");
   const start = s.indexOf("[");
@@ -2681,12 +2729,6 @@ function idbDelete(store,key){
     tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
   }));
 }
-function idbGetAll(store){
-  return openStoryDB().then(db=>new Promise((resolve,reject)=>{
-    const tx=db.transaction(store,"readonly"); const req=tx.objectStore(store).getAll();
-    req.onsuccess=()=>resolve(req.result||[]); req.onerror=()=>reject(req.error);
-  }));
-}
 
 function saveStoriesIndex(){
   const copy = JSON.parse(JSON.stringify(storiesIndex||[]));
@@ -2840,7 +2882,6 @@ async function loadStoryStateFromDiskAsync(id){
   }catch(e){}
   return null;
 }
-function loadStoryStateFromDisk(id){ return idbStoryCache.get(id)||null; }
 function removeStoryFromDisk(id){
   idbStoryCache.delete(id); idbDelete(IDB_STORY_STORE,id).catch(()=>{});
   try{ localStorage.removeItem(STORY_KEY_PREFIX+id); localStorage.removeItem(EMERGENCY_PREFIX+id); }catch(e){}
@@ -2995,15 +3036,6 @@ function normalizeCharacterCoreLocks(){
     }
     if(c.coreLocked==null) c.coreLocked=true;
   });
-}
-
-function syncMainCharCoreFromProfile(){
-  if(!state.mainCharCoreIdentity || typeof state.mainCharCoreIdentity!=="object") state.mainCharCoreIdentity={};
-  ["name","age","gender","appearance","personality","occupation","goals","height","bodyType","measurements","hair","eyes","skin","voice","scent","style","scars","tattoos","speech"].forEach(k=>{ state.mainCharCoreIdentity[k]=state.mainCharProfile?.[k] ?? ""; });
-}
-function buildFemaleDefinitionBlock(state){
-  const d=String(state.femaleCharacterDefinition||"").trim();
-  return d ? "ĐỊNH NGHĨA CHUNG NHÂN VẬT NỮ — ÁP DỤNG CHO MỌI NHÂN VẬT NỮ:\n"+d+"\n\nQUY TẮC: Đây là bộ nguyên tắc chung, không phải hồ sơ của một nhân vật cụ thể. AI tự tạo hồ sơ từng nhân vật nữ từ diễn biến truyện; không gán nguyên xi đặc điểm của một người cho tất cả người khác; thông tin chưa xác nhận chỉ là suy luận tạm thời và không được ghi đè thông tin đã được truyện xác nhận." : "";
 }
 
 function findCharacterByName(name){
@@ -3449,10 +3481,6 @@ function matureFocusAllowsRouting(){
   if(!state.mature) return false;
   return normalizeChapterMatureFocus(state.chapterMatureFocus) !== "none";
 }
-function matureFocusLabel(){
-  const f=normalizeChapterMatureFocus(state.chapterMatureFocus);
-  return f === "primary" ? "PRIMARY" : f === "secondary" ? "SECONDARY" : "NONE";
-}
 function matureFocusPrompt(){
   const f=normalizeChapterMatureFocus(state.chapterMatureFocus);
   if(f === "primary") return "TRỌNG TÂM TRƯỞNG THÀNH: PRIMARY. Chủ đề trưởng thành là một trọng tâm được người dùng chỉ định cho chương này. Chỉ triển khai trong phạm vi brief/mạch truyện đã có; không tự mở tuyến mới. Cốt truyện vẫn phải tiến triển song song: cảnh nóng phải làm đổi quan hệ/quyền lực/bí mật/hậu quả, không lặp một cảnh để kéo dài.";
@@ -3552,15 +3580,6 @@ function _callLabel(prompt){
   for(const [re, name] of map) if(re.test(p.slice(0, 1500))) return name;
   return p.replace(/\s+/g, " ").trim().slice(0, 32) || "AI";
 }
-function _fmtDur(ms){ const s = Math.round(ms/1000); return s >= 60 ? Math.floor(s/60) + "p" + String(s%60).padStart(2,"0") + "s" : s + "s"; }
-function timingSummary(){
-  if(!_callLog.length) return "";
-  const g = {};
-  for(const c of _callLog){ const o = g[c.label] || (g[c.label] = { n:0, ms:0 }); o.n++; o.ms += c.ms; }
-  const parts = Object.entries(g).sort((a,b)=>b[1].ms - a[1].ms).slice(0, 7).map(([k,v])=> k + (v.n>1 ? "×"+v.n : "") + " " + _fmtDur(v.ms));
-  const wall = _chapterStartAt ? _fmtDur(Date.now() - _chapterStartAt) : "?";
-  return "⏱ Tổng " + wall + " | " + parts.join(" · ");
-}
 async function callAI(prompt, opts){
   const _t0 = Date.now();
   opts = opts || {};
@@ -3581,7 +3600,7 @@ async function callAI(prompt, opts){
       { role: "user", content: prompt }
     ],
     temperature: opts.temperature != null ? opts.temperature : 0.9,
-    max_tokens: Math.max(1, Math.min(7800, Number(opts.maxTokens) || 2048)), // V12.31.2: AnonRouter/model cap 8192; leave headroom to avoid provider rejection
+    max_tokens: Math.max(1, Math.min(AI_MAX_OUTPUT_TOKENS, Number(opts.maxTokens) || 2048)), // V12.31.2: AnonRouter/model cap 8192; leave headroom to avoid provider rejection
     /* v9.3: gọi trích xuất JSON (temperature thấp) KHÔNG dùng penalty — penalty làm model né lặp key/dấu ngoặc nên JSON hỏng. */
     frequency_penalty: opts.frequency_penalty != null ? opts.frequency_penalty : ((opts.temperature != null && opts.temperature <= 0.3) ? 0 : 0.45),
     presence_penalty: opts.presence_penalty != null ? opts.presence_penalty : ((opts.temperature != null && opts.temperature <= 0.3) ? 0 : 0.35)
@@ -3738,51 +3757,6 @@ let queueRunning = false;
 /* v12.4: hậu xử lý theo pha. Pha 1: [tóm tắt → gợi ý chương sau] ∥ Nhân vật ∥ Thế giới ∥ rà chính tả.
    Pha 2: Status ∥ Memory (đọc state đã có NV/Thế giới mới). Các hàm merge vào state ĐỒNG BỘ sau mỗi await
    nên chạy song song không ghi đè nhau. Tắt "Song song" trong cài đặt để quay về chế độ tuần tự cũ. */
-async function runFastPostTasks(d, extra){
-  const safe = (fn) => Promise.resolve().then(()=> fn ? fn() : null).catch(e=>{ console.warn("[post]", e); });
-  await Promise.allSettled([
-    safe(d.summary), safe(d.nextHint),   /* V12.25: gợi ý không còn chờ tóm tắt xong */
-    safe(d.char), safe(d.world), extra
-  ]);
-  await Promise.allSettled([ safe(d.status), safe(d.memory) ]);
-  for(const l of ["scene","continuity","checkpoint","pacing"]){
-    if(d[l]) { try{ await enqueueTask(d[l], l, {serial:true}); }catch(e){} }
-  }
-}
-function enqueueTask(fn, label, opts){
-  opts=opts||{};
-  if(SKIPPED_TASKS.has(label)) return Promise.resolve();
-  return new Promise((resolve, reject)=>{
-    taskQueue.push({ fn, label, serial:!!opts.serial, resolve, reject });
-    runQueue();
-  });
-}
-async function runQueue(){
-  if(queueRunning) return;
-  queueRunning = true;
-  while(taskQueue.length){
-    if(state.parallelEnabled && taskQueue.length > 1 && !taskQueue[0].serial && !taskQueue[1].serial){
-      /* Chỉ chạy song song các task thuần độc lập. Memory/Character/Status đều
-         ghi vào cùng state nên phải đánh dấu serial để tránh ghi đè localStorage. */
-      const batch = taskQueue.splice(0, 2);
-      try{
-        const results = await Promise.allSettled(batch.map(t=> t.fn()));
-        batch.forEach((t,i)=>{
-          if(results[i].status === "fulfilled") t.resolve(results[i].value);
-          else t.reject(results[i].reason);
-        });
-      }catch(e){}
-    } else {
-      const task = taskQueue.shift();
-      try{
-        const result = await task.fn();
-        task.resolve(result);
-      }catch(e){ task.reject(e); }
-      if(state.queueEnabled) await sleep(250);
-    }
-  }
-  queueRunning = false;
-}
 
 /* ========== CONFIRM DIALOG ========== */
 function showConfirm(message, opts){
@@ -6629,7 +6603,6 @@ function checkDuplicates(newText){
 }
 
 /* ========== STORY CONTROL LAYER ========== */
-function normalizeStoryControlClient(){ return normalizeStoryControl(state); }
 function storyControlPromptClient(){ return storyControlPrompt(state); }
 /* V12.32.4: HỒ SƠ KHÓA cho prompt viết chương: NVC + tối đa 8 nhân vật liên quan nhất (short=true cho các lượt viết tiếp). */
 function characterLockPromptClient(short){
@@ -6964,7 +6937,7 @@ async function autoContinueUntilDone(chapterObj, chapterNumber, initialModel, in
       if(w0 >= _goal || w0 >= maxWords || w0 < 800) break;
       setStatus("Mở rộng chương lần " + ex + "/2 (đang " + w0 + "/" + _goal + " từ)...", true);
       try{
-        const exPrompt = buildExpandPrompt({
+        const exPrompt = buildExpandInsertPrompt({
           text: chapterObj.text, wc: w0, goal: _goal, target: minWords, maxWords: maxWords,
           directive: state.directive, hint: state.nextChapterHint,
           closing: extractClosingBeat(state.nextChapterHint) || extractClosingBeat(state.directive),
@@ -6972,13 +6945,14 @@ async function autoContinueUntilDone(chapterObj, chapterNumber, initialModel, in
                    usingNsfw ? EROTIC_STYLE_PROMPT : "", usingNsfw ? ("MỨC 18+: " + (EXPLICIT_PROMPTS[state.explicitLevel] || "")) : "",
                    state.pronounRules ? ("QUY TẮC XƯNG HÔ:\n" + state.pronounRules) : "" ].filter(Boolean).join("\n")
         });
-        const r = await callAI(exPrompt, { maxTokens: 16000, temperature: 0.8, modelOverride: targetModel, frequency_penalty: 0.1, presence_penalty: 0.1 });
+        const r = await callAI(exPrompt, { maxTokens: expandMaxTokens(_goal * 1.04 - w0), temperature: 0.8, modelOverride: targetModel, frequency_penalty: 0.1, presence_penalty: 0.1 });
         let t = String((r && r.text) || "");
         if(detectNonVietnamese(t)){ stopReasons.push("mở rộng #" + ex + ": AI trả sai ngôn ngữ"); continue; }
-        t = formatParagraphs(stripForeign(stripThinkingOutput(t)));
-        const acc = acceptExpandedChapter(chapterObj.text, t, maxWords);
+        /* V12.32.13: AI chỉ trả các đoạn mới + chỗ chèn (không viết lại cả chương — vượt trần output ~7800 token). */
+        const exRes = applyExpandInserts(chapterObj.text, parseInsertBlocks(stripThinkingOutput(t)), maxWords);
+        const acc = acceptExpandInserts(chapterObj.text, exRes);
         if(!acc.ok){ stopReasons.push("mở rộng #" + ex + ": " + acc.reason); continue; }
-        chapterObj.text = acc.text; chapterObj.wordCount = countWords(acc.text); chapterObj.truncated = false;
+        chapterObj.text = formatParagraphs(stripForeign(acc.text)); chapterObj.wordCount = countWords(chapterObj.text); chapterObj.truncated = false;
         console.log("[Mở rộng cuối] " + w0 + " → " + chapterObj.wordCount + " từ");
       }catch(err){
         if(err.userAbort) throw err;
@@ -7302,7 +7276,6 @@ function normalizeChapterPipelineState(ch){
 }
 function normalizeAllChapterPipelineState(){ (state.chapters||[]).forEach(normalizeChapterPipelineState); }
 function chapterStatusLabel(status){ return ({PLANNED:"🟡 Lên kế hoạch",DRAFTING:"🟡 Đang viết",DRAFTED:"🟡 Bản nháp",SELF_CHECKING:"🔎 Tự kiểm",REVIEWING:"🔎 Đang review",REVISION_REQUIRED:"🟠 Cần sửa",APPROVED:"🟢 Đã duyệt",SYNCING:"🔄 Đang sync",SYNCED:"🟢 Canon",SYNCED_WITH_WARNINGS:"🟡 Canon + cảnh báo",SYNC_FAILED:"🔴 Sync lỗi",MODIFIED_AFTER_SYNC:"🟠 Đã sửa sau Sync"}[status]||String(status||"Chưa xác định")); }
-function qualityHardCheck(chapter, plan){ return gateHardChecks(chapter); }
 function renderQualityReview(ch){
   const box=$ID("qualityBox"); if(!box) return;
   if(!ch){box.style.display="none";return;}
@@ -7363,9 +7336,11 @@ async function rewriteDraftFromReview(chapter, review, chapterNumber, plan, cont
 }
 async function rewriteWholeDraft(chapter, review, chapterNumber, plan, contextSummary){
   const oldText=String(chapter.text||""), oldWc=countWords(oldText);
+  const fit=wholeRewriteFits(oldText);
+  if(!fit.fits) return {ok:false,reason:"chương "+oldWc+" từ (≈"+fit.est+" token) quá dài để AI viết lại cả chương trong giới hạn "+fit.cap+" token — bỏ qua, chỉ dùng vá cục bộ"};
   const prompt=buildRewritePrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:chapter.text,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500)});
   try{
-    const r=await callAI(prompt,{maxTokens:16000,temperature:0.55,modelOverride:chapter.modelUsed||state.model});
+    const r=await callAI(prompt,{maxTokens:AI_MAX_OUTPUT_TOKENS,temperature:0.55,modelOverride:chapter.modelUsed||state.model});
     let text=String(r.text||"").trim().replace(/^\s*(?:TIÊU ĐỀ|TITLE)\s*:\s*[^\n]+\n+/i,"").replace(/^\s*NỘI DUNG\s*:\s*/i,"").trim();
     text=formatParagraphs(dedupeRepeatedScene(stripForeign(stripThinkingOutput(text))));
     const cap=trimToWordLimit(text,chapterWordLimits().hardMax);
@@ -7407,31 +7382,8 @@ async function runQualityGate(chapter, chapterNumber, plan, contextSummary, opts
    - Người dùng đã tự sửa/gõ gợi ý mới trong lúc viết -> giữ nguyên, không ghi đè.
    - Tạo thất bại: xóa gợi ý cũ (đã dùng) để chương sau không bị ép viết lại kế hoạch cũ. */
 let _writeBriefSnapshot = null;
-function applyNextChapterHint(cn, hint, briefUsed){
-  if(cn < state.chapters.length) return false;          // chỉ áp dụng cho chương mới nhất
-  const cur = String(state.nextChapterHint || "").trim();
-  const used = (briefUsed === null || briefUsed === undefined) ? null : String(briefUsed).trim();
-  const canReplace = !cur || (used !== null && cur === used);
-  if(!canReplace) return false;
-  state.nextChapterHint = hint || "";
-  if(typeof nextChapterHintEl !== "undefined" && nextChapterHintEl) nextChapterHintEl.value = state.nextChapterHint;
-  return true;
-}
 /* V12.25: hiện gợi ý DẦN vào ô khi AI đang stream (chỉ đổi ô, chưa lưu state). Dừng nếu bạn đang gõ/sửa ô. */
 let _hintPreviewLast = null;
-function previewNextChapterHint(cn, partial, briefUsed){
-  try{
-    if(cn < state.chapters.length || !partial || typeof nextChapterHintEl === "undefined" || !nextChapterHintEl) return;
-    const cur = String(state.nextChapterHint || "").trim();
-    const used = (briefUsed === null || briefUsed === undefined) ? null : String(briefUsed).trim();
-    if(!(!cur || (used !== null && cur === used))) return;
-    if(document.activeElement === nextChapterHintEl) return;
-    const shown = String(nextChapterHintEl.value || "");
-    if(_hintPreviewLast !== null && shown !== _hintPreviewLast) return;                 // bạn đã sửa ô -> không đè
-    if(_hintPreviewLast === null && shown.trim() !== cur) return;
-    nextChapterHintEl.value = partial; _hintPreviewLast = partial;
-  }catch(_){}
-}
 async function runCanonPostProcess(chapterObj, cn, text, rawForPolish, briefUsed){
   _hintPreviewLast = null;
   if(!chapterObj || !String(chapterObj.text || text || "").trim()) throw new Error("Chương không có nội dung để đồng bộ Canon.");
@@ -7482,11 +7434,6 @@ async function reviewCurrentChapter(opts){
     setStatus("Lỗi duyệt lại: "+(err&&err.message||err),false);
   }finally{ setGenerating(false); }
 }
-
-function beginCanonSync(chapter, chapterNumber){
-  chapter.status="SYNCING"; chapter.sync=chapter.sync||{}; chapter.sync.status="SYNCING"; chapter.sync.startedAt=Date.now();
-}
-function completeCanonSync(chapter, chapterNumber){ applyCanonSync(state, chapter); }
 
 /* ========== GENERATE CHAPTER (chính) ========== */
 async function generateChapter(regenIndex, regenMode, forceNsfw){
@@ -7928,34 +7875,6 @@ const CHECKPOINTS = [
     actions: [{ label: "🔍 Full Scan", fn: ()=> $ID("integrityScanBtn").click() }]
   }
 ];
-function checkCheckpoint(currentChapterNum){
-  if(!state.checkpointEnabled) return;
-  const cp = CHECKPOINTS.find(c => c.at === currentChapterNum && !state.triggeredCheckpoints.includes(c.id));
-  if(!cp) return;
-  state.triggeredCheckpoints.push(cp.id);
-  persist();
-  showCheckpointBanner(cp);
-}
-function showCheckpointBanner(cp){
-  checkpointBannerText.innerHTML = '<b>'+cp.title+'</b><br>'+cp.msg;
-  checkpointActions.innerHTML = "";
-  cp.actions.forEach(a=>{
-    const btn = document.createElement("button");
-    btn.className = "btn btn-purple btn-sm";
-    btn.style.width = "auto";
-    btn.textContent = a.label;
-    btn.addEventListener("click", ()=>{ a.fn(); hideCheckpointBanner(); });
-    checkpointActions.appendChild(btn);
-  });
-  const dismiss = document.createElement("button");
-  dismiss.className = "btn btn-ghost btn-sm";
-  dismiss.style.width = "auto";
-  dismiss.textContent = "Bỏ qua";
-  dismiss.addEventListener("click", hideCheckpointBanner);
-  checkpointActions.appendChild(dismiss);
-  checkpointBanner.classList.add("show");
-}
-function hideCheckpointBanner(){ checkpointBanner.classList.remove("show"); }
 
 /* ========== RESCAN DOWNSTREAM ========== */
 async function rescanFrom(startChapterNum){
@@ -8836,84 +8755,6 @@ function setBgStatus(msg, show){
   if(!el) return;
   el.style.display = show ? "block" : "none";
   el.textContent = msg || "";
-}
-
-async function startBackgroundWrite(){
-  if(generating){setStatus("Đang bận viết local, đợi xong đã.",true);return;}
-  const key=(state.apiKey||apiKeyInput.value||"").trim();
-  if(!key){setStatus("Cần nhập API Key trước.",false);return;}
-  if(!state.apiEndpoint&&!apiEndpointInput.value){setStatus("Cần endpoint.",false);return;}
-  if(state.storyId && state.chapters.length>=1){
-    const old=localStorage.getItem(BG_JOB_KEY);
-    if(old){setBgStatus("⚠ Đã có job nền đang theo dõi. Hãy chờ job đó xong trước khi tạo job mới.",true);return;}
-  }
-  if(state.chapters.length===0 && (
-    (state.mainPlot && state.mainPlot.trim()) ||
-    (state.characters && state.characters.length>0) ||
-    (state.mainCharProfile && state.mainCharProfile.name && state.mainCharProfile.name.trim())
-  )){
-    const ok = await showConfirm("Truyện này chưa có chương nào trong bộ nhớ hiện tại, nhưng lại đã có nhân vật/cốt truyện — có thể do vừa Lên JSON chưa tải kịp hoặc mở nhầm truyện.\n\nBấm OK để VẪN gửi job viết Chương 1 (nếu bạn chắc đây đúng là truyện mới).\nBấm Hủy để dừng lại và kiểm tra trước.");
-    if(!ok){ return; }
-  }
-  const storyBlob={};
-  Object.keys(state).forEach(k=>{if(!GLOBAL_KEYS.includes(k))storyBlob[k]=state[k];});
-  /* V12.23: mỗi chương mang theo tới 7–10 bản chụp trạng thái (stateSnapshots, mỗi bản là bản sao cả thế giới/nhân vật) + các phiên bản cũ (versions)
-     -> truyện 8 chương nặng ~9 MB, vượt giới hạn 6 MB/request của Netlify (HTTP 400). Worker không dùng các trường này của chương cũ:
-     bỏ khỏi payload; khi hợp nhất kết quả, client tự khôi phục lại từ bản local (xem mergeBackgroundChapter). */
-  if(Array.isArray(storyBlob.chapters)) storyBlob.chapters=storyBlob.chapters.map(ch=>{
-    if(!ch||typeof ch!=="object") return ch;
-    const o=Object.assign({},ch);
-    BG_HEAVY_CHAPTER_KEYS.forEach(k=>{ delete o[k]; });
-    return o;
-  });
-  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
-  // Background phải giữ nguyên lựa chọn NSFW của người dùng, không tự reset về false.
-  // "always" luôn ép model NSFW; "mature_only" ép khi truyện đã đánh dấu trưởng thành.
-  // "auto" vẫn để backend tự phát hiện theo ngữ cảnh.
-  const bgFocus = normalizeChapterMatureFocus(state.chapterMatureFocus);
-  const bgForceNsfw = bgFocus !== "none" && ((state.nsfwMode === "always") ||
-    (state.nsfwMode === "mature_only" && state.mature === true) || bgFocus === "primary");
-  const payload={hintStyle:state.hintStyle||"normal",hintFormat:state.hintFormat||"detail",storyState:storyBlob,apiKey:key,apiEndpoint:state.apiEndpoint||apiEndpointInput.value.trim(),model:state.model||"deepseek/deepseek-v3.2",modelNsfw:state.modelNsfw||"aion-labs/aion-2.0",forceNsfw:bgForceNsfw};
-  setBgStatus("☁ Đang tạo job an toàn trên server...",true); $ID("bgWriteBtn").disabled=true;
-  try{
-    const _pc=getAppPasscode(); const _hd={"Content-Type":"application/json"}; if(_pc)_hd["X-App-Passcode"]=_pc;
-    /* V12.23: đếm giây + tự hủy sau 45s để không treo vô hạn ở "Đang tạo job…" */
-    const _t0=Date.now(), _bodyStr=JSON.stringify(payload), _ac=new AbortController();
-    if(_bodyStr.length>5000000){
-      const _hv=Object.keys(storyBlob).map(k=>[k,(JSON.stringify(storyBlob[k])||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", ");
-      throw new Error("Dữ liệu gửi lên "+Math.round(_bodyStr.length/1024)+" KB, vượt giới hạn ~6 MB/request của Netlify (nặng nhất: "+_hv+"). Hãy xuất backup rồi xóa bớt dữ liệu cũ của truyện, hoặc báo lại để mình tối ưu thêm.");
-    }
-    const _tick=setInterval(()=>{ setBgStatus("☁ Đang tạo job an toàn trên server... "+Math.round((Date.now()-_t0)/1000)+"s (gửi "+Math.round(_bodyStr.length/1024)+" KB)",true); },1000);
-    const _kill=setTimeout(()=>_ac.abort(),45000);
-    let res;
-    try{ res=await fetch(BG_FUNCTIONS_BASE+"/create-job",{method:"POST",headers:_hd,body:_bodyStr,signal:_ac.signal}); }
-    catch(e){ if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 45 giây (đã gửi "+Math.round(_bodyStr.length/1024)+" KB). Kiểm tra mạng hoặc Netlify → Functions → create-job → Logs rồi thử lại."); throw e; }
-    finally{ clearInterval(_tick); clearTimeout(_kill); }
-    /* V12.23: đọc cả thân phản hồi dạng text để lỗi không còn trống ("HTTP 400" trơn) + báo dung lượng/khóa nặng nhất của truyện gửi lên */
-    let _raw=""; try{ _raw=await res.text(); }catch(e){}
-    let data={}; try{ data=JSON.parse(_raw)||{}; }catch(e){}
-    const _heavy=(()=>{ try{ return Object.keys(storyBlob).map(k=>[k,(JSON.stringify(storyBlob[k])||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(e){ return ""; } })();
-    if(!res.ok && !data.error && res.status!==404 && res.status!==401){
-      throw new Error("HTTP "+res.status+(_raw?(" — "+_raw.replace(/\s+/g," ").slice(0,160)):"")+" | đã gửi "+Math.round(_bodyStr.length/1024)+" KB (nặng nhất: "+_heavy+"). Nếu con số này vượt ~4000 KB, Netlify có thể từ chối vì giới hạn 6 MB/request.");
-    }
-    if(res.status===401)throw new Error("Sai hoặc thiếu Mã truy cập server (mục 🔒 ở cột thiết lập).");
-    if(res.status===404){
-      let probe=-1; try{ const pr=await fetch(BG_FUNCTIONS_BASE+"/job-status?jobId=ping&token=x"); const pj=await pr.json().catch(()=>null); probe=(pr.status===404 && !pj)?404:pr.status; }catch(e){}   /* job-status còn chạy sẽ trả JSON ("Job not found"/403...), còn hàm chưa deploy thì trả trang 404 HTML */
-      const where=(location.protocol==="file:")?"Bạn đang mở app trực tiếp từ file (file://) — viết nền chỉ chạy khi mở app bằng domain Netlify của bạn."
-        :(probe===404?"Cả create-job lẫn job-status đều 404: site Netlify "+location.origin+" CHƯA deploy thư mục netlify/functions (deploy bằng Git hoặc Netlify CLI cả thư mục, không chỉ index.html), hoặc bạn đang mở app ở domain khác Netlify."
-        :"job-status vẫn chạy nhưng create-job thì không: vào Netlify → Functions xem create-job có bị lỗi build/chưa deploy không, rồi deploy lại bản đầy đủ.");
-      throw new Error("HTTP 404 — không tìm thấy "+BG_FUNCTIONS_BASE+"/create-job tại "+location.origin+". "+where);
-    }
-    if(!res.ok||!data.jobId||!data.accessToken)throw new Error(data.error||("HTTP "+res.status));
-    const record={jobId:data.jobId,accessToken:data.accessToken,storyId:state.storyId,baseChapterCount:state.chapters.length,createdAt:Date.now(),briefAtStart:String(state.nextChapterHint||"")};
-    localStorage.setItem(BG_JOB_KEY,JSON.stringify(record));
-    bgWarnText=(data.warnings&&data.warnings.length)?(" ⚠ "+data.warnings.join(" ")):"";
-    const _tm=data.timings||{}; const _slow=(Number(_tm.totalMs)>6000)?(" (server: lưu "+_tm.saveMs+"ms, kích hoạt "+_tm.triggerMs+"ms, tổng "+_tm.totalMs+"ms, gửi "+_tm.payloadKB+" KB)"):"";
-    setBgStatus("✓ Job "+data.jobId.slice(-8)+" đang chạy. Có thể tắt iPhone."+_slow+bgWarnText,true);
-    setStatus("☁ Đã gửi background. API key không được trả về status.",false);
-    pollBackgroundJob(record);
-  }catch(err){setBgStatus("Lỗi gửi job: "+(err.message||err),true);setStatus("Lỗi gửi job: "+(err.message||err),false);}
-  finally{$ID("bgWriteBtn").disabled=false;}
 }
 
 async function startBackgroundPostProcess(chapterObj, chapterNumber, text, briefUsed){

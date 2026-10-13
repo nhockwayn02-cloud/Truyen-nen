@@ -12,7 +12,7 @@ function contextWithFetch(fetchImpl) {
   const ctx = {
     state: { apiEndpoint: 'https://api.example/v1/chat/completions', apiKey: 'test-key', model: 'test-model', streamingEnabled: true },
     apiEndpointInput: { value: '' }, apiKeyInput: { value: '' }, modelSelect: { value: '' },
-    SYSTEM_PROMPT: 'system', AI_CALL_TIMEOUT_MS: 5000, AI_IDLE_TIMEOUT_MS: 5000, AI_MAX_RETRIES: 2,
+    SYSTEM_PROMPT: 'system', AI_MAX_OUTPUT_TOKENS: 7800, AI_CALL_TIMEOUT_MS: 5000, AI_IDLE_TIMEOUT_MS: 5000, AI_MAX_RETRIES: 2,
     AI_RETRYABLE_STATUS: new Set([408, 429, 500, 502, 503, 504]),
     location: { protocol: 'https:', hostname: 'example.com', origin: 'https://example.com' },
     fetch: fetchImpl, AbortController, TextDecoder, URL, Response, ReadableStream,

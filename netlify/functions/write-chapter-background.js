@@ -45,7 +45,6 @@ function jsonResponse(statusCode, obj) {
 function genId(prefix = "x") {
   return prefix + Date.now().toString(36) + crypto.randomBytes(5).toString("hex");
 }
-function genSecret() { return crypto.randomBytes(32).toString("base64url"); }
 function hashSecret(value) { return crypto.createHash("sha256").update(String(value || "")).digest("hex"); }
 function secretsEqual(a, b) { return crypto.timingSafeEqual(Buffer.from(a || ""), Buffer.from(b || "")); }
 
@@ -53,14 +52,6 @@ function encryptionKey() {
   const secret = process.env.JOB_SECRET || process.env.NETLIFY_JOB_SECRET || process.env.NETLIFY_API_TOKEN || "";
   if (!secret) return null;
   return crypto.createHash("sha256").update(secret).digest();
-}
-function encryptText(text) {
-  const key = encryptionKey();
-  if (!key) return { encrypted: false, value: text };
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const enc = Buffer.concat([cipher.update(String(text), "utf8"), cipher.final()]);
-  return { encrypted: true, value: `${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${enc.toString("base64url")}` };
 }
 function decryptText(record) {
   if (!record) return "";
@@ -1005,8 +996,15 @@ function applyChapterPatches(text, patches) {
     }
     if (op === "replace") cur = cur.slice(0, start) + add + cur.slice(end);
     else if (op === "delete") cur = cur.slice(0, start) + cur.slice(end);
-    else if (op === "insert_after") { const para = end >= cur.length || cur[end] === "\n"; cur = cur.slice(0, end) + (para ? "\n\n" : " ") + add + cur.slice(end); }
-    else { const para = start === 0 || cur[start - 1] === "\n"; cur = cur.slice(0, start) + add + (para ? "\n\n" : " ") + cur.slice(start); }
+    else if (op === "insert_after") {
+      let e2 = end; while (e2 < cur.length && /[.!?…”"’')\]]/.test(cur[e2])) e2++;   // neo thiếu dấu chấm/ngoặc đóng cuối đoạn vẫn tính là cuối đoạn
+      const para = e2 >= cur.length || cur[e2] === "\n", at = para ? e2 : end;
+      cur = cur.slice(0, at) + (para ? "\n\n" : " ") + add + cur.slice(at);
+    } else {
+      let s2 = start; while (s2 > 0 && /["“‘'(\[—\- \t]/.test(cur[s2 - 1])) s2--;          // neo thiếu ngoặc mở/gạch thoại đầu đoạn vẫn tính là đầu đoạn
+      const para = s2 === 0 || cur[s2 - 1] === "\n", at = para ? s2 : start;
+      cur = cur.slice(0, at) + add + (para ? "\n\n" : " ") + cur.slice(at);
+    }
     applied++;
   });
   cur = cur.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -1019,6 +1017,68 @@ function checkPatchAcceptable(oldText, res) {
   if (newWc < Math.max(20, Math.floor(oldWc * PATCH_MIN_RATIO))) return { ok: false, reason: "bản vá làm chương ngắn bất thường (" + newWc + " từ so với " + oldWc + ")" };
   if (newWc > Math.ceil(oldWc * PATCH_MAX_RATIO)) return { ok: false, reason: "bản vá làm chương dài bất thường (" + newWc + " từ so với " + oldWc + ")" };
   return { ok: true, wordCount: newWc };
+}
+
+// ===== V12.32.13: GIỚI HẠN OUTPUT & MỞ RỘNG CHƯƠNG BẰNG CHÈN ĐOẠN (không viết lại cả chương) =====
+// Mọi lệnh gọi AI bị chặn ở AI_MAX_OUTPUT_TOKENS token output (provider ~8192). Chương dài (vd 5000+ từ ≈ 9–11k token)
+// KHÔNG thể được "viết lại toàn bộ" trong một lệnh gọi → bị cắt/tóm tắt. Thay vào đó AI chỉ viết các đoạn mới cần chèn.
+const AI_MAX_OUTPUT_TOKENS = 7800;
+function estimateOutputTokens(text) { return Math.ceil(String(text || "").length / 3); }   // ước lượng thô cho tiếng Việt
+function wholeRewriteFits(text) {
+  const est = Math.ceil(estimateOutputTokens(text) * 1.12);
+  return { fits: est <= Math.floor(AI_MAX_OUTPUT_TOKENS * 0.9), est, cap: AI_MAX_OUTPUT_TOKENS };
+}
+function expandMaxTokens(needWords) { return Math.max(1500, Math.min(AI_MAX_OUTPUT_TOKENS, Math.ceil(Math.max(0, Number(needWords) || 0) * 2.6) + 1200)); }
+function buildExpandInsertPrompt(o) {
+  const wc = o.wc, need = Math.max(150, Math.ceil(o.goal * 1.04 - wc)), room = Math.max(0, o.maxWords - wc);
+  const brief = [o.directive ? ("MỆNH LỆNH: " + String(o.directive).trim()) : "", o.hint ? ("GỢI Ý: " + String(o.hint).trim()) : ""].filter(Boolean).join("\n");
+  return [
+    "BẮT BUỘC NGÔN NGỮ: 100% TIẾNG VIỆT CÓ DẤU.",
+    "MỞ RỘNG CHƯƠNG BẰNG CÁCH CHÈN THÊM ĐOẠN. Bản hiện tại " + wc + " từ, CHƯA ĐỦ độ dài: cần tối thiểu " + o.goal + " từ (mục tiêu " + o.target + ", tuyệt đối không vượt " + o.maxWords + "). Cần THÊM khoảng " + need + " từ (tối đa " + room + " từ).",
+    "KHÔNG viết lại chương. Giữ nguyên 100% văn bản hiện có. Chỉ viết các ĐOẠN MỚI để chèn vào những chỗ chương đang kể lướt/thiếu chi tiết, và nêu chỗ chèn.",
+    "CÁCH LÀM: chọn 4–8 chỗ khác nhau; mỗi chỗ viết 1–3 đoạn mới (không khí/bối cảnh, hành động từng bước, hội thoại, nội tâm, giác quan, phản ứng và hệ quả), cùng giọng văn, POV, xưng hô, nối mượt với câu trước và sau chỗ chèn.",
+    "CẤM: thêm biến cố lớn, nhân vật quan trọng mới, arc mới; lặp ý hoặc độn chữ; mâu thuẫn với phần có sẵn; chèn sau câu cuối chương hoặc đổi điểm kết chương; ghi chú/giải thích.",
+    o.style || "",
+    brief ? ("===== KẾ HOẠCH NGƯỜI DÙNG (không đổi) =====\n" + brief + (o.closing ? ("\nENDING ANCHOR: " + o.closing) : "") + "\n===== HẾT =====") : "",
+    "ĐỊNH DẠNG TRẢ VỀ — chỉ dùng đúng định dạng này, lặp lại cho từng chỗ chèn, không lời dẫn:",
+    ">>> SAU: <chép NGUYÊN VĂN 6–20 từ CUỐI của một đoạn có sẵn, đúng từng chữ, không sửa dấu>",
+    "<các đoạn mới, cách nhau một dòng trống>",
+    ">>> TRƯỚC: <chép NGUYÊN VĂN 6–20 từ ĐẦU của một đoạn có sẵn>",
+    "<các đoạn mới>",
+    "Mỗi chỗ chèn dùng cụm neo khác nhau và duy nhất trong chương. Không chèn sau đoạn cuối cùng của chương.",
+    "===== BẢN HIỆN TẠI (" + wc + " từ) =====",
+    String(o.text || ""),
+    "===== HẾT BẢN HIỆN TẠI ====="
+  ].filter(Boolean).join("\n");
+}
+// Đọc các khối ">>> SAU: <neo>" / ">>> TRƯỚC: <neo>" + đoạn mới. Không dùng JSON để khỏi vỡ vì dấu ngoặc kép trong lời thoại.
+function parseInsertBlocks(raw) {
+  const re = /^\s*>>>\s*(SAU|TRƯỚC|TRUOC)\s*:\s*(.+?)\s*$/i, out = []; let cur = null;
+  String(raw || "").replace(/\r/g, "").split("\n").forEach(ln => {
+    const m = ln.match(re);
+    if (m) { if (cur) out.push(cur); cur = { op: /^SAU$/i.test(m[1]) ? "insert_after" : "insert_before", find: m[2].replace(/^["“‘'`]+|["”’'`…]+$/g, "").trim(), body: [] }; }
+    else if (cur) cur.body.push(ln);
+  });
+  if (cur) out.push(cur);
+  return out.map(p => ({ op: p.op, find: p.find, text: p.body.join("\n").replace(/\n{3,}/g, "\n\n").trim() })).filter(p => p.find && p.text).slice(0, PATCH_MAX_COUNT);
+}
+// Chèn từng khối; bỏ khối nào làm đổi đoạn kết, vượt maxWords hoặc không tìm thấy neo. Trả { text, applied, skipped, added }.
+function applyExpandInserts(text, blocks, maxWords) {
+  const base = String(text || "").trim(), tail = base.slice(-160), skipped = []; let cur = base, applied = 0;
+  (Array.isArray(blocks) ? blocks : []).forEach((b, index) => {
+    if (!b || (b.op !== "insert_after" && b.op !== "insert_before")) return skipped.push({ index, reason: "chỉ cho phép chèn" });
+    const res = applyChapterPatches(cur, [b]);
+    if (!res.applied) return skipped.push({ index, reason: res.skipped[0] ? res.skipped[0].reason : "không ghép được" });
+    if (!res.text.endsWith(tail)) return skipped.push({ index, reason: "chèn vào đoạn kết chương" });
+    if (maxWords && countWords(res.text) > maxWords) return skipped.push({ index, reason: "vượt giới hạn " + maxWords + " từ" });
+    cur = res.text; applied++;
+  });
+  return { text: cur, applied, skipped, added: countWords(cur) - countWords(base) };
+}
+function acceptExpandInserts(oldText, res) {
+  if (!res || !res.applied) return { ok: false, reason: "không chèn được đoạn nào" + (res && res.skipped && res.skipped.length ? " (" + res.skipped.slice(0, 2).map(s => s.reason).join("; ") + ")" : "") };
+  if (res.added < 120) return { ok: false, reason: "đoạn chèn quá ít (+" + res.added + " từ)" };
+  return { ok: true, text: res.text, words: countWords(res.text), added: res.added };
 }
 
 // Lưu bản gốc vào chapter.versions (mới nhất đứng đầu, giữ tối đa GATE_MAX_VERSIONS).
@@ -1868,7 +1928,7 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
         "HTTP-Referer": process.env.URL || "https://xuong-truyen-ai.netlify.app",
         "X-Title": "Xuong Truyen AI v9"
       },
-      body: JSON.stringify(Object.assign({ model, messages, max_tokens: Math.max(1, Math.min(7800, Number(maxTokens) || 4000)), temperature, stream: true },
+      body: JSON.stringify(Object.assign({ model, messages, max_tokens: Math.max(1, Math.min(AI_MAX_OUTPUT_TOKENS, Number(maxTokens) || 4000)), temperature, stream: true },
         // V12.20: siết lấy mẫu khi viết văn để giảm từ lỗi ghép (mươititude, bănnton...). top_k chỉ gửi cho OpenRouter.
         creative ? { top_p: 0.88 } : {},
         (creative && /openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) ? { top_k: 40 } : {},
@@ -1965,7 +2025,7 @@ async function callExtract(args, tries = 2) {
   // Rỗng hoặc bị cắt (finish=length) -> gọi lại với ngân sách gấp đôi (tối đa 16000)
   if ((empty || r.finishReason === "length") && base < 16000 && timeLeft() > 120000) {
     try {
-      const r2 = await callWithRetry({ ...args, maxTokens: Math.min(7800, base * 2) }, tries);
+      const r2 = await callWithRetry({ ...args, maxTokens: Math.min(AI_MAX_OUTPUT_TOKENS, base * 2) }, tries);
       const has2 = String(r2.text || "").trim();
       if (has2 && (empty || r2.finishReason !== "length" || r2.text.length > r.text.length)) r = { ...r2, retriedBigger: true };
     } catch (e) { if (empty) throw e; }
@@ -1973,43 +2033,6 @@ async function callExtract(args, tries = 2) {
   return r;
 }
 function fin(r) { return `finish=${r.finishReason || "?"}, ${String(r.text || "").length} ký tự${r.reasoningLen ? `, reasoning ${r.reasoningLen}` : ""}`; }
-
-async function repairJsonWithAI(job, raw, shape, keys, maxTokens = 6900) {
-  const clipped = String(raw || "").slice(0, 24000);
-  if (!clipped.trim()) return "";
-  const instruction = shape === "array"
-    ? 'Chuyển nội dung sau thành JSON array hợp lệ gồm các object. Giữ lại mọi object có thể xác định. Không thêm dữ liệu. Chỉ trả JSON array.'
-    : `Chuyển nội dung sau thành một JSON object hợp lệ${keys && keys.length ? " với các khóa: " + keys.join(", ") : ""}. Giữ nguyên thông tin có thể xác định. Không thêm dữ liệu. Chỉ trả JSON object.`;
-  try {
-    const r = await callExtract({
-      endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model,
-      messages: [
-        { role: "system", content: "Bạn là bộ sửa JSON. Tuyệt đối không viết giải thích ngoài JSON." },
-        { role: "user", content: instruction + "\n\nDỮ LIỆU LỖI:\n" + clipped }
-      ],
-      maxTokens, temperature: 0
-    }, 2);
-    return r.text || "";
-  } catch (_) { return ""; }
-}
-
-async function parseArrayWithRepair(job, raw) {
-  const p = parseArray(raw);
-  if (p.valid) return { ...p, repairedByAI: false };
-  if (timeLeft() < 90000) return { ...p, repairedByAI: false }; // không đủ giờ cho 1 lượt gọi sửa JSON nữa
-  const fixed = await repairJsonWithAI(job, raw, "array", null, 8000);
-  const again = parseArray(fixed);
-  return { ...again, repairedByAI: again.valid, method: again.valid ? "AI-repair" : "" };
-}
-
-async function parseObjectWithRepair(job, raw, keys) {
-  const p = parseObjectDetailed(raw, keys);
-  if (p.obj) return { obj: p.obj, method: p.method, repairedByAI: false };
-  if (timeLeft() < 90000) return { obj: null, method: "", repairedByAI: false };
-  const fixed = await repairJsonWithAI(job, raw, "object", keys, 6900);
-  const again = parseObjectDetailed(fixed, keys);
-  return { obj: again.obj, method: again.obj ? "AI-repair" : "", repairedByAI: !!again.obj };
-}
 
 function sampleOf(text, n = 140) { return String(text || "").replace(/\s+/g, " ").slice(0, n); }
 
@@ -2046,12 +2069,6 @@ function buildContext(state) {
     p.push("TIMELINE GẦN ĐÂY:\n" + state.timeline.slice(-12).map(e => `- Ch${e.chapter}: ${e.summary}`).join("\n"));
   }
   return p.join("\n\n");
-}
-function recentContext(chapters) {
-  if (!chapters.length) return "Đây là chương đầu tiên.";
-  const last = chapters[chapters.length - 1];
-  const prev = chapters.length > 1 ? chapters[chapters.length - 2] : null;
-  return `${prev ? `CHƯƠNG TRƯỚC NỮA:\n${(prev.summary || prev.text || "").slice(0, 900)}\n\n` : ""}ĐOẠN CUỐI CHƯƠNG GẦN NHẤT:\n${(last.text || "").slice(-5000)}`;
 }
 
 /* ===== v10 Lorebook (đồng bộ với client) ===== */
@@ -2919,7 +2936,7 @@ async function generateOneChapter(job) {
     if (w0 >= loopGoal || w0 >= maxWords || w0 < 800) break;
     if (writeTimeLeft(isNsfw) < EXPAND_MIN_START_MS) { issues.push(`Bỏ qua mở rộng cuối vì chỉ còn ${Math.round(writeTimeLeft(isNsfw) / 1000)}s (cần ≥ ${EXPAND_MIN_START_MS / 1000}s)`); break; }
     try {
-      const exPrompt = buildExpandPrompt({
+      const exPrompt = buildExpandInsertPrompt({
         text, wc: w0, goal: loopGoal, target: minWords, maxWords,
         directive: state.directive, hint: state.nextChapterHint, closing: closingBeat,
         style: [DESCRIPTION_PROMPTS[state.descriptionLevel] || DESCRIPTION_PROMPTS.balanced, isNsfw ? EROTIC_STYLE_PROMPT : "", isNsfw ? ("MỨC TRƯỞNG THÀNH: " + (EXPLICIT_PROMPTS[state.explicitLevel] || "")) : "", state.pronounRules ? ("QUY TẮC XƯNG HÔ:\n" + state.pronounRules) : ""].filter(Boolean).join("\n")
@@ -2927,14 +2944,15 @@ async function generateOneChapter(job) {
       const rx = await callWithRetry({
         endpoint: job.apiEndpoint, apiKey: job.apiKey, model,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: exPrompt }],
-        maxTokens: isNsfw ? 24000 : 16000, temperature: 0.8, totalMs: Math.max(60000, Math.min(420000, writeTimeLeft(isNsfw) - 15000)), creative: true
+        maxTokens: expandMaxTokens(loopGoal * 1.04 - w0), temperature: 0.8, totalMs: Math.max(60000, Math.min(420000, writeTimeLeft(isNsfw) - 15000)), creative: true
       }, 2);
       let tx = String(rx.text || "");
       if (detectNonVietnamese(tx)) { issues.push(`Mở rộng cuối #${ex}: AI trả sai ngôn ngữ`); continue; }
-      tx = formatParagraphs(stripForeign(stripThinkingOutput(tx)));
-      const acc = acceptExpandedChapter(text, tx, maxWords);
+      /* V12.32.13: AI chỉ trả các đoạn mới + chỗ chèn (không viết lại cả chương — vượt trần output ~7800 token). */
+      const exRes = applyExpandInserts(text, parseInsertBlocks(stripThinkingOutput(tx)), maxWords);
+      const acc = acceptExpandInserts(text, exRes);
       if (!acc.ok) { issues.push(`Mở rộng cuối #${ex}: ${acc.reason}`); continue; }
-      text = acc.text; truncated = false;
+      text = formatParagraphs(stripForeign(acc.text)); truncated = false;
       issues.push(`Mở rộng cuối #${ex}: ${w0} → ${acc.words} từ`);
     } catch (e) { issues.push(`Mở rộng cuối #${ex}: API lỗi — ${e.message}`); }
   }
@@ -2961,89 +2979,9 @@ async function generateOneChapter(job) {
 
 /* V12.10: chống tóm tắt bịa — kiểm tra tên/từ trong bản tóm tắt có thật trong chương không. */
 
-function extractModelFor(job, chapter, state) {
-  // V12.15: chương 18+ -> tóm tắt/gợi ý dùng model 18+ (model chính hay nói giảm nói tránh)
-  const nm = String(job.modelNsfw || (state && state.modelNsfw) || "").trim();
-  return (chapter && chapter.isNsfw && nm) ? nm : job.model;
-}
-async function generateSummary(job, chapter, n) {
-  try {
-    const full = String(chapter.text || "");
-    const body = representativeText(full, 90000);
-    const names = summaryNameList(full, (job.storyState && job.storyState.characters) || []);
-    const _adult = !!chapter.isNsfw;
-    const _mdl = extractModelFor(job, chapter, job.storyState);
-    const fullPrompt = buildSummaryPrompt(body, n, names, _adult);
-    const ask = async (content, temp, tries) => {
-      const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: _mdl, messages: [{ role: "user", content }], maxTokens: 1400, temperature: temp }, tries);
-      return (r.text || "").trim();
-    };
-    const looksMeta = s => !/\*\*Tóm tắt chương:?\*\*/i.test(s) || /^(Ngắn gọn|Súc tích|Đủ chi tiết|Cấu trúc rõ|Trung lập)\s*[:：]/im.test(s);
-    let summary = await ask(fullPrompt, 0.2, 2);
-    const g = summaryGrounded(summary, full);
-    if (looksMeta(summary) || !g.ok) {
-      try { const s2 = await ask(fullPrompt + summaryRetryNote(g), 0.1, 1); if (s2) summary = s2; } catch (_) {}
-    }
-    const _wc = t => (String(t).trim().match(/\S+/g) || []).length;
-    if (_wc(summary) > 450) {
-      // V12.29 COST: avoid a third model call only to shorten the summary.
-      // Keep the chapter itself untouched; compact summary locally at sentence boundary.
-      const words = summary.split(/\s+/).slice(0, 420).join(" ");
-      const cut = Math.max(words.lastIndexOf(". "), words.lastIndexOf("! "), words.lastIndexOf("? "));
-      summary = cut > words.length * 0.6 ? words.slice(0, cut + 1) : words;
-    }
-    if (!summaryGrounded(summary, full).ok) summary = extractiveSummary(full) || summary;
-    return summary;
-  } catch (_) { return ""; }
-}
-
 /* Tự động đề xuất định hướng ngắn cho (các) chương SAU — chỉ tham khảo,
    không ép chương kế phải theo ngay. Người dùng có thể sửa tay trong app. */
 const HINT_STYLES = {"normal": "Diễn tiến tự nhiên, tiếp nối mạch hiện tại.", "resist": "Nhân vật bị khống chế/yếu thế PHẢN KHÁNG rõ rệt trong chương này (hành động chống cự cụ thể); bên kia đáp trả và siết chặt hơn, hệ quả làm quan hệ quyền lực nặng thêm.", "twist": "Có một bước ngoặt/đảo chiều bất ngờ (lộ bí mật, lợi thế đổi bên, kế hoạch bị phá) nhưng vẫn hợp lý với thông tin đã có.", "escalate": "Leo thang: mức độ căng thẳng, rủi ro hoặc mức nóng cao hơn chương trước, có cú chốt gây hồi hộp.", "slow": "Nhịp chậm hơn: đào sâu nội tâm, quan hệ và hệ quả cảm xúc; ít biến cố mới."};
-async function generateNextChapterHint(job, chapter, summary, n, state) {
-  try {
-    const openThreads = (state.threads || []).filter(t => !["paid_off", "abandoned", "completed"].includes(t.status)).slice(0, 8).map(t => "- " + t.desc).join("\n");
-    const openForeshadowing = (state.foreshadowing || []).filter(f => !["paid_off", "abandoned", "resolved"].includes(f.status)).slice(-8).map(f => "- " + f.description).join("\n");
-    const _adult = !!chapter.isNsfw;
-    const _mdl = extractModelFor(job, chapter, state);
-    const prompt = [
-      `Bạn vừa đọc xong CHƯƠNG ${n} (tóm tắt bên dưới). Hãy viết GỢI Ý CHI TIẾT cho CHƯƠNG ${n + 1}.`,
-      job.hintFormat === "beats"
-        ? ("YÊU CẦU ĐỊNH DẠNG GỌN THEO NHỊP: mở đầu bằng dòng \"**Gợi ý ngắn Chương " + (n + 1) + ":**\", sau đó 1–3 đoạn ngắn kể lần lượt các nhịp chính theo đúng thứ tự diễn ra, mỗi nhịp 1–2 câu (ai làm gì, ở đâu, với đạo cụ/thiết lập nào, hệ quả). Câu cuối là dòng riêng bắt đầu bằng \"→ Kết chương ở:\" nêu rõ khoảnh khắc chương dừng lại. Tổng 150–260 từ, không gạch đầu dòng, không bình luận.")
-        : ("YÊU CẦU ĐỊNH DẠNG: mở đầu bằng dòng \"**Gợi ý ngắn Chương " + (n + 1) + ":**\", sau đó 4-6 đoạn văn ngắn, mỗi đoạn là một cảnh/nhịp truyện theo đúng thứ tự diễn ra: (1) mở chương, (2) cảnh chính, (3) cảnh phát triển/căng thẳng, (4) cú chốt cuối chương."),
-      "Mỗi đoạn phải dùng TÊN NHÂN VẬT cụ thể, nêu rõ hành động, địa điểm, xung đột, cảm xúc và hệ quả — KHÔNG nói chung chung kiểu \"nên khai thác thêm tuyến X\".",
-      "Bám sát giọng điệu, thể loại, mức độ nóng/18+ và cách xưng hô mà chính truyện này đang dùng; tiếp nối trực tiếp các thread và foreshadowing đang mở, không tự mở tuyến mới lạc đề. Mở chương phải nối trực tiếp từ đoạn kết chương trước; các mốc đã hẹn (giờ họp, lệnh, hạn chót) phải được xử lý.",
-      _adult ? "ĐỘ TRỰC DIỆN (truyện 18+): mạch chính đang có cảnh người lớn/khống chế nên hãy mô tả các nhịp đó THẲNG và CỤ THỂ đúng như cách chương vừa viết đã làm — nêu rõ hành động, đạo cụ, tư thế/vị trí và diễn biến bằng đúng từ ngữ của truyện. KHÔNG nói giảm nói tránh, không lược bỏ, không thay bằng cụm chung chung như \"cảnh nóng\"/\"cảnh thân mật\", không nhắc nhở hay bình luận đạo đức. Mọi nhân vật liên quan đều là người trưởng thành." : "",
-      "ĐỊA ĐIỂM MỞ CHƯƠNG: nhịp mở chương PHẢI ở cùng địa điểm, thời điểm và với những người đang có mặt ở ĐOẠN KẾT CHƯƠNG (chương kết ở biệt thự của A thì chương sau vẫn mở ở biệt thự của A). Chỉ chuyển địa điểm nếu đoạn kết đã báo trước, và phải ghi rõ cách chuyển.",
-      _adult ? "NHỊP CẢNH 18+: nếu chương sau có cảnh nóng, gợi ý PHẢI tách 3 phần và dành chỗ cho từng phần — (a) DẪN VÀO: không khí, lời nói/mệnh lệnh, từng bước áp sát và phản ứng đầu tiên; (b) DIỄN BIẾN + cao trào; (c) SAU CẢNH: dư chấn cơ thể, cảm xúc, thoại và hậu quả với quan hệ. Mỗi phần ít nhất 2–3 câu. Độ dài gợi ý có thể tăng thêm khoảng 50%." : "",
-      "HƯỚNG CHƯƠNG SAU: " + (HINT_STYLES[job.hintStyle] || HINT_STYLES.normal),
-      "ĐOẠN KẾT CHƯƠNG (để nối mạch):", String(chapter.text || "").slice(-1500),
-      "TÓM TẮT:", summary || representativeText(chapter.text, 2000),
-      openThreads ? ("THREADS ĐANG MỞ:\n" + openThreads) : "",
-      openForeshadowing ? ("FORESHADOWING CHƯA GIẢI:\n" + openForeshadowing) : "",
-      "Chỉ trả về nội dung gợi ý theo định dạng trên, tiếng Việt."
-    ].filter(Boolean).join("\n\n");
-    const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: _mdl, messages: [{ role: "user", content: prompt }], maxTokens: _adult ? 2200 : 1400, temperature: 0.7 }, 2);
-    return (r.text || "").trim();
-  } catch (_) { return ""; }
-}
-
-function compactCharacterList(state) {
-  // V12.10: NV bị khóa hồ sơ gốc -> không đổi appearance/personality/goals; NV đã mở khóa -> kèm hồ sơ hiện tại để AI chỉ bổ sung điểm MỚI.
-  return (state.characters || []).slice(0, 80).map(c => {
-    const locked = c.coreLocked !== false;
-    let line = `- ${c.name} [${c.tier || "supporting"}]${c.dead ? " [ĐÃ CHẾT]" : ""}${locked ? " [KHÓA HỒ SƠ GỐC]" : " [MỞ KHÓA: được cập nhật ngoại hình/tính cách/mục tiêu]"}`;
-    if (!locked) {
-      const cur = ["appearance","personality","goals"].map(k => c[k] ? `${k}: ${String(c[k]).slice(-260)}` : "").filter(Boolean).join(" | ");
-      if (cur) line += `\n    hiện có -> ${cur}`;
-    }
-    const missingF = ["age","gender","role","occupation","appearance","personality","goals"].filter(k => !String(c[k] || "").trim());
-    if (missingF.length) line += `\n    CHƯA CÓ (hãy điền nếu chương nêu rõ) -> ${missingF.join(", ")}`;
-    const jobInfo = ["role","occupation","position","faction"].map(k => c[k] ? `${k}: ${String(c[k]).slice(0, 80)}` : "").filter(Boolean).join(" | ");
-    if (jobInfo) line += `\n    nghề/chức vụ GỐC (giữ nguyên) -> ${jobInfo}`;
-    return line;
-  }).join("\n") || "(chưa có)";
-}
 
 function mergeTextField(oldValue, newValue, max = 2500) {
   const a = String(oldValue || "").trim(), b = String(newValue || "").trim();
@@ -3169,82 +3107,6 @@ async function runPool(count, worker, limit = EXTRACT_CONCURRENCY) {
   await Promise.all(runners);
 }
 
-async function updateCharacters(job, chapter, n, state) {
-  if (!Array.isArray(state.characters)) state.characters = [];
-  const chunks = chunkText(chapter.text, 12000, 400);
-  const res = { ok: true, chunks: chunks.length, nNew: 0, nUpdated: 0, failed: 0, dropped: 0, cut: 0, notes: [], problems: [] };
-  await runPool(chunks.length, async (i) => {
-    const tag = `NV lô ${i + 1}/${chunks.length}`;
-    if (timeLeft() < 360000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 6 phút — giữ thời gian an toàn cho Status/Memory`); return; }
-    const prompt = [
-      `CẬP NHẬT NHÂN VẬT — CHƯƠNG ${n}, PHẦN ${i + 1}/${chunks.length}.`,
-      "Chỉ liệt kê nhân vật thực sự xuất hiện hoặc được nhắc tới có ý nghĩa trong PHẦN này. Không bịa.",
-      (state.mainCharProfile && state.mainCharProfile.name) ? `Nhân vật chính tên là "${state.mainCharProfile.name}" — khi ghi nhân vật chính PHẢI dùng đúng tên này; KHÔNG tạo mục tên "nhân vật chính".` : "",
-      "Tối đa 12 nhân vật; mỗi trường mô tả (appearance/personality/goals/knowledge) khoảng 30-60 từ, cụ thể (đặc điểm, hành vi, chi tiết mới lộ ra trong phần này); chỉ ghi điểm MỚI so với mục \"hiện có\", không lặp lại hồ sơ cũ; NV đang [KHÓA HỒ SƠ GỐC] thì để trống các trường ĐÃ CÓ giá trị (appearance/personality/goals...), nhưng trường nằm trong mục CHƯA CÓ thì phải điền nếu chương nêu rõ. Trường nằm trong mục \"CHƯA CÓ\" của nhân vật: hãy ĐIỀN nếu chương nêu rõ (ví dụ \"nữ thư ký\" → gender: nữ, occupation: thư ký; tuổi/chiều cao/tóc/mắt chỉ khi có con số hoặc mô tả trực tiếp). Trường đã có giá trị thì để trống, không ghi đè. Không đoán. Không dùng dấu \" bên trong giá trị chuỗi. Chỉ trả về JSON array.",
-      "Nghề/chức vụ (role, occupation, position, faction) là DỮ LIỆU GỐC: KHÔNG đổi, KHÔNG suy diễn từ cách người khác xưng hô, từ việc nhân vật làm việc với giám đốc/sếp, hay từ cảnh nhân vật ngồi ghế/ở phòng của ai. Chỉ đổi khi chương KỂ RÕ một sự kiện thăng chức/bổ nhiệm/từ chức/đổi nghề đã xảy ra; khi đó đặt explicitCoreChange=true và changeEvidence phải TRÍCH NGUYÊN VĂN câu trong chương cho thấy sự kiện đó. Nếu không có, để trống role/occupation/position/faction.",
-      "Giải thích thêm: speech = cách nói riêng (giọng, khẩu ngữ, câu cửa miệng); strength = điểm mạnh/kỹ năng thể hiện trong chương; independentPlot = TUYẾN TRUYỆN RIÊNG của NV (việc họ tự làm/âm mưu ngoài tuyến chính, chỉ ghi diễn biến MỚI); các trường 18+ (sexualExperience, boundaries, taboos, preferences, attractionToMC, tensionWithMC, consentNotes) CHỈ ghi khi chương thể hiện rõ về NV trưởng thành, nếu không thì để trống.",
-      "Danh sách tên đã biết:", compactCharacterList(state),
-      "NỘI DUNG PHẦN:", chunks[i],
-      'JSON: [{"name":"","tier":"background|minor|supporting|important|major","age":"","gender":"","position":"","speech":"","height":"","bodyType":"","measurements":"","hair":"","eyes":"","skin":"","role":"","relevanceToMC":"","voice":"","scent":"","style":"","scars":"","tattoos":"","schedule":"","strength":"","independentPlot":"","sexualExperience":"","boundaries":"","taboos":"","preferences":"","attractionToMC":"","tensionWithMC":"","consentNotes":"","appearance":"","personality":"","occupation":"","faction":"","goals":"","secret":"","weakness":"","fear":"","knowledge":"","currentLocation":"","physicalState":"","mentalState":"","chapterEvent":"","relationshipWithMain":{"trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","stage":"","notes":""},"relationships":[{"withName":"","stage":"","trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"","notes":""}],"isDead":false,"explicitCoreChange":false,"changeEvidence":""}]'
-    ].join("\n\n");
-    try {
-      const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "system", content: "Bạn là bộ máy trích xuất dữ liệu nhân vật. Không được viết văn xuôi. Chỉ trả JSON hợp lệ." }, { role: "user", content: prompt }], maxTokens: 11500, temperature: 0.15 }, 2);
-      const parsed = await parseArrayWithRepair(job, r.text);
-      if (!parsed.valid) {
-        res.failed++;
-        res.notes.push(`${tag}: KHÔNG đọc được JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`);
-        return;
-      }
-      let created = 0, upd = 0, merr = 0;
-      parsed.items.forEach(u => {
-        try { const x = mergeCharacter(state, u, n, chunks[i]); if (x.created) created++; else if (x.updated) upd++; }
-        catch (e) { merr++; }
-      });
-      res.nNew += created; res.nUpdated += upd; res.dropped += (parsed.dropped || 0) + merr;
-      if (r.finishReason === "length" || parsed.truncated) {
-        res.cut++;
-        // V12.25: khi lô NV bị cắt, không chỉ salvage JSON — gọi một lượt bổ sung
-        // để lấy các NV còn thiếu ở cuối lô. Dùng prompt siêu gọn và loại tên đã lấy.
-        if (timeLeft() > 210000) {
-          try {
-            const knownNames = parsed.items.map(x => x && x.name).filter(Boolean).join(", ");
-            const retryPrompt = [
-              `TIẾP TỤC TRÍCH XUẤT NHÂN VẬT — CHƯƠNG ${n}, PHẦN ${i + 1}/${chunks.length}.`,
-              "Lượt trước bị cắt giữa JSON. CHỈ trả các nhân vật còn thiếu chưa xuất hiện trong danh sách bên dưới.",
-              "Không lặp lại nhân vật đã có. Chỉ tên + thay đổi thực sự được chứng minh trong đoạn. Mỗi nhân vật tối đa 5 trường, mỗi trường tối đa 20 từ.",
-              "Nếu không còn nhân vật nào, trả []. Chỉ JSON array, không markdown.",
-              "ĐÃ LẤY: " + (knownNames || "(chưa lấy được)"),
-              "ĐOẠN NGUỒN:", chunks[i]
-            ].join("\n\n");
-            const rr = await callOpenRouter({
-              endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model,
-              messages: [{ role: "system", content: "Chỉ trả JSON array nhân vật, không văn xuôi." }, { role: "user", content: retryPrompt }],
-              maxTokens: 5000, temperature: 0.05, totalMs: Math.min(100000, Math.max(30000, timeLeft() - 30000))
-            });
-            const rp = parseArray(rr.text || "[]");
-            if (rp.valid && rp.items.length) {
-              let rc = 0, ru = 0, rm = 0;
-              rp.items.forEach(u => { try { const x = mergeCharacter(state, u, n, chunks[i]); if (x.created) rc++; else if (x.updated) ru++; } catch (_) { rm++; } });
-              res.nNew += rc; res.nUpdated += ru; res.dropped += (rp.dropped || 0) + rm;
-              res.notes.push(`${tag}: bổ sung sau cắt +${rc} NV mới, ${ru} NV cập nhật (${fin(rr)})`);
-            } else {
-              res.notes.push(`${tag}: lượt bổ sung không tìm được NV còn thiếu (${fin(rr)})`);
-            }
-          } catch (e) {
-            res.notes.push(`${tag}: không thể lấy phần NV còn thiếu — ${sampleOf(e.message, 140)}`);
-          }
-        }
-      }
-      res.notes.push(`${tag}: ${fin(r)}, parse=${parsed.method || "?"}, ${parsed.items.length} NV (+${created} mới, ${upd} cập nhật)${parsed.dropped ? `, ${parsed.dropped} object hỏng bị bỏ` : ""}${merr ? `, ${merr} lỗi merge` : ""}`);
-    } catch (e) { res.failed++; res.notes.push(`${tag}: LỖI gọi model — ${sampleOf(e.message, 160)}`); }
-  });
-  res.ok = res.failed < chunks.length;
-  if (res.failed) res.problems.push(`NV: ${res.failed}/${chunks.length} lô không đọc được`);
-  if (res.cut) res.problems.push(`NV: model bị cắt cụt ở ${res.cut} lô (có thể thiếu NV cuối lô)`);
-  if (res.dropped) res.problems.push(`NV: ${res.dropped} object NV hỏng bị bỏ`);
-  return res;
-}
-
 function findThread(state, t) {
   const key = normalizeName(t.matchExistingDesc || t.desc).slice(0, 50);
   if (!key) return null;
@@ -3281,40 +3143,6 @@ function applyWorld(obj, n, state) {
       x.lastUpdated = n; if (!Array.isArray(x.history)) x.history = []; x.history.push({ chapter: n, status: x.status, note: t.desc });
     }
   });
-}
-async function updateWorld(job, chapter, n, state) {
-  if (!Array.isArray(state.locations)) state.locations = [];
-  if (!Array.isArray(state.items)) state.items = [];
-  if (!Array.isArray(state.threads)) state.threads = [];
-  const chunks = chunkText(chapter.text, 13000, 400);
-  const res = { ok: true, chunks: chunks.length, failed: 0, cut: 0, notes: [], problems: [] };
-  const keys = ["locations", "items", "threads"];
-  await runPool(chunks.length, async (i) => {
-    const tag = `Thế giới lô ${i + 1}/${chunks.length}`;
-    if (timeLeft() < 360000) { res.failed++; res.notes.push(`${tag}: BỎ QUA vì còn dưới 6 phút — giữ thời gian an toàn cho Status/Memory`); return; }
-    const prompt = [
-      `CẬP NHẬT THẾ GIỚI — CHƯƠNG ${n}, PHẦN ${i + 1}/${chunks.length}.`,
-      "Chỉ trả địa điểm/vật phẩm/thread mới hoặc thay đổi rõ trong phần này. Không bịa. Mô tả ngắn (tối đa 25 từ). Không dùng dấu \" bên trong giá trị chuỗi.",
-      "Địa điểm hiện có: " + state.locations.map(x => x.name).join(", "),
-      "Vật phẩm hiện có: " + state.items.map(x => x.name).join(", "),
-      "Thread hiện có (20 gần nhất; mô tả rút gọn để giảm token):\n" + state.threads.slice(-20).map(x => `${x.type}: ${String(x.desc || "").slice(0, 140)} [${x.status}]`).join("\n"),
-      "NỘI DUNG:", chunks[i],
-      'JSON: {"locations":[{"name":"","description":"","status":"active|destroyed|abandoned|locked"}],"items":[{"name":"","description":"","owner":"","status":"active|lost|destroyed|stored"}],"threads":[{"type":"open_thread|foreshadowing|consequence","desc":"","status":"seeded|developing|paid_off|abandoned","matchExistingDesc":""}]}'
-    ].join("\n\n");
-    try {
-      const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "system", content: "Bạn là bộ máy trích xuất world state. Chỉ trả JSON hợp lệ." }, { role: "user", content: prompt }], maxTokens: 9200, temperature: 0.15 }, 2);
-      const parsed = await parseObjectWithRepair(job, r.text, keys);
-      if (!parsed.obj) { res.failed++; res.notes.push(`${tag}: KHÔNG đọc được JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`); return; }
-      const before = [state.locations.length, state.items.length, state.threads.length];
-      applyWorld(parsed.obj, n, state);
-      if (r.finishReason === "length") res.cut++;
-      res.notes.push(`${tag}: ${fin(r)}, parse=${parsed.method || "?"}, +${state.locations.length - before[0]} địa điểm, +${state.items.length - before[1]} vật phẩm, +${state.threads.length - before[2]} thread`);
-    } catch (e) { res.failed++; res.notes.push(`${tag}: LỖI — ${sampleOf(e.message, 160)}`); }
-  });
-  res.ok = res.failed < chunks.length;
-  if (res.failed) res.problems.push(`Thế giới: ${res.failed}/${chunks.length} lô không đọc được`);
-  if (res.cut) res.problems.push(`Thế giới: model bị cắt cụt ở ${res.cut} lô`);
-  return res;
 }
 
 function normalizeStatusState(state, n) {
@@ -3546,176 +3374,6 @@ function mergeStatusChanges(state, n, extraction) {
   status.conflicts = status.conflicts.slice(-50);
   status.schemaVersion = 2;
   return { status, applied, conflicts: validatedConflicts.length };
-}
-
-function formatStatus(obj, n) {
-  // Giữ hàm cũ để dữ liệu legacy vẫn đọc được; dữ liệu mới dùng formatStatusV2.
-  if (obj && obj.schemaVersion >= 2 && obj.currentState) return formatStatusV2(obj, n);
-  const lines = [`Current Status Update - Sau Chương ${n}`];
-  const map = [
-    ["Tình hình chung", obj.currentSituation], ["Nhân vật chính", obj.mainCharacter], ["Nhân vật liên quan", obj.characters],
-    ["Vị trí", obj.locations], ["Sức mạnh/cảnh giới", obj.power], ["Quan hệ", obj.relationships],
-    ["Bí mật/kiến thức", obj.knowledge], ["Vấn đề chưa giải quyết", obj.unresolved], ["Hệ quả tiếp theo", obj.nextHooks]
-  ];
-  map.forEach(([k, v]) => { if (v) lines.push(`- ${k}: ${v}`); });
-  return lines.join("\n");
-}
-
-async function updateCurrentStatus(job, chapter, n, state) {
-  const res = { ok: false, notes: [], problems: [] };
-  if (timeLeft() < 90000) { res.notes.push("Status: BỎ QUA vì còn dưới 90 giây"); res.problems.push("Status: bỏ qua vì không còn đủ thời gian an toàn"); return res; }
-
-  const previous = state.currentStatus || "(chưa có)";
-  const roster = statusCharacterRoster(state);
-  const rosterText = roster.length ? roster.map(c => `- ${c.id} | ${c.name} | vai trò:${c.role} | tier:${c.tier}`).join("\n") : "(chưa có danh sách nhân vật)";
-  const source = [
-    "CURRENT STATUS HIỆN TẠI:", previous,
-    "",
-    "DANH SÁCH NHÂN VẬT ĐÃ TỒN TẠI (KHÔNG ĐƯỢC TỰ TẠO NHÂN VẬT MỚI):", rosterText,
-    "",
-    "TÓM TẮT CHƯƠNG:", chapter.summary || "",
-    "",
-    "ĐOẠN CUỐI CHƯƠNG:", chapter.text.slice(-9000)
-  ].join("\n");
-
-  const keys = ["changes"];
-  try {
-    const r = await callExtract({
-      endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model,
-      messages: [{
-        role: "user",
-        content: [
-          `CẬP NHẬT CURRENT STATUS SAU CHƯƠNG ${n} — CHỈ TRÍCH XUẤT THAY ĐỔI.`,
-          "Đây là hệ thống CHANGE → VALIDATE → MERGE. TUYỆT ĐỐI không viết lại toàn bộ Current Status.",
-          "1) Chỉ đánh dấu UPDATED/ADDED/RESOLVED khi chương có bằng chứng rõ ràng.",
-          "2) Không được xóa dữ liệu cũ chỉ vì chương không nhắc lại.",
-          "3) Không được tự tạo nhân vật mới. Chỉ cập nhật nhân vật có trong DANH SÁCH NHÂN VẬT.",
-          "4) Mỗi thay đổi phải có evidence là mô tả ngắn, bám trực tiếp vào nội dung chương.",
-          "5) Nếu thông tin mới mâu thuẫn với dữ liệu cũ mà chưa đủ căn cứ để ghi đè, đưa vào conflicts thay vì cập nhật.",
-          "6) Nhân vật không thay đổi phải được ghi status=unchanged hoặc để hệ thống tự bổ sung; không xóa hồ sơ cũ.",
-          "7) Tất cả output bằng TIẾNG VIỆT.",
-          source,
-          `Trả DUY NHẤT JSON theo schema:
-{
-  "changes": {
-    "time":{"status":"updated|unchanged","value":"","evidence":""},
-    "situation":{"status":"updated|unchanged","value":"","evidence":""},
-    "mainEvent":{"status":"updated|unchanged","value":"","evidence":""},
-    "location":{"status":"updated|unchanged","value":"","evidence":""},
-    "overall":{"status":"updated|unchanged","value":"","evidence":""},
-    "mainCharacter":{"status":"updated|unchanged","value":"","evidence":""},
-    "relationships":{"status":"updated|unchanged","value":"","evidence":""},
-    "power":{"status":"updated|unchanged","value":"","evidence":""},
-    "rules":{"status":"added|updated|unchanged","value":"","evidence":""},
-    "conflict":{"status":"added|updated|unchanged","value":"","evidence":""},
-    "nextGoal":{"status":"updated|unchanged","value":"","evidence":""},
-    "knowledge":{"status":"added|updated|unchanged","value":"","evidence":""},
-    "unresolved":{"status":"added|resolved|updated|unchanged","value":"","evidence":""},
-    "secrets":{"status":"added|resolved|updated|unchanged","value":"","evidence":""},
-    "weaknesses":{"status":"added|updated|unchanged","value":"","evidence":""},
-    "characterChanges":[
-      {
-        "characterId":"",
-        "characterName":"",
-        "status":"updated|unchanged",
-        "changes":{"age":"","appearance":"","body":"","clothing":"","marks":"","cultivation":"","cultivationState":"","emotion":"","submission":"","ruleCompliance":"","socialStatus":"","occupation":"","residence":"","romance":"","weakness":"","goals":"","items":"","publicPersonality":"","privatePersonality":"","psychology":"","relationships":"","physicalState":"","mentalState":"","knowledge":""},
-        "evidence":""
-      }
-    ],
-    "conflicts":[
-      {"characterName":"","field":"","oldValue":"","newValue":"","description":"","evidence":""}
-    ]
-  }
-}`,
-          "Không điền giá trị cho trường không thay đổi. Không dùng null cho thay đổi. Không markdown."
-        ].join("\n\n")
-      }],
-      maxTokens: 5200, temperature: 0.10
-    }, 2);
-
-    const parsed = await parseObjectWithRepair(job, r.text, keys);
-    const extraction = parsed.obj;
-    if (!extraction || !extraction.changes || typeof extraction.changes !== "object") {
-      res.notes.push(`Status: KHÔNG đọc được change JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`);
-      res.problems.push("Status: change extraction lỗi; Status cũ được giữ nguyên");
-      return res;
-    }
-
-    const merged = mergeStatusChanges(state, n, extraction);
-    if (!merged.applied && !merged.conflicts) {
-      // Không coi output rỗng là lý do để xóa/ghi đè Current Status.
-      res.notes.push("Status: không có thay đổi có bằng chứng; giữ nguyên trạng thái cũ");
-      state.statusState = merged.status;
-      state.currentStatus = formatStatusV2(merged.status, n);
-      state.lastStatusChapter = n;
-      res.ok = true;
-      return res;
-    }
-
-    state.statusState = merged.status;
-    state.currentStatus = formatStatusV2(merged.status, n);
-    state.lastStatusChapter = n;
-    res.ok = true;
-    res.notes.push(`Status: CHANGE→VALIDATE→MERGE, áp dụng ${merged.applied} thay đổi, ${merged.conflicts} xung đột; ${fin(r)}, parse=${parsed.method || "?"}`);
-    if (r.finishReason === "length") res.problems.push("Status: model bị cắt cụt; chỉ merge thay đổi hợp lệ đã đọc được");
-    return res;
-  } catch (e) {
-    res.notes.push(`Status: LỖI — ${sampleOf(e.message, 160)}`);
-    res.problems.push("Status: lỗi gọi model; Status cũ được giữ nguyên");
-    return res;
-  }
-}
-
-async function updateLongMemory(job, chapter, n, state) {
-  const res = { ok: false, notes: [], problems: [] };
-  if (timeLeft() < 90000) { res.notes.push("Memory: BỎ QUA vì còn dưới 90 giây"); res.problems.push("Memory: bỏ qua vì không còn đủ thời gian an toàn"); return res; }
-  if (!Array.isArray(state.timeline)) state.timeline = [];
-  if (!Array.isArray(state.foreshadowing)) state.foreshadowing = [];
-  if (!Array.isArray(state.knowledgeLedger)) state.knowledgeLedger = [];
-  const source = [
-    "TÓM TẮT:", chapter.summary || "",
-    "ĐOẠN ĐẦU:", chapter.text.slice(0, 3500),
-    "ĐOẠN CUỐI:", chapter.text.slice(-7500),
-    "FORESHADOWING ĐANG MỞ:", state.foreshadowing.filter(x => !["paid_off", "abandoned", "resolved"].includes(x.status)).slice(-20).map(x => `${x.description} [${x.status}]`).join("\n")
-  ].join("\n\n");
-  const keys = ["events", "foreshadowing", "knowledge"];
-  try {
-    const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "user", content: [
-      `CẬP NHẬT LONG-TERM MEMORY SAU CHƯƠNG ${n}.`,
-      "Chỉ ghi sự kiện có bằng chứng. Không bịa. Mỗi mục ngắn gọn (tối đa 30 từ). Không dùng dấu \" bên trong chuỗi.",
-      source,
-      'Trả DUY NHẤT JSON: {"events":[{"type":"event|consequence|reveal|death|power_change","summary":"","causes":"","consequences":""}],"foreshadowing":[{"description":"","status":"seeded|developing|paid_off|abandoned","match":"","characters":""}],"knowledge":[{"character":"","fact":"","confidence":"direct|inferred|reported"}]}'
-    ].join("\n\n") }], maxTokens: 5200, temperature: 0.10 }, 2);
-    const parsed = await parseObjectWithRepair(job, r.text, keys);
-    const obj = parsed.obj;
-    if (!obj) { res.notes.push(`Memory: KHÔNG đọc được JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`); res.problems.push("Memory: không đọc được JSON; dữ liệu cũ được giữ"); return res; }
-    const b = [state.timeline.length, state.foreshadowing.length, state.knowledgeLedger.length];
-    (Array.isArray(obj.events) ? obj.events : []).forEach(e => {
-      if (!e?.summary) return;
-      state.timeline.push({ id: genId("ev"), chapter: n, type: e.type || "event", summary: e.summary, causes: e.causes || "", consequences: e.consequences || "" });
-    });
-    (Array.isArray(obj.foreshadowing) ? obj.foreshadowing : []).forEach(f => {
-      if (!f?.description) return;
-      const key = normalizeName(f.match || f.description).slice(0, 60);
-      let x = state.foreshadowing.find(a => normalizeName(a.description).slice(0, 60) === key || normalizeName(a.description).includes(key.slice(0, 30)));
-      if (!x) state.foreshadowing.push({ id: genId("fs"), description: f.description, status: f.status || "seeded", plantedChapter: n, lastUpdated: n, characters: f.characters || "" });
-      else { if (f.status) x.status = f.status; x.lastUpdated = n; if (f.characters) x.characters = f.characters; }
-    });
-    (Array.isArray(obj.knowledge) ? obj.knowledge : []).forEach(k => {
-      if (!k?.character || !k?.fact) return;
-      const key = normalizeName(k.character) + "|" + normalizeName(k.fact).slice(0, 80);
-      let x = state.knowledgeLedger.find(a => normalizeName(a.character) + "|" + normalizeName(a.fact).slice(0, 80) === key);
-      if (!x) state.knowledgeLedger.push({ id: genId("kl"), character: k.character, fact: k.fact, confidence: k.confidence || "direct", firstChapter: n, lastUpdated: n });
-      else x.lastUpdated = n;
-    });
-    const added = [state.timeline.length - b[0], state.foreshadowing.length - b[1], state.knowledgeLedger.length - b[2]];
-    // Keep all existing long-term memories. New entries are de-duplicated before append.
-    state.lastMemorySyncChapter = n;
-    res.ok = true;
-    res.notes.push(`Memory: ${fin(r)}, parse=${parsed.method || "?"}, +${added[0]} sự kiện, +${added[1]} foreshadowing, +${added[2]} knowledge`);
-    if (r.finishReason === "length") res.problems.push("Memory: model bị cắt cụt");
-    return res;
-  } catch (e) { res.notes.push(`Memory: LỖI — ${sampleOf(e.message, 160)}`); res.problems.push("Memory: lỗi gọi model; dữ liệu cũ được giữ"); return res; }
 }
 
 /* V12.30: one model request for the whole postprocess. Parsing and merging are deliberately
@@ -4055,24 +3713,6 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
   }
 }
 
-async function scanScenes(job, chapter, n, state) {
-  const res = { ok: true, skipped: true, notes: [], problems: [] };
-  return res; /* v10.1: bỏ Scene Tracker cho nhẹ */
-  if (!state.mature) { res.skipped = true; res.notes.push("Scene: bỏ qua (chưa bật 'Cho phép trưởng thành')"); return res; }
-  if (timeLeft() < 60000) { res.ok = false; res.notes.push("Scene: BỎ QUA vì sắp hết thời gian job"); res.problems.push("Scene: bỏ qua vì hết thời gian"); return res; }
-  const source = representativeText(chapter.text, 24000);
-  try {
-    const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "user", content: `Nếu chương có cảnh trưởng thành, trích xuất ngắn gọn (mô tả tối đa 30 từ, không dùng dấu " trong chuỗi). Nếu không có trả []. Chỉ JSON array.\n${source}\n[{"intensity":1,"participants":[],"description":"","structure":"kiss|foreplay|sex|other"}]` }], maxTokens: 4600, temperature: 0.1 }, 2);
-    const parsed = await parseArrayWithRepair(job, r.text);
-    if (!parsed.valid) { res.ok = false; res.notes.push(`Scene: KHÔNG đọc được JSON (${fin(r)}, đầu: "${sampleOf(r.text)}")`); res.problems.push("Scene: không đọc được dữ liệu cảnh"); return res; }
-    if (!Array.isArray(state.scenes)) state.scenes = [];
-    let added = 0;
-    parsed.items.forEach(s => { if (!s?.description) return; added++; state.scenes.push({ id: genId("s"), chapter: n, intensity: Math.max(1, Math.min(10, Number(s.intensity) || 5)), participants: Array.isArray(s.participants) ? s.participants : [], description: s.description, structure: s.structure || "other", createdAt: Date.now() }); });
-    res.notes.push(`Scene: ${fin(r)}, parse=${parsed.method || "?"}, +${added} cảnh`);
-    return res;
-  } catch (e) { res.ok = false; res.notes.push(`Scene: LỖI — ${sampleOf(e.message, 160)}`); res.problems.push("Scene: lỗi gọi model"); return res; }
-}
-
 function cleanJobForStore(job) {
   return { ...job, apiKey: job.apiKeyEncrypted ? null : (job.apiKey || null), apiKeyEncrypted: job.apiKeyEncrypted || null };
 }
@@ -4140,6 +3780,8 @@ async function rewriteWorkerDraft(job, chapter, n, review) {
 }
 async function rewriteWorkerWhole(job, chapter, n, review) {
   const oldText = String(chapter.text || ""), oldWc = countWords(oldText);
+  const fit = wholeRewriteFits(oldText);
+  if (!fit.fits) return { ok: false, reason: `chương ${oldWc} từ (≈${fit.est} token) quá dài để AI viết lại cả chương trong giới hạn ${fit.cap} token — bỏ qua, chỉ dùng vá cục bộ` };
   const st = job.storyState;
   const prompt = buildRewritePrompt({
     chapterNumber: n, storyControl: storyControlPrompt(st),
@@ -4152,7 +3794,7 @@ async function rewriteWorkerWhole(job, chapter, n, review) {
     const r = await callWithRetry({
       endpoint: job.apiEndpoint, apiKey: job.apiKey, model: chapter.modelUsed || job.model,
       messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }],
-      maxTokens: 16000, temperature: 0.55, totalMs: Math.max(45000, Math.min(240000, writeTimeLeft(false) - 10000)), creative: true
+      maxTokens: AI_MAX_OUTPUT_TOKENS, temperature: 0.55, totalMs: Math.max(45000, Math.min(240000, writeTimeLeft(false) - 10000)), creative: true
     }, 1);
     let text = String(r.text || "").trim().replace(/^\s*(?:TIÊU ĐỀ|TITLE)\s*:\s*[^\n]+\n+/i, "").replace(/^\s*NỘI DUNG\s*:\s*/i, "").trim();
     text = formatParagraphs(stripForeign(stripThinkingOutput(dedupeRepeatedScene(text))));
