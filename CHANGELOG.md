@@ -1,10 +1,23 @@
 # CHANGELOG — Xưởng Truyện AI
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.32.15** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.32.17** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
+
+## [V12.32.17] — Nhân vật phụ có đời riêng (ngôi 3 giới hạn không còn dồn hết vào nhân vật chính)
+
+- **Vấn đề:** prompt ghi nhân vật chính "BẮT BUỘC là trung tâm mọi chương" và "Ngôi 3 giới hạn" không được giải thích, nên AI hiểu là chỉ viết xoay quanh nhân vật chính; nhân vật phụ chỉ phản ứng.
+- **Ngôi 3 giới hạn** nay được mô tả đúng: mỗi cảnh/đoạn bám sát MỘT nhân vật (thường là nhân vật chính, được chuyển sang nhân vật phụ ở cảnh khác có chuyển cảnh rõ), không nhảy vào đầu nhiều người trong cùng đoạn.
+- Nhân vật chính là **trục** và phải có mặt trong chương, nhưng không cần có mặt ở mọi cảnh; kế hoạch chương ghi nhịp nào theo góc nhìn nhân vật nào.
+- Story Control thêm "NHÂN VẬT PHỤ CÓ ĐỜI RIÊNG": việc riêng, mong muốn riêng, hành động chủ động kể cả khi nhân vật chính vắng mặt.
+
+## [V12.32.16] — Thử lại bền hơn khi nhà cung cấp model trả 502/5xx
+
+- **Vấn đề:** lỗi "502: The server had an error while processing your request" là lỗi từ phía nhà cung cấp model/endpoint (quá tải, model sập tạm); app chỉ thử lại tổng ~7 giây (client) hoặc ~3 giây (worker) nên dễ bỏ cuộc.
+- **Client:** tối đa 4 lần thử lại; lỗi 5xx chờ 2s/5s/10s/20s (tôn trọng Retry-After, tối đa 30s); thông báo lỗi cuối nêu rõ lỗi phía nhà cung cấp.
+- **Worker nền:** lỗi 5xx được thêm 1 lần thử và chờ 2s/6s/12s, nhưng dừng nếu không còn đủ thời gian an toàn của hàm.
 
 ## [V12.32.15] — Thời gian chảy theo mạch truyện (văn xuôi thuần túy)
 

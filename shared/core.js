@@ -61,7 +61,7 @@ function buildChapterPlanPrompt(o) {
     "Bối cảnh:", o.context, "",
     o.storyControl || "", "",
     o.recent ? ("Chương gần nhất:\n" + String(o.recent).slice(0, 8000)) : "Chương đầu tiên.", "",
-    o.mainCharName ? ("NHÂN VẬT CHÍNH BẮT BUỘC: " + o.mainCharName + " — PHẢI là nhân vật trung tâm của kế hoạch này.") : "",
+    o.mainCharName ? ("NHÂN VẬT CHÍNH: " + o.mainCharName + " — là TRỤC của kế hoạch này và phải có mặt trong chương, nhưng KHÔNG cần có mặt ở mọi cảnh: nhân vật phụ quan trọng có thể có cảnh/nhịp riêng (việc riêng, mục tiêu riêng, hành động chủ động) rồi giao với tuyến của nhân vật chính. Ghi rõ nhịp nào theo góc nhìn nhân vật nào.") : "",
     hasUserBrief ? [
       "===== YÊU CẦU/GỢI Ý DO NGƯỜI DÙNG VIẾT — NGUỒN SỰ KIỆN ƯU TIÊN CAO =====",
       userDirective ? ("MỆNH LỆNH:\n" + userDirective) : "",
@@ -1200,6 +1200,7 @@ function storyControlPrompt(st) {
     sc.noRetcon ? "- NO RETCON: không tự sửa lịch sử, canon hoặc ký ức đã xác nhận. Nếu phát hiện mâu thuẫn, giữ nguyên dữ liệu cũ và đánh dấu xung đột để xử lý sau." : "",
     `- STATE LOCK: không tự ý thay đổi các trường canon/quan trọng (${sc.lockedFields.join(", ")}). Muốn thay đổi phải có sự kiện trong truyện làm bằng chứng và cập nhật trạng thái sau chương.`,
     sc.agencyRequired ? "- CHARACTER AGENCY: nhân vật quan trọng phải có mục tiêu, động cơ, phản ứng và lựa chọn riêng; không biến nhân vật thành công cụ của plot." : "",
+    "- NHÂN VẬT PHỤ CÓ ĐỜI RIÊNG: nhân vật phụ có tên không chỉ phản ứng với nhân vật chính; họ có việc riêng, mong muốn riêng, tự quyết định và hành động chủ động (kể cả khi nhân vật chính không có mặt). Ngôi 3 giới hạn nghĩa là mỗi cảnh/đoạn bám sát MỘT nhân vật (thường là nhân vật chính, nhưng cảnh khác có thể bám nhân vật phụ), không nhảy vào đầu nhiều người trong cùng một đoạn.",
     "- Không tự tạo nhân vật quan trọng mới nếu nhân vật hiện có có thể đảm nhiệm vai trò đó.",
     "- Không tạo năng lực, quy tắc thế giới hoặc vật phẩm quan trọng mới chỉ để giải quyết vấn đề tức thời.",
     "- Chapter Focus chỉ kiểm soát phạm vi chủ đề trưởng thành; không được dùng nó để mở rộng cốt truyện ngoài brief.",

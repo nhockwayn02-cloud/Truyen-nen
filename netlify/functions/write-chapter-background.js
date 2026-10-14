@@ -124,7 +124,7 @@ function buildChapterPlanPrompt(o) {
     "Bối cảnh:", o.context, "",
     o.storyControl || "", "",
     o.recent ? ("Chương gần nhất:\n" + String(o.recent).slice(0, 8000)) : "Chương đầu tiên.", "",
-    o.mainCharName ? ("NHÂN VẬT CHÍNH BẮT BUỘC: " + o.mainCharName + " — PHẢI là nhân vật trung tâm của kế hoạch này.") : "",
+    o.mainCharName ? ("NHÂN VẬT CHÍNH: " + o.mainCharName + " — là TRỤC của kế hoạch này và phải có mặt trong chương, nhưng KHÔNG cần có mặt ở mọi cảnh: nhân vật phụ quan trọng có thể có cảnh/nhịp riêng (việc riêng, mục tiêu riêng, hành động chủ động) rồi giao với tuyến của nhân vật chính. Ghi rõ nhịp nào theo góc nhìn nhân vật nào.") : "",
     hasUserBrief ? [
       "===== YÊU CẦU/GỢI Ý DO NGƯỜI DÙNG VIẾT — NGUỒN SỰ KIỆN ƯU TIÊN CAO =====",
       userDirective ? ("MỆNH LỆNH:\n" + userDirective) : "",
@@ -1263,6 +1263,7 @@ function storyControlPrompt(st) {
     sc.noRetcon ? "- NO RETCON: không tự sửa lịch sử, canon hoặc ký ức đã xác nhận. Nếu phát hiện mâu thuẫn, giữ nguyên dữ liệu cũ và đánh dấu xung đột để xử lý sau." : "",
     `- STATE LOCK: không tự ý thay đổi các trường canon/quan trọng (${sc.lockedFields.join(", ")}). Muốn thay đổi phải có sự kiện trong truyện làm bằng chứng và cập nhật trạng thái sau chương.`,
     sc.agencyRequired ? "- CHARACTER AGENCY: nhân vật quan trọng phải có mục tiêu, động cơ, phản ứng và lựa chọn riêng; không biến nhân vật thành công cụ của plot." : "",
+    "- NHÂN VẬT PHỤ CÓ ĐỜI RIÊNG: nhân vật phụ có tên không chỉ phản ứng với nhân vật chính; họ có việc riêng, mong muốn riêng, tự quyết định và hành động chủ động (kể cả khi nhân vật chính không có mặt). Ngôi 3 giới hạn nghĩa là mỗi cảnh/đoạn bám sát MỘT nhân vật (thường là nhân vật chính, nhưng cảnh khác có thể bám nhân vật phụ), không nhảy vào đầu nhiều người trong cùng một đoạn.",
     "- Không tự tạo nhân vật quan trọng mới nếu nhân vật hiện có có thể đảm nhiệm vai trò đó.",
     "- Không tạo năng lực, quy tắc thế giới hoặc vật phẩm quan trọng mới chỉ để giải quyết vấn đề tức thời.",
     "- Chapter Focus chỉ kiểm soát phạm vi chủ đề trưởng thành; không được dùng nó để mở rộng cốt truyện ngoài brief.",
@@ -2007,15 +2008,24 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
 
 async function callWithRetry(args, tries = 3) {
   let last;
-  for (let i = 0; i < tries; i++) {
+  /* V12.32.16: lỗi 5xx của nhà cung cấp model (502 "The server had an error…") -> thêm một lần thử và chờ lâu hơn (2s/6s/12s), nhưng không vượt thời gian an toàn của worker. */
+  let maxTries = tries;
+  for (let i = 0; i < maxTries; i++) {
     try { return await callOpenRouter(args); }
     catch (e) {
       last = e;
       const retryable = e.retryable || [408, 425, 429, 500, 502, 503, 504, 524].includes(e.status);
       if (!retryable) break;
-      if (i < tries - 1) await new Promise(r => setTimeout(r, Math.min(8000, 900 * Math.pow(2, i))));
+      const is5xx = Number(e.status) >= 500;
+      if (is5xx && tries > 1 && maxTries === tries) maxTries = tries + 1;
+      if (i < maxTries - 1) {
+        const wait = is5xx ? [2000, 6000, 12000, 12000][Math.min(i, 3)] : Math.min(8000, 900 * Math.pow(2, i));
+        if (typeof timeLeft === "function" && timeLeft() < wait + 60000) break;
+        await new Promise(r => setTimeout(r, wait));
+      }
     }
   }
+  if (last && Number(last.status) >= 500 && !/nhà cung cấp model/.test(String(last.message))) last.message = String(last.message || "") + " [HTTP " + last.status + " — lỗi phía nhà cung cấp model/endpoint, đã thử lại nhiều lần; thử lại sau ít phút hoặc đổi model]";
   throw last || new Error("API thất bại");
 }
 
@@ -2173,7 +2183,7 @@ function buildContextBlock(options){
 
   if(state.mainCharProfile && state.mainCharProfile.name){
     const mc = state.mainCharProfile;
-    const mcParts = ["NHÂN VẬT CHÍNH (BẮT BUỘC xuất hiện và là trung tâm mọi chương): " + mc.name];
+    const mcParts = ["NHÂN VẬT CHÍNH (trục của truyện, phải có mặt trong chương; không cần có mặt ở mọi cảnh): " + mc.name];
     if(mc.personality) mcParts.push("tính:"+clip(mc.personality, 120));
     if(mc.goals) mcParts.push("mục tiêu:"+clip(mc.goals, 120));
     if(mc.currentLocation) mcParts.push("ở:"+mc.currentLocation);
@@ -2478,7 +2488,7 @@ function extractCharacterCardsV102(text){
 function buildStyleBlock(){
   const s = state.styleBible || {};
   const parts = [];
-  const povMap = { third_limited: "Ngôi 3 giới hạn", third_omniscient: "Ngôi 3 toàn tri", first: "Ngôi 1" };
+  const povMap = { third_limited: "Ngôi 3 giới hạn — mỗi cảnh/đoạn bám sát MỘT nhân vật (thường là nhân vật chính; được chuyển sang nhân vật phụ ở cảnh khác, có chuyển cảnh rõ), không nhảy vào đầu nhiều người trong cùng đoạn; nhân vật phụ vẫn có việc riêng, lời thoại và hành động chủ động", third_omniscient: "Ngôi 3 toàn tri", first: "Ngôi 1" };
   const tenseMap = { past: "Quá khứ", present: "Hiện tại" };
   if(s.pov) parts.push("NGÔI: " + (povMap[s.pov] || s.pov));
   if(s.tense) parts.push("THÌ: " + (tenseMap[s.tense] || s.tense));
@@ -2666,7 +2676,7 @@ function buildMainWritePrompt(o){
       "- Trước khi kết thúc, tự kiểm tra: (1) đã triển khai đủ các điểm người dùng yêu cầu chưa; (2) đã đi tới mốc kết thúc chưa; (3) có tự thêm tuyến/nhân vật/biến cố ngoài brief không."
     ].join("\n") : "",
     buildLengthPlan(state.nextChapterHint || state.directive, (state.minChapterWords || 5000)),
-    (state.mainCharProfile && state.mainCharProfile.name) ? ("10. NHÂN VẬT CHÍNH BẮT BUỘC LÀ TRUNG TÂM CHƯƠNG NÀY: " + state.mainCharProfile.name + (state.mainCharProfile.appearance ? (" — " + String(state.mainCharProfile.appearance).slice(0,150)) : "") + ". TUYỆT ĐỐI không viết chương mà thiếu hẳn nhân vật này, và không đổi tên/nhầm sang nhân vật khác.") : "",
+    (state.mainCharProfile && state.mainCharProfile.name) ? ("10. NHÂN VẬT CHÍNH LÀ TRỤC CỦA CHƯƠNG NÀY (phải có mặt; nhân vật phụ vẫn được có cảnh/việc riêng và hành động chủ động): " + state.mainCharProfile.name + (state.mainCharProfile.appearance ? (" — " + String(state.mainCharProfile.appearance).slice(0,150)) : "") + ". TUYỆT ĐỐI không viết chương mà thiếu hẳn nhân vật này, và không đổi tên/nhầm sang nhân vật khác.") : "",
     usingNsfw ? "7. CẢNH 18+ ƯU TIÊN CAO NHẤT — đủ 4 lớp: cơ thể (số đo hồ sơ) + cảm giác thể xác + nội tâm đa lớp + âm thanh/nhịp. Cấm chỉ kể hành động bên ngoài. Cấm bỏ cảm giác và nội tâm." : "7. (không có yêu cầu 18+ đặc biệt)",
     ...(o.proseOnly ? ["8. Định dạng: CHỈ văn xuôi của chương — KHÔNG xuất 'TIÊU ĐỀ:', 'NỘI DUNG:', markdown, ghi chú hay lời giải thích."] : ["8. Định dạng:", "TIÊU ĐỀ: <tên chương>", "NỘI DUNG:", "<toàn bộ chương>"])
   ].filter(Boolean).join("\n");
