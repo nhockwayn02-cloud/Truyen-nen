@@ -1,10 +1,18 @@
 # CHANGELOG — Xưởng Truyện AI
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.32.17** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.32.18** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
+
+## [V12.32.18] — Tiến độ Arc + Outline theo từng chương (chống truyện đi quá chậm)
+
+- **Vấn đề:** prompt chỉ nhận tên + mục tiêu Arc (cắt 200 ký tự) mà không biết đang ở đâu trong Arc; chương bắt đầu/kết thúc dự kiến của Arc bị bỏ phí; Outline là một khối chung cắt 800 ký tự nên AI không biết chương này phải làm bước nào.
+- **`arcProgressPrompt`:** khối TIẾN ĐỘ ARC (chương x/y, % đã đi, còn bao nhiêu chương, nửa chặng/chương cuối/quá hạn phải thu Arc) và khối Outline (VIỆC BẮT BUỘC của chương lấy từ dòng `Ch12: …`, kèm dòng chương kế để nối mạch, giới hạn 1500 ký tự khi không có dòng theo chương).
+- **Outline 🤖 AI đề xuất** nay tạo từng chương (JSON `chapters[{chapter, beat}]` + mốc kết giai đoạn), lưu thành các dòng `ChN: …`; cảnh báo trên giao diện khi Outline sắp hết/đã hết.
+- **Kế hoạch chương** có mục 7a "TIẾN ĐỘ ARC/OUTLINE"; ngân sách sự kiện yêu cầu mỗi sự kiện là một BƯỚC TIẾN thật.
+- **Quality Gate:** cờ cứng `arcStall` (chỉ khi có Arc/Outline và chương không làm bước nào) → HARD_FAIL → viết lại.
 
 ## [V12.32.17] — Nhân vật phụ có đời riêng (ngôi 3 giới hạn không còn dồn hết vào nhân vật chính)
 

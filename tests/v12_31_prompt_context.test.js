@@ -41,6 +41,7 @@ function makeContext(state) {
     storySoFarPrompt: () => '',
     openLoopsPrompt: () => '',
     currentTimeMark: () => '',
+    arcProgressPrompt: () => '',
     appearanceAnchorPrompt: () => '',
     progressRulesPrompt: () => '',
     buildLengthPlan: () => ''

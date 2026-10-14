@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.32.17</title>
+<title>Xưởng Truyện AI Pro Max v12.32.18</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -328,7 +328,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.32.17 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
+<div class="brand-sub">v12.32.18 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
 </div>
 </div>
 <div class="topbar-actions">
@@ -1071,6 +1071,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "6. SCENE BEATS: MỖI nhịp của brief là MỘT beat (không giới hạn số beat), ghi gợi ý độ dài từng beat để cả chương đạt mục tiêu từ; KHÔNG tự sinh thêm sự kiện lớn ngoài brief"
                  : "6. SCENE BEATS (tối đa 5 beat) — chỉ triển khai 1-3 sự kiện trên, KHÔNG tự sinh thêm sự kiện lớn",
     "7. Kết chương — phải khớp mốc kết thúc người dùng yêu cầu nếu có",
+    "7a. TIẾN ĐỘ ARC/OUTLINE: nếu bối cảnh có mục TIẾN ĐỘ ARC/OUTLINE, ghi rõ chương này thực hiện VIỆC BẮT BUỘC/bước tiến nào của Arc hoặc Outline (đúng dòng của chương nếu Outline có), và mỗi sự kiện chính phải là một BƯỚC TIẾN thật, không phải cảnh độn",
     "7b. THAY ĐỔI/TIẾN TRIỂN: ghi rõ điều gì ĐÃ ĐỔI giữa đầu và cuối chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả); không được để trống",
     "8. Nếu có cảnh trưởng thành: mức intensity + structure + cảnh đó làm đổi điều gì (quan hệ/quyền lực/bí mật/hậu quả) và dẫn tới bước nào kế tiếp; không thay đổi phạm vi sự kiện người dùng đã chỉ định",
     "",
@@ -1793,6 +1794,10 @@ function evaluateReview(obj, opts) {
     const sn = (Array.isArray(obj.stagnationNotes) ? obj.stagnationNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     hard.push("Chương dậm chân tại chỗ: cảnh lặp/kéo dài, cuối chương không có thay đổi nào so với đầu chương" + (sn ? ": " + sn : "."));
   }
+  if (obj.arcStall) {
+    const an2 = (Array.isArray(obj.arcNotes) ? obj.arcNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    hard.push("Chương không đưa Arc/Outline tiến thêm bước nào (không làm việc bắt buộc của giai đoạn)" + (an2 ? ": " + an2 : "."));
+  }
   if (obj.sceneViolation) {
     const sn2 = (Array.isArray(obj.sceneNotes) ? obj.sceneNotes : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     hard.push("Lỗi cảnh/người có mặt: nhân vật tự xuất hiện hoặc nói khi không có mặt/đã rời đi, hoặc lẫn cảnh" + (sn2 ? ": " + sn2 : "."));
@@ -2126,6 +2131,55 @@ function characterLockPrompt(mc, chars, short) {
   ].join("\n");
 }
 
+// --- V12.32.18: TIẾN ĐỘ ARC + OUTLINE THEO CHƯƠNG (chống truyện đi quá chậm) ---
+function activeArcOf(st) { return ((st && st.arcs) || []).find(a => a && a.status === "active") || null; }
+function outlineOf(st, n) { return ((st && st.outlinePlans) || []).find(o => o && n >= o.from && n <= o.to) || null; }
+// Tách nội dung outline thành dòng theo chương: "Ch12: ...", "Chương 12: ...", "12. ...", "12) ...", "12 - ...".
+function outlineChapterLines(content) {
+  const map = {};
+  String(content || "").split(/\n+/).forEach(l => {
+    const m = l.trim().match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
+    if (m && m[2] && m[2].trim().length >= 8) map[Number(m[1])] = m[2].trim();
+  });
+  return map;
+}
+function arcProgressPrompt(st, nOverride) {
+  const chapters = (st && Array.isArray(st.chapters)) ? st.chapters : [];
+  const n = Number(nOverride) > 0 ? Number(nOverride) : chapters.length + 1;
+  const arc = activeArcOf(st), lines = [];
+  const cut = (v, k) => { v = String(v || "").replace(/\s+/g, " ").trim(); return v.length > k ? v.slice(0, k) + "…" : v; };
+  if (arc) {
+    const start = Number(arc.startChapter) || n, end = Number(arc.endChapterPlanned) || 0;
+    lines.push("TIẾN ĐỘ ARC — ARC \"" + arc.name + "\": " + cut(arc.goal, 500));
+    if (end && end >= start) {
+      const total = end - start + 1, idx = Math.max(1, n - start + 1), left = end - n;
+      if (left < 0) lines.push("- Arc đã QUÁ chương kết dự kiến (" + end + "). Chương này PHẢI đưa Arc tới điểm kết/giải quyết hoặc chuyển hẳn sang bước thu Arc; không kéo thêm.");
+      else {
+        lines.push("- Đây là chương " + idx + "/" + total + " của Arc (đã đi khoảng " + Math.round(((idx - 1) / total) * 100) + "%, còn " + left + " chương sau chương này).");
+        lines.push(left === 0 ? "- ĐÂY LÀ CHƯƠNG CUỐI DỰ KIẾN của Arc: phải đạt mục tiêu Arc hoặc có kết cục rõ ràng." : (idx / total >= 0.5 ? "- Arc đã qua nửa chặng: các việc chưa giải quyết phải được đẩy mạnh về phía mục tiêu, không lặp lại bước đã làm." : "- Mỗi chương phải đưa Arc tiến thêm một bước cụ thể về phía mục tiêu."));
+      }
+    } else lines.push("- Arc chưa có chương kết dự kiến: mỗi chương vẫn phải đưa Arc tiến thêm một bước cụ thể (không đứng yên ở bước vừa làm).");
+  }
+  const ol = outlineOf(st, n);
+  if (ol) {
+    const per = outlineChapterLines(ol.content), total = ol.to - ol.from + 1, idx = n - ol.from + 1;
+    lines.push("OUTLINE \"" + ol.name + "\" (chương " + ol.from + "–" + ol.to + "), chương này là " + idx + "/" + total + ":");
+    if (per[n]) {
+      lines.push("- VIỆC BẮT BUỘC CỦA CHƯƠNG " + n + " THEO OUTLINE: " + cut(per[n], 500));
+      if (per[n + 1]) lines.push("- (Chương " + (n + 1) + " sẽ làm, CHƯA làm ở chương này; chỉ cài móc nối): " + cut(per[n + 1], 300));
+    } else lines.push(cut(ol.content, 1500));
+    if (ol.to - n <= 1) lines.push("- Giai đoạn Outline sắp kết: chương này phải tiến tới mốc kết giai đoạn.");
+  }
+  return lines.join("\n");
+}
+// Trạng thái Outline cho giao diện: còn bao nhiêu chương có Outline phủ.
+function outlineCoverageLeft(st) {
+  const n = ((st && st.chapters) || []).length + 1;
+  const tos = ((st && st.outlinePlans) || []).map(o => Number(o.to) || 0);
+  if (!tos.length) return null;
+  return Math.max(...tos) - n + 1;
+}
+
 // --- V12.32.9: CHUYỂN CẢNH + NGƯỜI CÓ MẶT (chống nhân vật "tự xuất hiện" hoặc biến mất vô cớ) ---
 function scenePresencePrompt() {
   return [
@@ -2231,7 +2285,7 @@ function knownNameMentions(text, names) {
 }
 
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
-const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
+const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"arcStall":false,"arcNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
 /* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
    Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
@@ -2254,6 +2308,7 @@ function buildQualityReviewPrompt(p) {
     "STORY CONTROL:", p.storyControl || "",
     p.characterLock || "",
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
+    p.arcProgress ? ("TIẾN ĐỘ ARC / OUTLINE (chương này phải thực hiện):\n" + p.arcProgress) : "",
     "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
     p.prevEnding ? ("ĐOẠN KẾT CHƯƠNG TRƯỚC (để đối chiếu địa điểm/thời điểm/người có mặt ở cảnh mở đầu):\n" + String(p.prevEnding).slice(-1500)) : "",
@@ -2267,6 +2322,7 @@ function buildQualityReviewPrompt(p) {
     "- knowledgeViolation=true nếu nhân vật biết điều họ chưa thể biết.",
     "- retcon=true nếu mâu thuẫn canon đã xác nhận.",
     "- stagnation=true CHỈ KHI cuối chương hầu như không có thay đổi nào so với đầu chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả) HOẶC một cảnh lặp lại cùng hành động/miêu tả nhiều lần chỉ để kéo dài. Ghi 1–2 ví dụ ngắn vào stagnationNotes. Cảnh trưởng thành đủ dài nhưng có đổi quan hệ/quyền lực/hậu quả thì KHÔNG phải stagnation.",
+    p.arcProgress ? "- arcStall=true CHỈ KHI chương hoàn toàn không thực hiện việc bắt buộc/bước tiến nêu trong TIẾN ĐỘ ARC/OUTLINE (không có sự kiện nào đưa Arc hay giai đoạn Outline tới gần mục tiêu hơn so với đầu chương; chỉ tả thêm/lặp lại không tính). Ghi 1 dẫn chứng ngắn vào arcNotes. Nếu chương đã làm được việc bắt buộc của Outline hoặc có một bước tiến thật của Arc thì KHÔNG báo." : "",
     "- sceneViolation=true CHỈ KHI có CÂU CỤ THỂ trong bản thảo cho nhân vật nói/hành động/phản ứng khi họ KHÔNG có mặt trong cảnh (chưa được nói là đến, hoặc đã rời đi mà không quay lại), hoặc lời thoại/hành động của cảnh cũ lẫn sang cảnh mới không có chuyển cảnh. Ghi trích dẫn ngắn + tên nhân vật vào sceneNotes. Không báo nếu chỉ là nhân vật ở gần/đang nghe được hợp lý.",
     "- timeStagnation=true CHỈ KHI có BẰNG CHỨNG CỤ THỂ thời gian trong truyện sai hoặc đứng yên: (a) thời gian đi lùi/mâu thuẫn (vừa tối đã lại là buổi sáng cùng ngày không lý do; vết thương, hạn chót, tuổi, ngày tháng không khớp), hoặc (b) chương mở lại đúng thời điểm chương trước dù sự kiện trước đã kết thúc trọn và không có lý do cốt truyện. Ghi 1 dẫn chứng ngắn vào timeNotes. TUYỆT ĐỐI KHÔNG báo chỉ vì chương không ghi ngày/giờ/mốc rõ ràng ở đầu hay cuối chương: văn xuôi tự nhiên để thời gian ngầm hiểu qua chi tiết, thiếu nhãn thời gian KHÔNG phải lỗi. Đây chỉ là CẢNH BÁO mềm, không chặn.",
     "- appearanceVague=true CHỈ KHI có nhân vật có tên xuất hiện lần đầu hoặc cảnh tả cơ thể mà chỉ dùng tính từ trống (đẹp, to, đầy đặn…) không kèm kích thước/hình dáng/so sánh cụ thể nào để hình dung. Ghi tên nhân vật vào appearanceNotes. Chỉ là CẢNH BÁO mềm.",
@@ -4373,11 +4429,8 @@ function buildContextBlock(options){
   const vocab = buildVocabularyBlock();
   if(vocab) lines.push(clip(vocab, 600));
 
-  const arc = currentArc();
-  if(arc) lines.push("ARC: " + arc.name + " — " + clip(arc.goal || "", 200));
-
-  const outline = currentOutline();
-  if(outline) lines.push("OUTLINE (" + outline.from + "–" + outline.to + "):\n" + clip(outline.content, 800));
+  /* V12.32.18: tiến độ Arc + việc bắt buộc của chương theo Outline (thay cho dòng ARC/OUTLINE cắt 200/800 ký tự). */
+  { const _n = (Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters.length : state.chapters.length) + 1; const ap = arcProgressPrompt(state, _n); if(ap) lines.push(ap); }
 
   { const tm = currentTimeMark(state); if(tm) lines.push("THỜI ĐIỂM: " + tm); }
 
@@ -5050,8 +5103,10 @@ function currentArc(){ return state.arcs.find(a=>a.status==='active') || null; }
 
 /* ========== OUTLINE ========== */
 function renderOutlines(){
-  if(!state.outlinePlans.length){ outlineList.innerHTML = '<div class="empty-note">Chưa có.</div>'; return; }
-  outlineList.innerHTML = state.outlinePlans.map((o,i)=>
+  if(!state.outlinePlans.length){ outlineList.innerHTML = '<div class="empty-note">Chưa có. Mẹo: viết mỗi chương một dòng dạng "Ch12: bước tiến của chương" để AI biết chương nào làm việc gì.</div>'; return; }
+  const _left = outlineCoverageLeft(state);
+  const _warn = (_left !== null && _left <= 2) ? '<div class="empty-note" style="color:var(--amber,#e0a030);">⚠ ' + (_left <= 0 ? "Outline đã hết — bấm 🤖 AI đề xuất để tạo giai đoạn mới." : "Outline sắp hết (còn " + _left + " chương) — nên tạo giai đoạn tiếp theo.") + '</div>' : "";
+  outlineList.innerHTML = _warn + state.outlinePlans.map((o,i)=>
     '<div class="arc-card"><div class="arc-card-top"><b>'+escapeHtml(o.name)+'</b><span class="arc-status arc-planned">Ch '+o.from+'–'+o.to+'</span></div>'
     + '<div style="margin-top:4px;font-size:11.5px;white-space:pre-wrap;">'+escapeHtml(o.content)+'</div>'
     + '<div class="char-actions"><button class="btn btn-outline-red btn-sm" data-outline-del="'+i+'">Xóa</button></div></div>'
@@ -5076,15 +5131,21 @@ $ID("outlineAIGenerateBtn").addEventListener("click", async ()=>{
   const to = from + 9;
   const prompt = [
     "Dựa trên Story Bible và tiến trình truyện, đề xuất outline 10 chương tiếp theo (chương " + from + "-" + to + ").",
+    "YÊU CẦU: chia theo TỪNG CHƯƠNG, mỗi chương một bước tiến CỤ THỂ (sự kiện/quyết định/hậu quả làm truyện đi tới), các bước nối nhau và tăng dần về phía một MỐC KẾT của giai đoạn. Không lặp lại cùng một bước; không dồn mọi thứ vào chương đầu.",
+    state.arcs.some(a=>a.status==='active') ? ("Arc đang chạy: " + (currentArc().name || "") + " — " + (currentArc().goal || "")) : "",
     "Story Bible:", buildStoryBibleSummary(), "",
     "Current Status:", state.currentStatus || "(chưa có)", "",
     "Tóm tắt chương gần đây:", chaptersSummaryText(5) || "(chưa có)", "",
-    'Trả về DUY NHẤT object JSON: {"name":"Tên giai đoạn","content":"Mô tả chi tiết..."}',
+    'Trả về DUY NHẤT object JSON: {"name":"Tên giai đoạn","milestone":"Mốc kết giai đoạn","chapters":[{"chapter":' + from + ',"beat":"Bước tiến của chương này (1–2 câu)"}]} — đủ ' + 10 + ' phần tử, chapter từ ' + from + ' đến ' + to + '.',
     "Tất cả TIẾNG VIỆT."
-  ].join("\n");
+  ].filter(Boolean).join("\n");
   try{
-    const { text: raw } = await callAI(prompt, {maxTokens:2000, temperature:0.8});
+    const { text: raw } = await callAI(prompt, {maxTokens:3000, temperature:0.8});
     const obj = safeJsonParse(raw);
+    if(obj && Array.isArray(obj.chapters) && obj.chapters.length && !obj.content){
+      const rows = obj.chapters.map(c=>({ n: Number(c && c.chapter), b: String((c && (c.beat||c.content||c.summary)) || "").trim() })).filter(c=>c.n>=from && c.n<=to && c.b);
+      if(rows.length){ obj.content = rows.sort((a,b)=>a.n-b.n).map(c=>"Ch"+c.n+": "+c.b).join("\n") + (obj.milestone ? "\nMốc kết giai đoạn: " + String(obj.milestone).trim() : ""); }
+    }
     if(obj && obj.name && obj.content){
       state.outlinePlans.push({ id: genId(), name: obj.name, from, to, content: obj.content });
       persist(); renderOutlines();
@@ -6652,7 +6713,7 @@ function buildMainWritePrompt(o){
     "\nNGÂN SÁCH SỰ KIỆN — BẮT BUỘC:",
     "- Toàn chương chỉ có 1–3 SỰ KIỆN CHÍNH. Không thêm sự kiện lớn thứ 4 dù còn dung lượng từ.",
     "- Các cảnh/beat nhỏ chỉ là bước triển khai, phản ứng hoặc hậu quả của 1–3 sự kiện chính; không được biến thành tuyến sự kiện mới.",
-    "- Nếu chương cần dài hơn, hãy đào sâu diễn biến, đối thoại, nội tâm, nguyên nhân–hậu quả và chi tiết cảnh thay vì nhồi thêm biến cố.",
+    "- Nếu chương cần dài hơn, hãy đào sâu diễn biến, đối thoại, nội tâm, nguyên nhân–hậu quả và chi tiết cảnh thay vì nhồi thêm biến cố — nhưng mỗi sự kiện chính phải là một BƯỚC TIẾN thật về phía mục tiêu Arc/Outline (nếu có mục TIẾN ĐỘ ARC/OUTLINE thì thực hiện đúng việc bắt buộc của chương), không dừng lại ở bước đã làm.",
     "\nNHÂN VẬT PHỤ — BẮT BUỘC:",
     "- GIỚI HẠN CỨNG: TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện TRỰC TIẾP (có lời thoại hoặc hành động cụ thể) trong toàn chương, tính cả nhân vật chính. Đám đông/người qua đường không tên không tính vào số này.",
     "- Nếu chương 1 hoặc mở đầu một arc mới cần giới thiệu bối cảnh, KHÔNG dồn hết dàn nhân vật vào 1 chương — chỉ giới thiệu những ai TRỰC TIẾP tham gia 1-3 sự kiện chính của CHƯƠNG NÀY; người còn lại để dành cho chương sau.",
@@ -7305,7 +7366,7 @@ async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
   const sc=normalizeStoryControl(state);
   const hardChecks=gateHardChecks(chapter);
   const names=knownNameMentions(chapter.text,gateKnownNames(state));
-  const prompt=buildQualityReviewPrompt({storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"CHAPTER CONTRACT / OUTLINE",context:contextSummary,warnings:chapter.continuityWarnings,draft:chapter.text,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500),hardChecks,knownNames:names,maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters});
+  const prompt=buildQualityReviewPrompt({arcProgress:arcProgressPrompt(state,chapterNumber),storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"CHAPTER CONTRACT / OUTLINE",context:contextSummary,warnings:chapter.continuityWarnings,draft:chapter.text,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500),hardChecks,knownNames:names,maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters});
   try{
     const r=await callAI(prompt,{maxTokens:2200,temperature:0.1,modelOverride:chapter.modelUsed||state.model});
     const obj=safeJsonParse(r.text);
