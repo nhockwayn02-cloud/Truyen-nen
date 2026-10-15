@@ -1451,6 +1451,18 @@ async function runGateLoop(chapter, deps, opts) {
   if (opts.enabled === false) { chapter.status = "APPROVED"; chapter.review = bypassReview(); notify(); return { approved: true }; }
   const maxAttempts = opts.allowRewrite === false ? 1 : gateMaxAttempts(opts.maxAttempts);
   const seenHard = []; // lỗi nặng của từng vòng đã chấm, để vòng sau không làm hỏng lại chỗ đã sửa
+  // V12.36: không được để một lần tự sửa làm tụt chất lượng rồi ghi đè bản tốt hơn.
+  // Ưu tiên verdict tốt hơn (PASS > SOFT_FAIL > HARD_FAIL), sau đó mới so điểm.
+  const verdictRank = v => v === "PASS" ? 3 : (v === "SOFT_FAIL" ? 2 : 1);
+  const isBetterReview = (a, b) => {
+    if (!b) return true;
+    const vr = verdictRank(a && a.verdict) - verdictRank(b && b.verdict);
+    if (vr !== 0) return vr > 0;
+    const sd = Number(a && a.score || 0) - Number(b && b.score || 0);
+    if (sd !== 0) return sd > 0;
+    return (a && a.hardFailures || []).length < (b && b.hardFailures || []).length;
+  };
+  let bestReview = null, bestText = String(chapter.text || ""), bestWordCount = chapter.wordCount;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (stopped()) return { approved: false, stopped: true };
     if (deps.selfCheck) { chapter.status = "SELF_CHECKING"; notify(); await deps.selfCheck(attempt); }
@@ -1463,6 +1475,11 @@ async function runGateLoop(chapter, deps, opts) {
       return { approved: false, error: reason };
     }
     chapter.review = Object.assign({}, chapter.review, rr.review, { status: "completed", attempt, reviewedAt: Date.now() });
+    if (isBetterReview(rr.review, bestReview)) {
+      bestReview = Object.assign({}, rr.review);
+      bestText = String(chapter.text || "");
+      bestWordCount = chapter.wordCount;
+    }
     if (rr.review.verdict === "PASS") { chapter.status = "APPROVED"; notify(); return { approved: true, review: rr.review }; }
     // V12.32.12: chỉ còn cảnh báo nhẹ (điểm ≥ ngưỡng mềm, KHÔNG có hard failure) → duyệt kèm cảnh báo, không chạy thêm vòng.
     if (opts.acceptSoft !== false && rr.review.verdict === "SOFT_FAIL" && !(rr.review.hardFailures || []).length) {
@@ -1483,6 +1500,17 @@ async function runGateLoop(chapter, deps, opts) {
       chapter.review.warnings = (chapter.review.warnings || []).concat(["Bản sửa bị từ chối: " + ((rw && rw.reason) || "không rõ") + " — giữ nguyên bản thảo."]);
       notify(); break;
     }
+  }
+  // Nếu các vòng sửa sau làm điểm tụt, khôi phục bản tốt nhất đã được chấm.
+  if (bestReview && String(chapter.text || "") !== bestText) {
+    chapter.text = bestText;
+    chapter.wordCount = bestWordCount;
+    chapter.review = Object.assign({}, bestReview, {
+      status: "completed",
+      regressionGuard: true,
+      warnings: (bestReview.warnings || []).concat(["Best Draft Guard: bản sửa sau có điểm thấp hơn nên đã khôi phục bản tốt hơn (" + bestReview.score + "/100)."])
+    });
+    if (deps.onChange) deps.onChange();
   }
   chapter.status = "REVISION_REQUIRED";
   return { approved: false, review: chapter.review };

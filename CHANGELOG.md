@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.36.0] — Best Draft Guard
+
+- Không còn mặc định giữ bản tự sửa cuối cùng nếu điểm Quality Gate bị tụt.
+- Xếp hạng bản chấm theo `PASS > SOFT_FAIL > HARD_FAIL`, sau đó so điểm và số hard failure.
+- Khi vòng sửa sau kém hơn, tự khôi phục bản tốt nhất đã chấm và hiển thị cảnh báo `Best Draft Guard`.
+
 ## [V12.35.0] — Beat Ledger
 
 - Kế hoạch chương đánh mã `[B1]`, `[B2]`... và ghi rõ mục tiêu, hành động bắt buộc, bằng chứng hoàn thành, hậu quả.
@@ -25,7 +31,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.35.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.36.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
