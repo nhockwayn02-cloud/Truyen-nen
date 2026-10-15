@@ -33,6 +33,7 @@ const dir = __dirname; const suites = [
   ["V12.34 sửa beat mục tiêu trước đoạn kết", process.execPath, ["v12_34_targeted_beat_repair.test.js"]],
   ["V12.35 Beat Ledger", process.execPath, ["v12_35_beat_ledger.test.js"]],
   ["V12.36 Best Draft Guard", process.execPath, ["v12_36_best_draft_guard.test.js"]],
+  ["V12.37 Gender Anatomy Lock", process.execPath, ["v12_37_gender_anatomy_lock.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],
   ["Bảo mật server", process.execPath, ["security.test.js"]],
   ["Tích hợp worker", process.execPath, ["worker.integration.js"], { EXTRACT_CONCURRENCY: "3" }],

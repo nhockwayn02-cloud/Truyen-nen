@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.37.0] — Gender Anatomy Lock
+
+- Truyền giới tính từng nhân vật vào HỒ SƠ KHÓA thay vì chỉ truyền tên và tuổi.
+- Prompt viết yêu cầu xác định chủ thể trước mỗi đoạn tả thân thể, không trộn đặc điểm sinh học giữa các nhân vật.
+- Quality Gate có cờ `genderAnatomyMismatch` và chuyển lỗi này thành Hard Failure.
+
 ## [V12.36.0] — Best Draft Guard
 
 - Không còn mặc định giữ bản tự sửa cuối cùng nếu điểm Quality Gate bị tụt.
@@ -31,7 +37,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.36.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.37.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
