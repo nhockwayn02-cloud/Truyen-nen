@@ -76,6 +76,7 @@ function buildChapterPlanPrompt(o) {
     "1. Mục tiêu chương", "2. Xung đột chính",
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
                  : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
+    "3a. BEAT LEDGER — đánh mã bắt buộc theo đúng thứ tự: [B1], [B2], [B3]... Mỗi beat phải ghi đủ: MỤC TIÊU | HÀNH ĐỘNG/THÔNG TIN BẮT BUỘC | NHÂN VẬT/ĐỊA ĐIỂM | BẰNG CHỨNG HOÀN THÀNH | HẬU QUẢ. Beat là việc phải xuất hiện trong văn xuôi bằng hành động, lời thoại, thông tin hoặc hậu quả cụ thể; không tính việc chỉ được nhắc trong kế hoạch.",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
     "5. Địa điểm + DÒNG THỜI GIAN (ghi chú NỘI BỘ để giữ nhất quán, KHÔNG phải để in thành nhãn trong văn): thời điểm tương đối khi mở chương, quãng đã trôi từ chương trước (nếu có nhảy), các beat nối nhau theo thời gian thế nào, cảnh nào thời gian thật sự quan trọng (hạn chót/khẩn cấp); nêu cách thể hiện tự nhiên trong văn (ánh sáng, việc đang làm, một câu chuyển trong mạch kể)",
     "5b. CẢNH & NGƯỜI CÓ MẶT: với MỖI beat ghi: địa điểm | ai có mặt | ai VÀO cảnh (cách vào) | ai RỜI cảnh (cách rời). Người không được ghi có mặt thì không được nói/hành động trong beat đó.",
@@ -84,6 +85,7 @@ function buildChapterPlanPrompt(o) {
     "7. Kết chương — phải khớp mốc kết thúc người dùng yêu cầu nếu có",
     "7a. TIẾN ĐỘ ARC/OUTLINE: nếu bối cảnh có mục TIẾN ĐỘ ARC/OUTLINE, ghi rõ chương này thực hiện VIỆC BẮT BUỘC/bước tiến nào của Arc hoặc Outline (đúng dòng của chương nếu Outline có), và mỗi sự kiện chính phải là một BƯỚC TIẾN thật, không phải cảnh độn",
     "7b. THAY ĐỔI/TIẾN TRIỂN: ghi rõ điều gì ĐÃ ĐỔI giữa đầu và cuối chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả); không được để trống",
+    "9. DÒNG TỰ KIỂM TRA CUỐI KẾ HOẠCH: LEDGER_ORDER: B1 -> B2 -> ... -> END | STOP_AFTER: mã beat cuối cùng. Không được kết chương trước khi mọi beat bắt buộc đã có bằng chứng; nếu thiếu beat, phải tiếp tục viết beat đó trước điểm kết.",
     "8. Nếu có cảnh trưởng thành: mức intensity + structure + cảnh đó làm đổi điều gì (quan hệ/quyền lực/bí mật/hậu quả) và dẫn tới bước nào kế tiếp; không thay đổi phạm vi sự kiện người dùng đã chỉ định",
     "",
     hasUserBrief ? "QUY TẮC CỨNG: Không thêm sự kiện lớn ngoài brief. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có."
@@ -871,12 +873,13 @@ function buildPatchPrompt(p) {
     "LỖI CẦN SỬA:\n" + (rv.hardFailures || []).concat((rv.warnings || []).slice(0, 8)).map(gateItemText).join("\n"),
     "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(rv),
     "ĐỊNH DẠNG TRẢ VỀ — CHỈ MỘT JSON, không markdown, không giải thích:",
-    '{"patches":[{"op":"replace|delete|insert_after|insert_before|insert_start|insert_end","find":"...","from":"...","to":"...","which":1,"text":"..."}]}',
+    '{"patches":[{"op":"replace|delete|insert_after|insert_before|insert_before_end|insert_start|insert_end","find":"...","from":"...","to":"...","which":1,"text":"..."}]}',
     "QUY TẮC:",
     "- find / from / to: chép NGUYÊN VĂN từ bản thảo, 6–25 từ liên tiếp, nằm trong một đoạn. Không sửa dấu, không đổi dấu câu.",
     "- Xoá/thay một đoạn dài: dùng from (6–12 từ đầu đoạn) + to (6–12 từ cuối đoạn), không chép cả đoạn. Xoá/thay một câu ngắn: dùng find.",
     '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
-    "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh tự nhiên, chi tiết bổ sung…) sau/trước find. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
+    "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh tự nhiên, chi tiết bổ sung…) sau/trước find. insert_before_end: chèn một cảnh còn thiếu ngay trước đoạn kết cuối cùng, KHÔNG cần find — ưu tiên dùng cho beat/biến cố Outline bị bỏ sót. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
+    "- Nếu QUALITY REVIEW nói thiếu một beat/sự kiện bắt buộc nhưng không có câu neo chắc chắn, dùng insert_before_end thay vì bịa find. Cảnh mới phải nối tự nhiên với đoạn trước và không viết lại đoạn kết.",
     "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
     p.prevEnding ? "- Khi sửa lỗi nối cảnh/địa điểm: đọc ĐOẠN KẾT CHƯƠNG TRƯỚC, rồi viết câu chuyển cảnh nối đúng từ chỗ đó vào cảnh mở đầu của bản thảo (ví dụ chương trước kết ở hành lang thì phải có hành động đi tiếp/mở cửa/bước vào trước khi tả cảnh trong phòng). Không dời cảnh sang địa điểm mới nào khác." : "",
     "- Chi tiết thêm vào (ngoại hình, đồ vật, thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
@@ -923,6 +926,14 @@ function applyChapterPatches(text, patches) {
     const skip = r => skipped.push({ index, reason: op + ": " + r });
     if (op === "insert_start") { if (!add) return skip("thiếu text"); cur = add + "\n\n" + cur.replace(/^\s+/, ""); applied++; return; }
     if (op === "insert_end") { if (!add) return skip("thiếu text"); cur = cur.replace(/\s+$/, "") + "\n\n" + add; applied++; return; }
+    if (op === "insert_before_end") {
+      if (!add) return skip("thiếu text");
+      const trimmed = cur.replace(/\s+$/, "");
+      const cut = trimmed.lastIndexOf("\n\n");
+      if (cut <= 0) { cur = trimmed + "\n\n" + add; applied++; return; }
+      cur = trimmed.slice(0, cut) + "\n\n" + add + "\n\n" + trimmed.slice(cut + 2);
+      applied++; return;
+    }
     if (!["replace", "delete", "insert_after", "insert_before"].includes(op)) return skip("thao tác không hợp lệ");
     if (op !== "delete" && !add) return skip("thiếu text");
     let start, end;
@@ -1321,6 +1332,7 @@ function buildQualityReviewPrompt(p) {
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
     p.arcProgress ? ("TIẾN ĐỘ ARC / OUTLINE (chương này phải thực hiện):\n" + p.arcProgress) : "",
     "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
+    "BEAT LEDGER AUDIT — nếu CHAPTER CONTRACT có các mã [B1], [B2]...: kiểm tra từng beat theo đúng thứ tự. Beat chỉ được tính là HOÀN THÀNH khi bản thảo có bằng chứng cụ thể (hành động/lời thoại/thông tin/hậu quả), không tính việc chỉ nhắc lại trong kế hoạch. Beat bắt buộc bị thiếu là hard failure; ghi rõ mã beat, bằng chứng đang thiếu và vị trí hợp lý để chèn trước đoạn kết. Nếu beat đã có, trích dẫn ngắn bằng chứng trong rewriteInstructions để tránh sửa nhầm.",
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
     p.prevEnding ? ("ĐOẠN KẾT CHƯƠNG TRƯỚC (để đối chiếu địa điểm/thời điểm/người có mặt ở cảnh mở đầu):\n" + String(p.prevEnding).slice(-1500)) : "",
     "BẢN THẢO CHƯƠNG:", String(p.draft || "").slice(0, 50000),

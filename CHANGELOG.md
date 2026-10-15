@@ -1,5 +1,17 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.35.0] — Beat Ledger
+
+- Kế hoạch chương đánh mã `[B1]`, `[B2]`... và ghi rõ mục tiêu, hành động bắt buộc, bằng chứng hoàn thành, hậu quả.
+- Prompt viết buộc hoàn thành từng beat theo thứ tự trước khi đi tới Ending Anchor.
+- Quality Gate audit từng beat bằng bằng chứng trong bản thảo, không tính việc chỉ nhắc lại kế hoạch.
+
+## [V12.34.0] — Targeted beat repair
+
+- Khi Quality Gate phát hiện thiếu beat/sự kiện bắt buộc, AI có thể dùng `insert_before_end` để chèn cảnh ngay trước đoạn kết mà không cần đoán câu neo nguyên văn.
+- Client và worker dùng chung thao tác vá; giữ nguyên đoạn kết, không viết lại chương dài.
+- Thêm regression test cho trường hợp “phát hiện kẻ theo dõi” bị bỏ sót.
+
 ## [V12.33.1] — Responsive iPhone topbar
 
 - Ẩn đúng label trợ năng `sr-only` khỏi layout nhưng vẫn giữ cho trình đọc màn hình.
@@ -13,7 +25,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.33.1** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.35.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
