@@ -1196,6 +1196,9 @@ function characterLockPrompt(mc, chars, short) {
     if (c.position) f.push("chức vụ/địa vị: " + cut(c.position, 50));
     if (c.faction) f.push("phe/tổ chức: " + cut(c.faction, 40));
     if (c.gender) f.push("giới tính theo hồ sơ: " + cut(c.gender, 20));
+    if (c.maritalStatus) f.push("tình trạng hôn nhân: " + cut(c.maritalStatus, 30));
+    if (c.spouseName) f.push("người phối ngẫu/người yêu: " + cut(c.spouseName, 50));
+    if (c.maritalNotes) f.push("ghi chú hôn nhân: " + cut(c.maritalNotes, 80));
     if (c.age) f.push("tuổi: " + cut(c.age, 10));
     if (c.skills || c.strength) f.push("năng lực: " + cut(c.skills || c.strength, 60));
     if (c.speech || c.voice) f.push("cách nói: " + cut(c.speech || c.voice, 60));
@@ -2465,6 +2468,9 @@ function characterSummaryForPrompt(list){
     if(c.relevanceToMC) parts.push("liên quan NVC:"+cut(c.relevanceToMC, 60));
     if(c.age) parts.push("tuổi:"+c.age);
     if(c.gender) parts.push(c.gender);
+    if(c.maritalStatus) parts.push("hôn nhân:"+cut(c.maritalStatus, 30));
+    if(c.spouseName) parts.push("người phối ngẫu/người yêu:"+cut(c.spouseName, 50));
+    if(c.maritalNotes) parts.push("ghi chú hôn nhân:"+cut(c.maritalNotes, 80));
     if(c.occupation) parts.push("nghề:"+cut(c.occupation, 40));
     if(c.faction) parts.push("phe:"+cut(c.faction, 40));
     /* Ngoại hình / số đo — ƯU TIÊN (để cảnh 18+ bám hồ sơ) */
@@ -2510,6 +2516,8 @@ function buildStoryBibleSummary(options){
     const parts = [p.name];
     if(p.age) parts.push("tuổi:"+p.age);
     if(p.gender) parts.push(p.gender);
+    if(p.maritalStatus) parts.push("hôn nhân:"+p.maritalStatus);
+    if(p.spouseName) parts.push("người phối ngẫu/người yêu:"+p.spouseName);
     if(p.occupation) parts.push("nghề:"+p.occupation);
     if(p.height) parts.push("cao:"+p.height);
     if(p.bodyType) parts.push("dáng:"+p.bodyType);

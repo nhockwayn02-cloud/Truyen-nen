@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.38.0] — Marital Status Lock
+
+- Thêm ô **Tình trạng hôn nhân** và **Vợ/chồng/người yêu** cho nhân vật chính.
+- Thêm các trường tương ứng vào từng hồ sơ NPC, Story Bible, character summary và worker prompt.
+- Xem tình trạng hôn nhân là dữ liệu lõi; AI không tự đổi nếu không có sự kiện và bằng chứng rõ ràng.
+
 ## [V12.37.0] — Gender Anatomy Lock
 
 - Truyền giới tính từng nhân vật vào HỒ SƠ KHÓA thay vì chỉ truyền tên và tuổi.
@@ -37,7 +43,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.37.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.38.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

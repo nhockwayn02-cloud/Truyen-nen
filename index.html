@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.37.0</title>
+<title>Xưởng Truyện AI Pro Max v12.38.0</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -376,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.37.0 · Gender Anatomy Lock · Beat Ledger · Best Draft Guard · sửa cảnh</div>
+<div class="brand-sub">v12.38.0 · Marital Status Lock · Gender Anatomy Lock · Beat Ledger · Best Draft Guard</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
@@ -514,6 +514,7 @@ html{color-scheme:dark}
 <div class="section-body">
 <div class="row2"><input id="mcNameInput" placeholder="Tên" type="text"/><input id="mcAgeInput" placeholder="Tuổi" type="text"/></div>
 <div class="row2"><input id="mcGenderInput" placeholder="Giới tính" type="text"/><input id="mcOccupationInput" placeholder="Nghề" type="text"/></div>
+<div class="row2"><select id="mcMaritalStatusInput"><option value="">Tình trạng hôn nhân — chưa xác định</option><option value="độc thân">Độc thân</option><option value="đang hẹn hò">Đang hẹn hò</option><option value="đã kết hôn">Đã kết hôn</option><option value="ly thân">Ly thân</option><option value="ly hôn">Ly hôn</option><option value="góa">Góa</option><option value="khác">Khác</option></select><input id="mcSpouseNameInput" placeholder="Vợ/chồng/người yêu (nếu có)" type="text"/></div>
 <input id="mcLocationInput" placeholder="Đang ở đâu" type="text"/>
 <textarea id="mcAppearanceInput" placeholder="Ngoại hình tổng quát" rows="2"></textarea>
 <div class="hint" style="color:var(--purple);margin-top:4px;">🎨 Miêu tả chi tiết</div>
@@ -2174,6 +2175,9 @@ function characterLockPrompt(mc, chars, short) {
     if (c.position) f.push("chức vụ/địa vị: " + cut(c.position, 50));
     if (c.faction) f.push("phe/tổ chức: " + cut(c.faction, 40));
     if (c.gender) f.push("giới tính theo hồ sơ: " + cut(c.gender, 20));
+    if (c.maritalStatus) f.push("tình trạng hôn nhân: " + cut(c.maritalStatus, 30));
+    if (c.spouseName) f.push("người phối ngẫu/người yêu: " + cut(c.spouseName, 50));
+    if (c.maritalNotes) f.push("ghi chú hôn nhân: " + cut(c.maritalNotes, 80));
     if (c.age) f.push("tuổi: " + cut(c.age, 10));
     if (c.skills || c.strength) f.push("năng lực: " + cut(c.skills || c.strength, 60));
     if (c.speech || c.voice) f.push("cách nói: " + cut(c.speech || c.voice, 60));
@@ -3116,7 +3120,7 @@ const state = {
 
 function newMainCharProfile(){
   return {
-    name:"", age:"", gender:"", appearance:"", personality:"", occupation:"",
+    name:"", age:"", gender:"", maritalStatus:"", spouseName:"", maritalNotes:"", appearance:"", personality:"", occupation:"",
     goals:"", skills:"", physicalState:"", mentalState:"", currentLocation:"", secret:"",
     height:"", bodyType:"", measurements:"", hair:"", eyes:"", skin:"", voice:"", scent:"",
     style:"", scars:"", tattoos:"", speech:"",
@@ -3150,12 +3154,12 @@ function newStoryState(name){
 }
 
 const TIERS = ["background","minor","supporting","important","major"];
-const CHARACTER_CORE_LOCK_FIELDS = ["name","age","gender","appearance","personality","goals","role","position","occupation","faction"];
+const CHARACTER_CORE_LOCK_FIELDS = ["name","age","gender","maritalStatus","spouseName","appearance","personality","goals","role","position","occupation","faction"];
 const openCharDetails = new Set();
 
 function newCharacter(partial){
   const c = Object.assign({
-    id: genId(), name:"", tier:"supporting", age:"", gender:"",
+    id: genId(), name:"", tier:"supporting", age:"", gender:"", maritalStatus:"", spouseName:"", maritalNotes:"",
     /* Phân loại vai trò & mức liên quan tới truyện/nhân vật chính */
     role:"", relevanceToMC:"",
     /* Miêu tả ngoại hình chi tiết */
@@ -4495,6 +4499,8 @@ function buildStoryBibleSummary(options){
     const parts = [p.name];
     if(p.age) parts.push("tuổi:"+p.age);
     if(p.gender) parts.push(p.gender);
+    if(p.maritalStatus) parts.push("hôn nhân:"+p.maritalStatus);
+    if(p.spouseName) parts.push("người phối ngẫu/người yêu:"+p.spouseName);
     if(p.occupation) parts.push("nghề:"+p.occupation);
     if(p.height) parts.push("cao:"+p.height);
     if(p.bodyType) parts.push("dáng:"+p.bodyType);
@@ -5150,6 +5156,7 @@ function saveMainCharFromForm(){
   state.mainCharProfile = {
     name: $ID("mcNameInput").value.trim(), age: $ID("mcAgeInput").value.trim(),
     gender: $ID("mcGenderInput").value.trim(), occupation: $ID("mcOccupationInput").value.trim(),
+    maritalStatus: ($ID("mcMaritalStatusInput")||{value:""}).value.trim(), spouseName: ($ID("mcSpouseNameInput")||{value:""}).value.trim(),
     currentLocation: $ID("mcLocationInput").value.trim(),
     appearance: $ID("mcAppearanceInput").value.trim(),
     height: $ID("mcHeightInput").value.trim(),
@@ -5173,13 +5180,14 @@ function saveMainCharFromForm(){
     sexualExperience: $ID("mcSexualExpInput").value.trim(),
     boundaries: $ID("mcBoundariesInput").value.trim(),
     preferences: $ID("mcPreferencesInput").value.trim(),
+    maritalNotes: (state.mainCharProfile && state.mainCharProfile.maritalNotes) || "",
     aliases: Array.isArray(state.mainCharProfile && state.mainCharProfile.aliases) ? state.mainCharProfile.aliases : []
   };
   persist();
 }
 const MC_FIELDS = ["mcNameInput","mcAgeInput","mcGenderInput","mcOccupationInput","mcLocationInput",
   "mcAppearanceInput","mcHeightInput","mcBodyTypeInput","mcMeasurementsInput","mcHairInput","mcEyesInput","mcSkinInput",
-  "mcVoiceInput","mcScentInput","mcStyleInput","mcScarsInput","mcTattoosInput",
+  "mcVoiceInput","mcScentInput","mcStyleInput","mcScarsInput","mcTattoosInput","mcMaritalStatusInput","mcSpouseNameInput",
   "mcPersonalityInput","mcSpeechInput","mcGoalsInput","mcSkillsInput",
   "mcPhysicalInput","mcMentalInput","mcSecretInput",
   "mcSexualExpInput","mcBoundariesInput","mcPreferencesInput"];
@@ -5205,7 +5213,12 @@ $ID("rescanMainCharBtn").addEventListener("click", async ()=>{
     const { text: raw } = await callAI(prompt, {maxTokens:1500, temperature:0.3});
     const obj = safeJsonParse(raw);
     if(obj && typeof obj === "object"){
-      Object.keys(obj).forEach(k=>{ if(obj[k] && String(obj[k]).trim()) state.mainCharProfile[k] = String(obj[k]).trim(); });
+      const lockedMain = new Set(["name","age","gender","maritalStatus","spouseName","appearance","personality","occupation","goals"]);
+      Object.keys(obj).forEach(k=>{
+        if(!obj[k] || !String(obj[k]).trim()) return;
+        if(lockedMain.has(k) && state.mainCharProfile[k] && !obj.explicitCoreChange) return;
+        state.mainCharProfile[k] = String(obj[k]).trim();
+      });
       persist(); hydrateMainCharForm();
       setStatus("Đã cập nhật.", false);
     } else setStatus("Không phân tích được.", false);
@@ -5215,7 +5228,7 @@ $ID("rescanMainCharBtn").addEventListener("click", async ()=>{
 function hydrateMainCharForm(){
   const p = state.mainCharProfile || newMainCharProfile();
   const map = {
-    mcNameInput:"name", mcAgeInput:"age", mcGenderInput:"gender", mcOccupationInput:"occupation",
+    mcNameInput:"name", mcAgeInput:"age", mcGenderInput:"gender", mcOccupationInput:"occupation", mcMaritalStatusInput:"maritalStatus", mcSpouseNameInput:"spouseName",
     mcLocationInput:"currentLocation", mcAppearanceInput:"appearance",
     mcHeightInput:"height", mcBodyTypeInput:"bodyType", mcMeasurementsInput:"measurements", mcHairInput:"hair", mcEyesInput:"eyes",
     mcSkinInput:"skin", mcVoiceInput:"voice", mcScentInput:"scent", mcStyleInput:"style",
@@ -5356,7 +5369,7 @@ function charDetailHtml(c, idx){
     ["relevanceToMC","Mức độ liên quan tới nhân vật chính"]
   ];
   const fields = [
-    ["age","Tuổi"], ["gender","Giới tính"], ["occupation","Nghề"], ["position","Vị trí"],
+    ["age","Tuổi"], ["gender","Giới tính"], ["maritalStatus","Tình trạng hôn nhân"], ["spouseName","Vợ/chồng/người yêu"], ["maritalNotes","Ghi chú hôn nhân"], ["occupation","Nghề"], ["position","Vị trí"],
     ["faction","Phe"], ["currentLocation","Đang ở"], ["schedule","Lịch trình"],
     ["height","Chiều cao"], ["bodyType","Dáng người"], ["measurements","Số đo / kích thước"],
     ["hair","Tóc"], ["eyes","Mắt"], ["skin","Da"],
@@ -6000,6 +6013,9 @@ function characterSummaryForPrompt(list){
     if(c.relevanceToMC) parts.push("liên quan NVC:"+cut(c.relevanceToMC, 60));
     if(c.age) parts.push("tuổi:"+c.age);
     if(c.gender) parts.push(c.gender);
+    if(c.maritalStatus) parts.push("hôn nhân:"+cut(c.maritalStatus, 30));
+    if(c.spouseName) parts.push("người phối ngẫu/người yêu:"+cut(c.spouseName, 50));
+    if(c.maritalNotes) parts.push("ghi chú hôn nhân:"+cut(c.maritalNotes, 80));
     if(c.occupation) parts.push("nghề:"+cut(c.occupation, 40));
     if(c.faction) parts.push("phe:"+cut(c.faction, 40));
     /* Ngoại hình / số đo — ƯU TIÊN (để cảnh 18+ bám hồ sơ) */
@@ -6143,7 +6159,7 @@ const CHAR_JSON_FORMAT_HINT = [
   '  "tier": "background|minor|supporting|important|major",',
   '  "role": "vai trò/phân loại của NV này đối với truyện (vd: đồng minh, phản diện phụ, nạn nhân, người cung cấp thông tin, trung lập...)",',
   '  "relevanceToMC": "mức độ + cách liên quan tới nhân vật chính (vd: liên quan trực tiếp đến vụ X, chỉ quen biết xã giao, đối thủ trong công việc...)",',
-  '  "age":"", "gender":"", "position":"", "speech":"", "height":"", "bodyType":"", "measurements":"", "hair":"", "eyes":"", "skin":"", "appearance": "", "personality": "", "occupation": "", "faction": "",',
+  '  "age":"", "gender":"", "maritalStatus":"độc thân|đang hẹn hò|đã kết hôn|ly thân|ly hôn|góa|khác", "spouseName":"", "maritalNotes":"", "position":"", "speech":"", "height":"", "bodyType":"", "measurements":"", "hair":"", "eyes":"", "skin":"", "appearance": "", "personality": "", "occupation": "", "faction": "",',
   '  "speech": "cách nói riêng: giọng điệu, khẩu ngữ, câu cửa miệng, cách xưng hô đặc trưng (chỉ ghi khi chương cho thấy rõ)", "strength": "điểm mạnh/kỹ năng thể hiện trong chương", "voice": "", "scent": "", "style": "phong cách ăn mặc", "scars": "", "tattoos": "", "schedule": "lịch/thói quen nếu chương nêu",',
   '  "independentPlot": "TUYẾN TRUYỆN RIÊNG của NV này đang diễn ra ngoài tuyến chính (việc họ tự làm/âm mưu/mục tiêu riêng) — chỉ ghi diễn biến MỚI trong chương",',
   '  "sexualExperience": "", "boundaries": "", "taboos": "", "preferences": "", "attractionToMC": "", "tensionWithMC": "", "consentNotes": "",',

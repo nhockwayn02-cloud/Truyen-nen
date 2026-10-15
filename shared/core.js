@@ -1133,6 +1133,9 @@ function characterLockPrompt(mc, chars, short) {
     if (c.position) f.push("chức vụ/địa vị: " + cut(c.position, 50));
     if (c.faction) f.push("phe/tổ chức: " + cut(c.faction, 40));
     if (c.gender) f.push("giới tính theo hồ sơ: " + cut(c.gender, 20));
+    if (c.maritalStatus) f.push("tình trạng hôn nhân: " + cut(c.maritalStatus, 30));
+    if (c.spouseName) f.push("người phối ngẫu/người yêu: " + cut(c.spouseName, 50));
+    if (c.maritalNotes) f.push("ghi chú hôn nhân: " + cut(c.maritalNotes, 80));
     if (c.age) f.push("tuổi: " + cut(c.age, 10));
     if (c.skills || c.strength) f.push("năng lực: " + cut(c.skills || c.strength, 60));
     if (c.speech || c.voice) f.push("cách nói: " + cut(c.speech || c.voice, 60));
