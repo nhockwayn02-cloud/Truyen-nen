@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.33.1] — Responsive iPhone topbar
+
+- Ẩn đúng label trợ năng `sr-only` khỏi layout nhưng vẫn giữ cho trình đọc màn hình.
+- Thu gọn topbar trên màn hình ≤600px: mô tả dài ẩn, tiêu đề không bị xuống từng chữ, nút điều khiển vừa chiều ngang iPhone.
+
 ## [V12.33.0] — P0/P1/P2 hardening
 
 - P0: thêm age gate 18+, bảng kiểm tra cấu hình bảo mật deployment và endpoint `security-status` không tiết lộ secret.
@@ -8,7 +13,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.33.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.33.1** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

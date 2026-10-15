@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.33.0</title>
+<title>Xưởng Truyện AI Pro Max v12.33.1</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -255,6 +255,7 @@ body.ui-simple .section[data-simple-hidden="true"]{display:none!important}
 body.ui-simple .settings-column-heading::after{content:" · Chế độ đơn giản";color:var(--gold)}
 .mode-control{display:flex;align-items:center;gap:6px;margin-right:6px}
 .mode-control select{width:auto;min-width:118px;padding:5px 7px;font-size:11px}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .security-audit{margin-top:9px;padding:9px 10px;border:1px dashed rgba(224,168,63,.55);border-radius:8px;background:rgba(224,168,63,.06);font-size:11px;line-height:1.45}
 .security-audit.ok{border-color:rgba(63,174,114,.6);background:rgba(63,174,114,.06);color:#bfe8cf}
 .security-audit.bad{border-color:rgba(226,88,77,.65);background:rgba(226,88,77,.06);color:#f0c5c0}
@@ -332,7 +333,6 @@ body.ui-simple .settings-column-heading::after{content:" · Chế độ đơn gi
 
 .authoring-stack .section-body{max-height:none}
 @supports (-webkit-touch-callout:none){body{-webkit-text-size-adjust:100%}.btn,.icon-btn,input,textarea,select{font-size:16px}.btn-sm{font-size:13px}}
-
 /* v12.25 — iOS dark */
 html{color-scheme:dark}
 :root{--topbar-h:58px}
@@ -342,6 +342,23 @@ html{color-scheme:dark}
 @supports (height:100dvh){body{min-height:100dvh}.layout{height:calc(100dvh - 130px)}.main{max-height:calc(100dvh - 130px)}.sidebar{max-height:calc(100dvh - 130px)}}
 @media (pointer:coarse){.btn{min-height:44px}.btn-sm{min-height:40px}.icon-btn{width:44px;height:44px}.story-tab{min-height:40px}.story-tab-add{width:40px;height:40px}.chapter-chip{min-height:56px}}
 @media (max-width:900px){.layout{height:auto!important}.main{max-height:none!important;contain:none;padding-bottom:calc(70px + env(safe-area-inset-bottom))}.sidebar{max-height:none!important;contain:none}}
+/* V12.33.1 — iPhone topbar: không để brand/subtitle bóp nát chiều ngang */
+@media (max-width:600px){
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));}
+  .brand{min-width:0;gap:8px;overflow:hidden;}
+  .brand-mark{width:30px;height:30px;}
+  .brand>div:last-child{min-width:0;overflow:hidden;}
+  .brand-name{font-size:15px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brand-sub{display:none;}
+  .topbar-actions{min-width:0;gap:5px;justify-content:flex-end;}
+  .mode-control{margin-right:0;}
+  .mode-control select{min-width:84px;width:84px;padding:5px 4px;font-size:12px;}
+  .topbar-actions .icon-btn{width:38px;height:38px;font-size:15px;}
+  .topbar-actions #helpBtn{display:none;}
+  :root{--topbar-h:54px;}
+  .story-tabs{padding:7px 10px;}
+  .status-bar{padding:6px 12px;gap:7px 12px;font-size:11px;}
+}
 </style>
 </head>
 <body>
@@ -359,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.33.0 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
+<div class="brand-sub">v12.33.1 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
