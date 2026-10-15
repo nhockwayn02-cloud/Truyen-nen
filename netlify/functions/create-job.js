@@ -39,6 +39,11 @@ exports.handler = async (event) => {
     const apiKey = String(body.apiKey || "").trim().replace(/^bearer\s+/i, "").replace(/^["']|["']$/g, "");
     const pass = sec.checkPasscode(event, body);
     if (!pass.ok) return jsonResponse(401, { error:"Sai hoặc thiếu mã truy cập (APP_PASSCODE).", needPasscode:true });
+    if (process.env.REQUIRE_HARDENED_SECURITY === "1") {
+      const audit = sec.securityAudit(process.env);
+      const missing = audit.checks.filter(x => (x.id === "JOB_SECRET" || x.id === "APP_PASSCODE") && !x.ok).map(x => x.id);
+      if (missing.length) return jsonResponse(503, { error:"Background job đang ở chế độ bảo mật nghiêm ngặt nhưng thiếu: " + missing.join(", "), securitySetupRequired:true, missing });
+    }
     if (!storyState || !apiKey) return jsonResponse(400, { error:"Thiếu storyState hoặc API key" });
     const ep = sec.validateEndpoint(body.apiEndpoint || DEFAULT_ENDPOINT);
     if (!ep.ok) return jsonResponse(400, { error: ep.error });

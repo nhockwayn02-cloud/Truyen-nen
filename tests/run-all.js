@@ -29,6 +29,7 @@ const dir = __dirname; const suites = [
   ["V12.32.10 AI tự sửa cục bộ (patch)", process.execPath, ["v12_32_10_patch_rewrite.test.js"]],
   ["V12.30 khôi phục phản hồi streaming rỗng", process.execPath, ["v12_30_streaming_fix.test.js"]],
   ["V12.31 prompt context audit", process.execPath, ["v12_31_prompt_context.test.js"]],
+  ["V12.33 P0/P1/P2 hardening", process.execPath, ["v12_33_hardening.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],
   ["Bảo mật server", process.execPath, ["security.test.js"]],
   ["Tích hợp worker", process.execPath, ["worker.integration.js"], { EXTRACT_CONCURRENCY: "3" }],

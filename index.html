@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.32.18</title>
+<title>Xưởng Truyện AI Pro Max v12.33.0</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -248,6 +248,28 @@ input[type=range]{padding:4px 0;background:transparent;border:none;}
 ::-webkit-scrollbar-thumb{background:#2f3340;border-radius:8px;}
 ::-webkit-scrollbar-track{background:transparent;}
 
+
+/* V12.33 — onboarding, simple mode and visible progress */
+body.ui-simple .advanced-only{display:none!important}
+body.ui-simple .section[data-simple-hidden="true"]{display:none!important}
+body.ui-simple .settings-column-heading::after{content:" · Chế độ đơn giản";color:var(--gold)}
+.mode-control{display:flex;align-items:center;gap:6px;margin-right:6px}
+.mode-control select{width:auto;min-width:118px;padding:5px 7px;font-size:11px}
+.security-audit{margin-top:9px;padding:9px 10px;border:1px dashed rgba(224,168,63,.55);border-radius:8px;background:rgba(224,168,63,.06);font-size:11px;line-height:1.45}
+.security-audit.ok{border-color:rgba(63,174,114,.6);background:rgba(63,174,114,.06);color:#bfe8cf}
+.security-audit.bad{border-color:rgba(226,88,77,.65);background:rgba(226,88,77,.06);color:#f0c5c0}
+.security-audit button{margin-top:6px;width:auto}
+.progress-strip{display:none;gap:4px;flex-wrap:wrap;margin:8px 0;padding:7px 9px;border:1px solid rgba(77,139,245,.35);border-radius:8px;background:rgba(77,139,245,.06);font-size:11px;color:var(--ink-dim)}
+.progress-strip.on{display:flex}
+.progress-step{padding:3px 6px;border-radius:5px;background:var(--panel-2);border:1px solid var(--line)}
+.progress-step.active{color:var(--gold);border-color:var(--gold-dim);background:rgba(217,164,65,.13)}
+.progress-step.done{color:var(--green);border-color:rgba(63,174,114,.45)}
+.age-gate{position:fixed;inset:0;z-index:20000;background:rgba(4,5,8,.94);display:flex;align-items:center;justify-content:center;padding:20px}
+.age-gate[hidden]{display:none}
+.age-gate-card{max-width:520px;width:100%;background:#171922;border:1px solid #5a2f3a;border-radius:14px;padding:24px;box-shadow:0 18px 60px rgba(0,0,0,.65)}
+.age-gate-card h2{margin:0 0 10px;color:#f0a8a2}.age-gate-card p{color:var(--ink-dim);line-height:1.6}.age-gate-card label{display:flex;gap:9px;align-items:flex-start;margin:16px 0;color:var(--ink)}
+.age-gate-card button{width:100%;margin-top:8px}.onboarding-card{max-width:650px}
+
 /* v10.1: 2 cột */
 #legacyHidden{display:none!important}
 .layout{grid-template-columns:clamp(360px,32vw,460px) 1fr;height:calc(100vh - 130px);min-height:0}
@@ -323,15 +345,24 @@ html{color-scheme:dark}
 </style>
 </head>
 <body>
+<div class="age-gate" id="ageGate" hidden>
+  <div class="age-gate-card">
+    <h2>🔞 Xác nhận độ tuổi</h2>
+    <p>Ứng dụng hỗ trợ sáng tác tiểu thuyết dành cho người trưởng thành và có thể tạo nội dung 18+. Chỉ tiếp tục nếu bạn đã đủ 18 tuổi và đồng ý tự chịu trách nhiệm với nội dung mình tạo.</p>
+    <label><input id="ageGateCheck" type="checkbox"/> Tôi xác nhận mình từ 18 tuổi trở lên và hiểu ứng dụng có nội dung trưởng thành.</label>
+    <button class="btn btn-pink" id="ageGateContinue" disabled>Tiếp tục vào ứng dụng</button>
+  </div>
+</div>
+
 <div class="topbar">
 <div class="brand">
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.32.18 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
+<div class="brand-sub">v12.33.0 · thời gian chảy theo truyện · Chuyển cảnh · Neo ngoại hình · Thời gian truyện · Hồ sơ khóa · Tiến triển + trí nhớ</div>
 </div>
 </div>
-<div class="topbar-actions">
+<div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
 <button class="icon-btn" id="promptPreviewBtn" title="Xem prompt cuối">👁</button>
 <button class="icon-btn" id="costBtn" title="Chi phí">💰</button>
 <button class="icon-btn" id="newStoryBtn" title="Truyện mới">＋</button>
@@ -404,6 +435,7 @@ html{color-scheme:dark}
 </div>
 <button class="btn btn-ghost" id="saveKeyBtn" style="margin-top:8px;">Lưu &amp; kiểm tra</button>
 <div class="api-status" id="apiStatus">Chưa kiểm tra.</div>
+<div class="security-audit" id="securityAudit"><b>🛡 Bảo mật deployment</b><div id="securityAuditText">Chưa kiểm tra cấu hình server.</div><button class="btn btn-ghost btn-sm" id="securityAuditBtn">Kiểm tra cấu hình</button></div>
 </div>
 <div class="section tone-purple settings-only-section" data-column="settings" data-section="">
 <div class="section-head" data-toggle=""><span>0.0. Style Bible</span><span class="chev">▾</span></div>
@@ -711,6 +743,9 @@ html{color-scheme:dark}
 <div aria-label="Công cụ viết và hậu kỳ" class="authoring-stack" data-column="writer-tools" id="authoringStack"><div class="section tone-plain open writer-only-section" data-column="writer" data-section="">
 <div class="section-head" data-toggle=""><span>5. Công Cụ Sáng Tác</span><span class="chev">▾</span></div>
 <div class="section-body">
+<div class="progress-strip" id="writeProgress" aria-live="polite">
+<span class="progress-step" data-progress="plan">1. Kế hoạch</span><span class="progress-step" data-progress="write">2. Viết</span><span class="progress-step" data-progress="expand">3. Mở rộng</span><span class="progress-step" data-progress="gate">4. Quality Gate</span><span class="progress-step" data-progress="post">5. Hậu kỳ</span><span class="progress-step" data-progress="sync">6. Sync Canon</span>
+</div>
 <button class="btn btn-blue" id="writeChapterBtn">✨ Tạo Chương Mới</button>
 <button class="btn btn-ghost" id="continueChapterBtn">➕ Viết Tiếp</button>
 <button class="btn btn-stop" id="stopBtn" style="display:none;">⏹ Dừng</button>
@@ -3326,6 +3361,63 @@ async function loadCurrentStoryIntoState(){
 
 /* ========== DOM REFS ========== */
 const $ID = id => document.getElementById(id);
+
+/* V12.33 P0/P1/P2 helpers — giữ nguyên schema dữ liệu cũ */
+const AGE_GATE_KEY = "xta_age_verified_v1";
+function setupAgeGate(){
+  const gate=$ID("ageGate"), check=$ID("ageGateCheck"), cont=$ID("ageGateContinue");
+  if(!gate||!check||!cont) return;
+  if(window.__XTA_TEST__ || localStorage.getItem(AGE_GATE_KEY)==="1"){ gate.hidden=true; return; }
+  gate.hidden=false;
+  check.addEventListener("change",()=>{cont.disabled=!check.checked;});
+  cont.addEventListener("click",()=>{if(!check.checked)return; try{localStorage.setItem(AGE_GATE_KEY,"1");}catch(e){} gate.hidden=true;});
+}
+function setupUIMode(){
+  const sel=$ID("uiModeSelect"); if(!sel)return;
+  let mode="simple"; try{mode=localStorage.getItem("xta_ui_mode")||"simple";}catch(e){}
+  sel.value=mode; document.body.classList.toggle("ui-simple",mode==="simple");
+  const sections=[...document.querySelectorAll(".sidebar .section")];
+  sections.forEach(sec=>{const head=sec.querySelector(".section-head span"); const text=(head&&head.textContent||"").trim();
+    const essential=/^(0\.0|0\.1|0\.2|2\.\s|4\.)/.test(text);
+    sec.dataset.simpleHidden=essential?"false":"true";
+  });
+  sel.addEventListener("change",()=>{mode=sel.value==="expert"?"expert":"simple";document.body.classList.toggle("ui-simple",mode==="simple");try{localStorage.setItem("xta_ui_mode",mode);}catch(e){};setStatus(mode==="simple"?"Đã bật Chế độ đơn giản — các mục nâng cao đã được ẩn.":"Đã bật Chế độ chuyên gia — toàn bộ công cụ đã hiện.",false);});
+}
+function setWriteProgress(step){
+  const box=$ID("writeProgress"); if(!box)return;
+  if(!step){box.classList.remove("on"); box.querySelectorAll(".progress-step").forEach(x=>x.classList.remove("active","done")); return;}
+  box.classList.add("on"); const order=["plan","write","expand","gate","post","sync"], at=order.indexOf(step);
+  box.querySelectorAll(".progress-step").forEach(x=>{const i=order.indexOf(x.dataset.progress);x.classList.toggle("active",i===at);x.classList.toggle("done",i<at);});
+}
+async function runSecurityAudit(){
+  const box=$ID("securityAudit"), txt=$ID("securityAuditText"); if(!box||!txt)return;
+  txt.textContent="Đang kiểm tra cấu hình server…"; box.className="security-audit";
+  try{
+    const r=await fetch("/.netlify/functions/security-status",{headers:{"Accept":"application/json"}});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d=await r.json(); const bad=(d.checks||[]).filter(x=>!x.ok);
+    box.className="security-audit "+(bad.length?"bad":"ok");
+    txt.textContent=bad.length?"⚠ "+bad.map(x=>x.label).join(" · ")+" — hãy sửa trước khi chạy viết nền.":"✓ Cấu hình server đạt mức khuyến nghị.";
+  }catch(e){
+    box.className="security-audit bad";
+    txt.textContent="Không đọc được endpoint kiểm tra. Hãy đặt JOB_SECRET, APP_PASSCODE và ALLOWED_ORIGIN trên Netlify; nếu chỉ viết cục bộ, có thể bỏ qua.";
+  }
+}
+function setupSecurityAudit(){const b=$ID("securityAuditBtn");if(b)b.addEventListener("click",runSecurityAudit);}
+function showOnboardingWizard(){
+  if(window.__XTA_TEST__ || state.chapters.length || state.mainPlot || state.mainCharProfile&&state.mainCharProfile.name) return;
+  const ov=document.createElement("div"); ov.className="age-gate"; ov.id="onboardingWizard";
+  ov.innerHTML='<div class="age-gate-card onboarding-card"><h2>✍ Bắt đầu một truyện mới</h2><p>Chỉ cần điền vài thông tin cốt lõi. Các thiết lập nâng cao có thể bổ sung sau.</p><label>Tên truyện<input id="wizStoryName" type="text" placeholder="Ví dụ: Mùa Hạ Không Tên"></label><label>Thể loại / không khí<input id="wizGenre" type="text" placeholder="Ví dụ: dark romance, đô thị"></label><label>Nhân vật chính<input id="wizChar" type="text" placeholder="Tên nhân vật"></label><label>Tuổi nhân vật chính<input id="wizAge" type="number" min="18" value="25"></label><label>Ý tưởng chương đầu<textarea id="wizIdea" rows="4" placeholder="Chương đầu bắt đầu như thế nào?"></textarea></label><button class="btn btn-gold" id="wizStart">Lưu thiết lập và bắt đầu</button><button class="btn btn-ghost" id="wizSkip">Bỏ qua, tự thiết lập sau</button></div>';
+  document.body.appendChild(ov);
+  $ID("wizSkip").addEventListener("click",()=>ov.remove());
+  $ID("wizStart").addEventListener("click",()=>{
+    const name=$ID("wizStoryName").value.trim(), genre=$ID("wizGenre").value.trim(), ch=$ID("wizChar").value.trim(), age=$ID("wizAge").value.trim(), idea=$ID("wizIdea").value.trim();
+    if(name)state.storyName=name; if(genre){state.genre=genre;const g=$ID("genre");if(g)g.value=genre;} if(idea){state.mainPlot=idea;const p=$ID("mainPlot");if(p)p.value=idea;state.directive=idea; if(nextChapterHintEl)nextChapterHintEl.value=idea;}
+    if(ch){state.mainCharProfile=Object.assign(newMainCharProfile(),state.mainCharProfile||{}, {name:ch,age:age||"25"}); hydrateFormFromState();}
+    persistNow(); renderAll(); renderStoryTabs(); ov.remove(); setStatus("Đã tạo thiết lập cơ bản. Bạn có thể bấm ✨ Tạo Chương Mới.",false);
+  });
+}
+
 const apiEndpointInput = $ID("apiEndpoint"), apiKeyInput = $ID("apiKey"), modelSelect = $ID("modelSelect");
 const modelNsfwSelect = $ID("modelNsfwSelect"), nsfwModeSelect = $ID("nsfwModeSelect"), apiStatus = $ID("apiStatus");
 const nsfwAutoThresholdInput = $ID("nsfwAutoThreshold");
@@ -6071,7 +6163,7 @@ $ID("npcUpdateBtn").addEventListener("click", async ()=>{
      Giờ quét TỪNG CHƯƠNG một, dùng lại đúng logic updateCharactersIncremental
      (đã có nâng ngưỡng cắt + retry) — chậm hơn về tổng thời gian chờ nhưng
      đáng tin cậy hơn nhiều và có báo tiến độ rõ ràng. */
-  setGenerating(true);
+  setGenerating(true); setWriteProgress("write");
   const total = state.chapters.length;
   let okCount = 0, failCount = 0, stopped = false;
   try{
@@ -6087,7 +6179,7 @@ $ID("npcUpdateBtn").addEventListener("click", async ()=>{
     if(stopped) setStatus("Đã dừng — quét được " + okCount + "/" + total + " chương.", false);
     else setStatus("Đã quét xong " + total + " chương (" + okCount + " OK" + (failCount ? ", " + failCount + " lỗi — xem cờ ⚠ trên thẻ chương" : "") + ").", false);
   }catch(err){ setStatus("Lỗi: " + err.message, false); }
-  finally{ setGenerating(false); }
+  finally{ setGenerating(false); setWriteProgress(null); }
 });
 
 /* ========== LOCATION + ITEM + THREADS UPDATE (gộp 1 lệnh gọi) ========== */
@@ -7506,12 +7598,13 @@ async function reviewCurrentChapter(opts){
 /* ========== GENERATE CHAPTER (chính) ========== */
 async function generateChapter(regenIndex, regenMode, forceNsfw){
   if(generating){ setStatus("Đang bận...", true); return; }
+  setWriteProgress("plan");
   if((!state.apiEndpoint && !apiEndpointInput.value.trim()) || (!state.apiKey && !apiKeyInput.value.trim())){
     setStatus("Cấu hình endpoint + key trước.", false); return;
   }
   const isRegen = typeof regenIndex === "number";
   _callLog = []; _chapterStartAt = Date.now();
-  if(!isRegen && state.chapters.length===0 && (
+  if(!window.__XTA_TEST__ && !isRegen && state.chapters.length===0 && (
     (state.mainPlot && state.mainPlot.trim()) ||
     (state.characters && state.characters.length>0) ||
     (state.mainCharProfile && state.mainCharProfile.name && state.mainCharProfile.name.trim())
@@ -7531,7 +7624,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(last && last.status==="MODIFIED_AFTER_SYNC") setStatus("ℹ Chương "+state.chapters.length+" đã sửa tay sau Sync — vẫn viết tiếp. Bấm 🔍 Duyệt lại nếu muốn cập nhật Canon.", true);
   }
 
-  setGenerating(true);
+  setGenerating(true); setWriteProgress("write");
   let targetModel = basePick.model;
   let usingNsfw = basePick.isNsfw;
   let modeTag = usingNsfw ? "🔥 [NSFW] " : "";
@@ -7688,7 +7781,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(dupWarnings.length) chapterObj.continuityWarnings = dupWarnings;
 
     const reviewContext = buildStoryBibleSummary() + "\n" + characterSummaryForPrompt(relevantCharacters(20));
-    setStatus("🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true);
+    setStatus("🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true); setWriteProgress("gate");
     const gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext);
     if(!gate.approved){
       clearDraftProgress();
@@ -7749,6 +7842,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     else setStatus("Lỗi: " + err.message, false);
   }finally{
     setGenerating(false);
+    setWriteProgress(null);
     chapterTextEl.classList.remove("streaming");
   }
 }
@@ -9054,6 +9148,7 @@ async function retryBackgroundPostProcess(){
 
 /* ========== BOOT ========== */
 async function bootV102(){
+  setupAgeGate(); setupUIMode(); setupSecurityAudit();
   await initIndexedDBStorage();
   bootstrapStorage();
   await loadCurrentStoryIntoState();
@@ -9070,6 +9165,7 @@ async function bootV102(){
   hydrateFormFromState();
   renderAll();
   renderStoryTabs();
+  showOnboardingWizard();
   checkForRecoverableDraft();
   checkPendingBackgroundJob();
   if(state.apiEndpoint && state.apiKey) apiStatus.textContent="Đã nạp cấu hình API đã lưu.";
