@@ -5,7 +5,7 @@ const sb={console};vm.createContext(sb);
 vm.runInContext(core+'\n;Object.assign(this,{buildChapterPlanPrompt,buildQualityReviewPrompt});',sb);
 const plan=sb.buildChapterPlanPrompt({chapterNumber:9,context:'OUTLINE: Ch9: Mỹ Duyên đến phòng trọ; Bùi Lạc phát hiện kẻ theo dõi.',recent:'',directive:'',hint:'',mainCharName:'Bùi Lạc',storyControl:''});
 assert(plan.includes('BEAT LEDGER'));
-assert(plan.includes('[B1]'));
+assert(plan.includes('[R1]'));
 assert(plan.includes('LEDGER_ORDER'));
 const review=sb.buildQualityReviewPrompt({storyControl:'',characterLock:'',contract:'[B1] Mỹ Duyên đến phòng trọ | [B2] Bùi Lạc phát hiện gã vest xám',context:'',warnings:[],draft:'',prevEnding:'',knownNames:[],maxMainEvents:3,maxNamedCharacters:4});
 assert(review.includes('BEAT LEDGER AUDIT'));

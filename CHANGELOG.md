@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.39.0] — Canon Barrier + Required Beat Contract
+
+- Mặc định không cho bản SOFT_FAIL trở thành Canon; thêm công tắc **Chặn điểm thấp vào Canon**.
+- Tách `[R]` (beat bắt buộc từ brief/Outline/canon) khỏi `[S]` (beat hỗ trợ do AI đề xuất), tránh chấm thấp vì ý AI tự phát sinh.
+- Thêm thứ tự ưu tiên Canon → mệnh lệnh mới → Outline → gợi ý → đề xuất AI và buộc ghi nhận xung đột thay vì tự chọn im lặng.
+
 ## [V12.38.0] — Marital Status Lock
 
 - Thêm ô **Tình trạng hôn nhân** và **Vợ/chồng/người yêu** cho nhân vật chính.
@@ -43,7 +49,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.38.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.39.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

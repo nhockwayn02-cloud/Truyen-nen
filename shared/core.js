@@ -70,13 +70,15 @@ function buildChapterPlanPrompt(o) {
       "QUY TẮC ĐẶC BIỆT: Phải chuyển ĐẦY ĐỦ mọi chi tiết, hành động, mốc mở đầu, diễn biến và mốc kết thúc mà người dùng đã nêu thành kế hoạch. Không được bỏ sót, rút gọn, gộp nhịp hoặc thay thế chi tiết quan trọng.",
       "Không tự thêm tuyến truyện, mục tiêu, nhân vật quan trọng, địa điểm mới hoặc biến cố lớn không có trong yêu cầu người dùng. Nếu cần nối các mốc, chỉ dùng diễn biến cầu nối tối thiểu để giữ liền mạch.",
       "Nếu yêu cầu có ghi rõ bắt đầu tại A và kết thúc tại B, A và B là hai ANCHOR BẮT BUỘC; kế hoạch phải đi từ A đến B và không mở tuyến khác làm lệch trọng tâm.",
-      "Nếu yêu cầu người dùng xung đột với bối cảnh cũ, ưu tiên yêu cầu người dùng mới nhất và đánh dấu phần xung đột trong kế hoạch thay vì tự sửa yêu cầu."
+      "Nếu yêu cầu người dùng xung đột với bối cảnh cũ, ưu tiên yêu cầu người dùng mới nhất và đánh dấu phần xung đột trong kế hoạch thay vì tự sửa yêu cầu.",
+      "THỨ TỰ ƯU TIÊN: (1) canon đã xác nhận trong chương đã Sync và hồ sơ khóa; (2) mệnh lệnh người dùng hiện tại; (3) dòng Outline đúng chương; (4) gợi ý người dùng; (5) đề xuất riêng của AI. Khi hai nguồn cùng cấp mâu thuẫn, KHÔNG tự chọn im lặng: ghi mục CONFLICT trong kế hoạch, chọn một phương án nhất quán và nêu rõ phương án bị loại.",
+      "Không được đưa một chi tiết do AI tự nghĩ ra vào [R] hoặc coi là canon. Mọi chi tiết không đến từ nguồn (1)-(4) phải đánh [S] và chỉ là vật liệu cầu nối."
     ].filter(Boolean).join("\n") : "",
     hasUserBrief ? "Lập kế hoạch BÁM SÁT BRIEF — số nhịp bằng đúng số nhịp trong brief:" : "Lập kế hoạch theo NGÂN SÁCH SỰ KIỆN — không vượt quá 3 sự kiện chính:",
     "1. Mục tiêu chương", "2. Xung đột chính",
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
                  : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
-    "3a. BEAT LEDGER — đánh mã bắt buộc theo đúng thứ tự: [B1], [B2], [B3]... Mỗi beat phải ghi đủ: MỤC TIÊU | HÀNH ĐỘNG/THÔNG TIN BẮT BUỘC | NHÂN VẬT/ĐỊA ĐIỂM | BẰNG CHỨNG HOÀN THÀNH | HẬU QUẢ. Beat là việc phải xuất hiện trong văn xuôi bằng hành động, lời thoại, thông tin hoặc hậu quả cụ thể; không tính việc chỉ được nhắc trong kế hoạch.",
+    "3a. BEAT LEDGER — phân loại rõ để không biến đề xuất của AI thành canon: đánh mã [R1], [R2]... cho BEAT BẮT BUỘC xuất phát từ brief người dùng, dòng Outline của đúng chương hoặc canon đã xác nhận; đánh mã [S1], [S2]... cho BEAT HỖ TRỢ/CẦU NỐI do AI đề xuất để nối mạch. Mỗi beat ghi: MỤC TIÊU | HÀNH ĐỘNG/THÔNG TIN | NHÂN VẬT/ĐỊA ĐIỂM | BẰNG CHỨNG | HẬU QUẢ. Chỉ [R] mới là điều kiện bắt buộc; [S] được phép thay đổi hoặc bỏ nếu làm truyện mượt hơn.",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
     "5. Địa điểm + DÒNG THỜI GIAN (ghi chú NỘI BỘ để giữ nhất quán, KHÔNG phải để in thành nhãn trong văn): thời điểm tương đối khi mở chương, quãng đã trôi từ chương trước (nếu có nhảy), các beat nối nhau theo thời gian thế nào, cảnh nào thời gian thật sự quan trọng (hạn chót/khẩn cấp); nêu cách thể hiện tự nhiên trong văn (ánh sáng, việc đang làm, một câu chuyển trong mạch kể)",
     "5b. CẢNH & NGƯỜI CÓ MẶT: với MỖI beat ghi: địa điểm | ai có mặt | ai VÀO cảnh (cách vào) | ai RỜI cảnh (cách rời). Người không được ghi có mặt thì không được nói/hành động trong beat đó.",
@@ -85,7 +87,7 @@ function buildChapterPlanPrompt(o) {
     "7. Kết chương — phải khớp mốc kết thúc người dùng yêu cầu nếu có",
     "7a. TIẾN ĐỘ ARC/OUTLINE: nếu bối cảnh có mục TIẾN ĐỘ ARC/OUTLINE, ghi rõ chương này thực hiện VIỆC BẮT BUỘC/bước tiến nào của Arc hoặc Outline (đúng dòng của chương nếu Outline có), và mỗi sự kiện chính phải là một BƯỚC TIẾN thật, không phải cảnh độn",
     "7b. THAY ĐỔI/TIẾN TRIỂN: ghi rõ điều gì ĐÃ ĐỔI giữa đầu và cuối chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả); không được để trống",
-    "9. DÒNG TỰ KIỂM TRA CUỐI KẾ HOẠCH: LEDGER_ORDER: B1 -> B2 -> ... -> END | STOP_AFTER: mã beat cuối cùng. Không được kết chương trước khi mọi beat bắt buộc đã có bằng chứng; nếu thiếu beat, phải tiếp tục viết beat đó trước điểm kết.",
+    "9. DÒNG TỰ KIỂM TRA CUỐI KẾ HOẠCH: LEDGER_ORDER: R1 -> S1 -> R2 -> ... -> END | REQUIRED_DONE: R1,R2,... | STOP_AFTER: mã beat cuối cùng. Không được kết chương trước khi mọi [R] đã có bằng chứng; beat [S] không được dùng để tạo hard failure.",
     "8. Nếu có cảnh trưởng thành: mức intensity + structure + cảnh đó làm đổi điều gì (quan hệ/quyền lực/bí mật/hậu quả) và dẫn tới bước nào kế tiếp; không thay đổi phạm vi sự kiện người dùng đã chỉ định",
     "",
     hasUserBrief ? "QUY TẮC CỨNG: Không thêm sự kiện lớn ngoài brief. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có."
@@ -1348,7 +1350,7 @@ function buildQualityReviewPrompt(p) {
     (p.contractLabel || "CHAPTER CONTRACT / OUTLINE") + ":", p.contract || "(không có)",
     p.arcProgress ? ("TIẾN ĐỘ ARC / OUTLINE (chương này phải thực hiện):\n" + p.arcProgress) : "",
     "BỐI CẢNH/CANON TÓM LƯỢC:", compactGateContext(p.context, 9000, true),
-    "BEAT LEDGER AUDIT — nếu CHAPTER CONTRACT có các mã [B1], [B2]...: kiểm tra từng beat theo đúng thứ tự. Beat chỉ được tính là HOÀN THÀNH khi bản thảo có bằng chứng cụ thể (hành động/lời thoại/thông tin/hậu quả), không tính việc chỉ nhắc lại trong kế hoạch. Beat bắt buộc bị thiếu là hard failure; ghi rõ mã beat, bằng chứng đang thiếu và vị trí hợp lý để chèn trước đoạn kết. Nếu beat đã có, trích dẫn ngắn bằng chứng trong rewriteInstructions để tránh sửa nhầm.",
+    "BEAT LEDGER AUDIT — ưu tiên mã [R1], [R2]... là BEAT BẮT BUỘC; chỉ đánh hard failure khi [R] thiếu bằng chứng cụ thể trong bản thảo (hành động/lời thoại/thông tin/hậu quả). Mã [S1], [S2]... là beat hỗ trợ do AI đề xuất, không được tự biến thành hard failure và có thể bỏ nếu gây gượng ép. Với kế hoạch cũ dùng [B1], chỉ coi là bắt buộc nếu chính dòng đó ghi rõ REQUIRED/BẮT BUỘC hoặc xuất phát trực tiếp từ brief/Outline; không coi mọi ý AI tự thêm là canon. Nếu [R] thiếu, ghi rõ mã, nguồn bắt buộc và vị trí hợp lý để chèn trước đoạn kết. Nếu đã có, trích dẫn bằng chứng ngắn để tránh sửa nhầm.",
     "CONTINUITY WARNINGS ĐÃ PHÁT HIỆN:", JSON.stringify(p.warnings || []).slice(0, 6000),
     p.prevEnding ? ("ĐOẠN KẾT CHƯƠNG TRƯỚC (để đối chiếu địa điểm/thời điểm/người có mặt ở cảnh mở đầu):\n" + String(p.prevEnding).slice(-1500)) : "",
     "BẢN THẢO CHƯƠNG:", String(p.draft || "").slice(0, 50000),

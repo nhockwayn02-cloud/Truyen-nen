@@ -35,6 +35,7 @@ const dir = __dirname; const suites = [
   ["V12.36 Best Draft Guard", process.execPath, ["v12_36_best_draft_guard.test.js"]],
   ["V12.37 Gender Anatomy Lock", process.execPath, ["v12_37_gender_anatomy_lock.test.js"]],
   ["V12.38 Marital Status Lock", process.execPath, ["v12_38_marital_status.test.js"]],
+  ["V12.39 Canon Barrier", process.execPath, ["v12_39_canon_barrier.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],
   ["Bảo mật server", process.execPath, ["security.test.js"]],
   ["Tích hợp worker", process.execPath, ["worker.integration.js"], { EXTRACT_CONCURRENCY: "3" }],
