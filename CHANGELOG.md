@@ -1,5 +1,18 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.46.1] — Canon Warning AutoFix
+
+- Sửa lỗi nút **AI tự sửa** dừng ngay khi Quality Gate trả `PASS` dù vẫn có cảnh báo Canon/continuity/Beat có hướng xử lý.
+- Khi bật AI tự sửa, các cảnh báo có thể hành động được sẽ được chuyển vào luồng patch/Targeted Segment Repair; cảnh báo phong cách nhẹ không bị ép sửa.
+- Thêm regression test bảo đảm cảnh báo Canon được gửi cho AI sửa và phải chấm lại sau đó.
+
+## [V12.46.0] — Semantic Prose Check
+
+- Rà văn xuôi theo từng câu để phát hiện cụm tiếng Việt có thể vô nghĩa hoặc sai chính tả theo ngữ cảnh, kể cả khi từng từ riêng lẻ đều hợp lệ.
+- Gửi riêng từng nhóm câu cho AI; chỉ tự sửa khi AI trả đúng cụm nguyên văn, cụm thay thế và độ tin cậy từ 85% trở lên.
+- Trường hợp `uncertain`, không tự thay; lưu cảnh báo để người dùng xem và quyết định.
+- Áp dụng cho client và Background Worker, có regression test cho lỗi kiểu “tớn tiền”.
+
 ## [V12.45.0] — Targeted Segment Repair
 
 - Nút **AI tự sửa** tự chuyển sang sửa theo vùng khi patch câu neo thất bại và chương quá dài để viết lại toàn bộ.
@@ -89,7 +102,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.43.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.46.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

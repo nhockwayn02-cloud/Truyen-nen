@@ -74,7 +74,7 @@ assert(!/ĐOẠN KẾT CHƯƠNG TRƯỚC/.test(buildPatchPrompt({chapterNumber:1
 // --- nối dây trong client + worker ---
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 assert(/id="autoFixChapterBtn"/.test(html)&&/reviewCurrentChapter\(\{autoFix:true\}\)/.test(html));
-assert(/runQualityGate\(ch,n,ch\.plan\|\|"",ctx,\{rewrite:autoFix\}\)/.test(html));
+assert(/runQualityGate\(ch,n,ch\.plan\|\|"",ctx,\{rewrite:autoFix,forceWarnings:autoFix\}\)/.test(html));
 assert(/patchDraftFromReview[\s\S]{0,900}prevEnding:/.test(html)&&/rewriteWholeDraft[\s\S]{0,900}prevEnding:/.test(html),'client truyền prevEnding cho cả vá và viết lại');
 assert(/async function patchWorkerDraft[\s\S]{0,900}prevEnding:/.test(fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8')),'worker truyền prevEnding');
 assert(/async function rewriteDraftFromReview[\s\S]{0,2500}patchDraftFromReview[\s\S]{0,2500}rewriteWholeDraft/.test(html),'client: vá trước, sửa theo vùng, rồi mới viết lại cả chương');

@@ -709,6 +709,65 @@ const _VN_SYL_FULL = /^(?:ngh|ng|nh|kh|gh|gi|ph|qu|th|tr|ch|[bcdđghklmnpqrstvx]
 function _stripToneMarks(s) { return String(s).normalize("NFD").replace(/[\u0300\u0301\u0303\u0309\u0323]/g, "").normalize("NFC"); }
 function _isValidVnSyllable(low) { return _VN_SYL_FULL.test(_stripToneMarks(low)); }
 function _hasVnDiacritic(t) { return /[ăâêôơưđàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i.test(t); }
+// V12.46: Semantic Prose Check — kiểm tra cụm tiếng Việt hợp lệ về mặt ký tự
+// nhưng vô nghĩa/sai chính tả theo ngữ cảnh (ví dụ "tớn tiền"). Không tự đoán
+// bằng từ điển: AI phải trả cụm nguyên văn + câu nguyên văn để có thể vá hẹp.
+function splitSemanticSentences(text, maxChars) {
+  const src = String(text || ""), cap = Number(maxChars) || 900;
+  const out = []; let re = /[^\n.!?…]+(?:[.!?…]+|$)/gu, m;
+  while ((m = re.exec(src))) {
+    const raw = m[0], left = raw.search(/\S/); if (left < 0) continue;
+    const right = raw.trimEnd().length, sentence = raw.slice(left, right);
+    if (!sentence || sentence.length < 8) continue;
+    out.push({ id: out.length + 1, sentence: sentence.slice(0, cap), start: m.index + left, end: m.index + left + Math.min(sentence.length, cap) });
+  }
+  return out;
+}
+function buildSemanticProseCheckPrompt(sentences) {
+  const rows = (sentences || []).map(x => String(x.sentence || "").replace(/\r?\n/g, " ") ? (x.id + "|" + String(x.sentence || "").replace(/\r?\n/g, " ")) : "").filter(Boolean);
+  return [
+    "===== SEMANTIC PROSE CHECK — KHÔNG VIẾT LẠI CẢ CHƯƠNG =====",
+    "Bạn là biên tập viên kiểm tra NGỮ NGHĨA văn xuôi tiếng Việt.",
+    "Rà từng câu dưới đây để tìm CỤM TỪ rõ ràng vô nghĩa, sai chính tả theo ngữ cảnh hoặc bị ghép nhầm âm tiết, kể cả khi từng từ riêng lẻ đều là tiếng Việt.",
+    "Ví dụ lỗi: ‘tớn tiền’ trong ngữ cảnh chi phí có thể phải là ‘tốn tiền’. Không được bắt lỗi chỉ vì văn phong lạ, từ địa phương, tên riêng, thuật ngữ, khẩu ngữ hoặc nội dung 18+ hợp ngữ cảnh.",
+    "Mỗi câu chỉ được tối đa một mục. Nếu không chắc ít nhất 85%, dùng status=uncertain; không đề xuất sửa chắc chắn.",
+    "CHỈ trả JSON hợp lệ dạng: {\"items\":[{\"id\":1,\"status\":\"fix|uncertain|ok\",\"phrase\":\"cụm nguyên văn\",\"replacement\":\"cụm thay thế\",\"confidence\":0.0,\"reason\":\"ngắn\"}]}",
+    "Với status=ok, phrase/replacement để chuỗi rỗng. Với uncertain, replacement có thể để rỗng hoặc chỉ là gợi ý; ứng dụng sẽ KHÔNG tự thay.",
+    "Không viết lại cả câu, không giải thích ngoài JSON.", "", rows.join("\n")
+  ].join("\n");
+}
+function parseSemanticProseCheckResponse(raw) {
+  let s = String(raw || "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim(), obj = null;
+  try { obj = JSON.parse(s); } catch (_) {
+    const a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { obj = JSON.parse(s.slice(a, b + 1)); } catch (_) {} }
+  }
+  const items = obj && Array.isArray(obj.items) ? obj.items : [];
+  return items.map(x => ({
+    id: Number(x && x.id), status: /^(fix|uncertain|ok)$/i.test(String(x && x.status)) ? String(x.status).toLowerCase() : "uncertain",
+    phrase: String(x && x.phrase || "").trim(), replacement: String(x && x.replacement || "").trim(),
+    confidence: Math.max(0, Math.min(1, Number(x && x.confidence) || 0)), reason: String(x && x.reason || "").trim()
+  })).filter(x => Number.isInteger(x.id) && x.id > 0);
+}
+function applySemanticProseFixes(text, sentences, items, minConfidence) {
+  let out = String(text || ""); const warnings = [], applied = [];
+  const byId = new Map((sentences || []).map(x => [Number(x.id), x]));
+  const ops = [];
+  (items || []).forEach(x => {
+    const row = byId.get(Number(x.id));
+    if (!row || x.status === "ok") return;
+    if (x.status !== "fix" || Number(x.confidence) < (Number(minConfidence) || 0.85) || !x.phrase || !x.replacement) {
+      warnings.push({ id: x.id, phrase: x.phrase, reason: x.reason || "AI không đủ chắc chắn; cần người dùng chọn" }); return;
+    }
+    const at = row.sentence.indexOf(x.phrase);
+    if (at < 0 || /[\r\n]/.test(x.replacement) || x.replacement.length > Math.max(80, x.phrase.length * 4)) {
+      warnings.push({ id: x.id, phrase: x.phrase, reason: "Không khớp nguyên văn nên không tự sửa" }); return;
+    }
+    ops.push({ start: row.start + at, end: row.start + at + x.phrase.length, replacement: x.replacement, id: x.id, phrase: x.phrase });
+  });
+  ops.sort((a, b) => b.start - a.start).forEach(op => { out = out.slice(0, op.start) + op.replacement + out.slice(op.end); applied.push({ id: op.id, phrase: op.phrase, replacement: op.replacement }); });
+  return { text: out, applied: applied.reverse(), warnings };
+}
 // Liệt kê từ lạ (không phải âm tiết tiếng Việt) chen trong văn bản. Chỉ để cảnh báo / làm đầu vào cho bước tự sửa.
 // V12.20: bắt cả từ CÓ DẤU bị ghép lỗi (mươititude, bănnton, bọcampo); trước đây chỉ bắt từ không dấu.
 function findStrayWords(text, allowNames, limit) {
@@ -1514,9 +1573,16 @@ function buildRewritePrompt(p) {
 
 // --- Vòng lặp Gate dùng chung. Không gọi AI trực tiếp: client/worker truyền các hàm vào qua `deps`. ---
 // deps: { review(attempt)→{ok,review|reason}, rewrite(review,attempt)→{ok,stopped,reason}, selfCheck?(attempt), onStatus?(msg), onChange?(), shouldStop?() }
-// opts: { enabled, allowRewrite, maxAttempts }
+// opts: { enabled, allowRewrite, maxAttempts, forceWarnings }
 function bypassReview() {
   return { status: "bypassed", score: null, verdict: "BYPASS", dimensions: {}, hardFailures: [], warnings: ["Quality Gate đang tắt"], suggestions: [], rewriteInstructions: [], attempt: 0, reviewedAt: Date.now() };
+}
+// Khi người dùng bấm AI tự sửa, cảnh báo Canon/continuity có hướng xử lý
+// không được bị coi là "PASS nên bỏ qua". Cảnh báo style thuần túy vẫn không ép sửa.
+function hasActionableCanonWarning(review) {
+  const r = review || {};
+  const text = [].concat(r.warnings || [], r.rewriteInstructions || []).map(gateItemText).join(" ");
+  return /(canon|continuity|liên tục|beat|outline|required|\[r\d+\]|hồ sơ|giới tính|hôn nhân|thế giới|knowledge|retcon|địa điểm|thời gian|cảnh\/người|nhân vật có mặt|mâu thuẫn)/i.test(text);
 }
 async function runGateLoop(chapter, deps, opts) {
   opts = opts || {}; deps = deps || {};
@@ -1554,7 +1620,9 @@ async function runGateLoop(chapter, deps, opts) {
       bestText = String(chapter.text || "");
       bestWordCount = chapter.wordCount;
     }
-    if (rr.review.verdict === "PASS") { chapter.status = "APPROVED"; notify(); return { approved: true, review: rr.review }; }
+    const forceActionableWarning = opts.forceWarnings === true && hasActionableCanonWarning(rr.review);
+    if (rr.review.verdict === "PASS" && !forceActionableWarning) { chapter.status = "APPROVED"; notify(); return { approved: true, review: rr.review }; }
+    if (forceActionableWarning && deps.onStatus) deps.onStatus("Quality Gate: phát hiện cảnh báo Canon cần xử lý — đang gửi cho AI tự sửa...");
     // V12.32.12: chỉ còn cảnh báo nhẹ (điểm ≥ ngưỡng mềm, KHÔNG có hard failure) → duyệt kèm cảnh báo, không chạy thêm vòng.
     if (opts.acceptSoft !== false && rr.review.verdict === "SOFT_FAIL" && !(rr.review.hardFailures || []).length) {
       chapter.review.softAccepted = true;
@@ -2904,6 +2972,24 @@ async function fixStrayWordsWithAI(job, text, allowNames, model, isNsfw) {
   return res;
 }
 
+// V12.46: rà ngữ nghĩa theo từng câu; chỉ vá cụm nguyên văn có confidence cao.
+async function semanticProseCheckWithAI(job, text, model, isNsfw) {
+  const res = { text: String(text || ""), fixed: [], warnings: [], calls: 0 };
+  try {
+    for (let offset = 0; ; offset += 18) {
+      if (writeTimeLeft(isNsfw) < 45000) { res.warnings.push({ reason: "Chưa rà hết chương vì không còn đủ thời gian Background." }); break; }
+      const all = splitSemanticSentences(res.text, 1000), batch = all.slice(offset, offset + 18);
+      if (!batch.length) break;
+      if (res.calls >= 12) { res.warnings.push({ reason: "Chưa rà hết chương vì giới hạn số lượt kiểm tra." }); break; }
+      res.calls++;
+      const r = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model, messages: [{ role: "user", content: buildSemanticProseCheckPrompt(batch) }], maxTokens: Math.min(5000, 500 + batch.length * 180), temperature: 0.05 }, 1);
+      const applied = applySemanticProseFixes(res.text, batch, parseSemanticProseCheckResponse(r.text), 0.85);
+      res.text = applied.text; res.fixed = res.fixed.concat(applied.applied); res.warnings = res.warnings.concat(applied.warnings);
+    }
+  } catch (e) { res.warnings.push({ reason: "Semantic Prose Check lỗi API: " + (e.message || e) }); }
+  return res;
+}
+
 
 /* V12.20 — Khép câu cuối bị cụt: nhờ model viết nốt 1–3 câu; nếu không được thì lùi về câu hoàn chỉnh gần nhất. */
 async function closeDanglingEnding(job, text, closingBeat, model, isNsfw) {
@@ -3156,6 +3242,11 @@ async function generateOneChapter(job) {
   // V12.20: tự sửa từ lỗi ghép (mươititude, bănnton, bọcampo...) bằng cách nhờ model chép lại ĐÚNG câu chứa từ đó.
   { const fx = await fixStrayWordsWithAI(job, text, _allowNames, model, isNsfw); text = fx.text; if (fx.fixed) issues.push(`Đã tự sửa ${fx.fixed} từ lỗi (vd: ${fx.samples.join(", ")})`); }
   { const stray = findStrayWords(text, _allowNames); if (stray.length) issues.push("Từ lạ cần kiểm tra: " + stray.slice(0, 8).join(", ")); }
+  // V12.46: phát hiện cụm tiếng Việt vô nghĩa theo ngữ cảnh trước Quality Gate.
+  { const sem = await semanticProseCheckWithAI(job, text, model, isNsfw); text = sem.text;
+    if (sem.fixed.length) issues.push("Semantic Prose Check đã sửa " + sem.fixed.length + " cụm chắc chắn: " + sem.fixed.slice(0, 3).map(x => x.phrase + " → " + x.replacement).join("; "));
+    if (sem.warnings.length) issues.push("Semantic Prose Check cần người dùng xem: " + sem.warnings.slice(0, 5).map(x => x.phrase || x.reason).join("; "));
+  }
   const finalCap = trimToWordLimit(text, maxWords);
   text = finalCap.text;
   if (finalCap.trimmed) issues.push(`Đã khóa độ dài: tối đa ${maxWords} từ`);

@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V12.45.0.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V12.46.1.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -26,6 +26,10 @@ V12.43 bổ sung Required Beat Barrier. Khi bật, chương còn thiếu `[R]` s
 V12.44 sửa luồng E2E và Background Postprocess: cảnh báo server được hiển thị đúng, lỗi mã truy cập có thông báo thân thiện, payload slim và snapshot được kiểm tra đúng theo luồng hiện hành.
 
 V12.45 bổ sung **Targeted Segment Repair**: khi bấm **AI tự sửa** trên chương dài, nếu vá câu neo không ghép được thì app tự xác định một vùng nhỏ chứa lỗi và chỉ viết lại vùng đó, thay vì cố viết lại toàn bộ chương vượt giới hạn token.
+
+V12.46 bổ sung **Semantic Prose Check**: rà từng câu để tìm cụm tiếng Việt vô nghĩa theo ngữ cảnh. App chỉ tự thay cụm khi AI xác nhận chắc chắn và trả đúng cụm nguyên văn; trường hợp chưa chắc chỉ hiện cảnh báo để người dùng quyết định.
+
+V12.46.1 sửa luồng **AI tự sửa**: cảnh báo Canon/continuity/Beat có hướng xử lý không còn bị bỏ qua chỉ vì điểm tổng vẫn là `PASS`; app sẽ gửi chúng vào patch hoặc Targeted Segment Repair rồi chấm lại.
 
 V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, hardened background mode (`REQUIRE_HARDENED_SECURITY=1`), Chế độ đơn giản/Chuyên gia, wizard bắt đầu truyện và thanh tiến trình viết.
 

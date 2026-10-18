@@ -50,7 +50,7 @@ function job(extra) { return { apiEndpoint: "x", apiKey: "k", model: "m", storyS
   const c1 = await T.generateOneChapter(job({ nextChapterHint: "Cô vào phòng, mở tủ.\nCú chốt cuối chương: cô viết dòng chữ rồi tắt đèn." }));
   t("Có gợi ý + model tự dừng → KHÔNG tự viết tiếp để đủ số từ", () => {
     assert(!calls.some(p => /Viết TIẾP chương/.test(p)), "không được có lượt viết tiếp");
-    assert(calls.filter(p => !/CHÈN THÊM DIỄN BIẾN/.test(p) && !/Lập KẾ HOẠCH cho CHƯƠNG/.test(p)).length === 1, "chỉ 1 lượt viết chính (không tính bước lập kế hoạch)");
+    assert(calls.filter(p => !/CHÈN THÊM DIỄN BIẾN/.test(p) && !/Lập KẾ HOẠCH cho CHƯƠNG/.test(p) && !/SEMANTIC PROSE CHECK/i.test(p)).length === 1, "chỉ 1 lượt viết chính (không tính bước lập kế hoạch/semantic check)");
     const _main = calls.find(p => /Bạn đang viết CHƯƠNG THỨ/.test(p)) || ""; assert(/CÚ CHỐT BẮT BUỘC/.test(_main) && /tắt đèn/.test(_main), "prompt phải khóa cú chốt ở cuối");
   });
   // V12.22: ĐÃ BỎ "chia đoạn làm dày". Có gợi ý + chương ngắn -> CHÈN diễn biến vào TRƯỚC đoạn kết, Ending Anchor giữ nguyên ở cuối.
