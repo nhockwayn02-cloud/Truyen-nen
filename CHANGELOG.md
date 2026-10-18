@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.45.0] — Targeted Segment Repair
+
+- Nút **AI tự sửa** tự chuyển sang sửa theo vùng khi patch câu neo thất bại và chương quá dài để viết lại toàn bộ.
+- AI trả mốc đầu/cuối nguyên văn và chỉ viết lại vùng lỗi; phần còn lại của chương được giữ nguyên.
+- Áp dụng cho cả client và Background Worker, có backup trước khi thay và kiểm tra giới hạn thay đổi độ dài.
+- Giữ Best Draft Guard: bản sửa vẫn được Quality Gate chấm lại; nếu kém hơn, bản tốt hơn được khôi phục.
+
 ## [V12.44.0] — E2E Stable Patch
 
 - Sửa hiển thị cảnh báo `JOB_SECRET` và lỗi mã truy cập trong Background Postprocess.

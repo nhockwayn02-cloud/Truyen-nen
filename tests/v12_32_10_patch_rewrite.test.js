@@ -77,9 +77,9 @@ assert(/id="autoFixChapterBtn"/.test(html)&&/reviewCurrentChapter\(\{autoFix:tru
 assert(/runQualityGate\(ch,n,ch\.plan\|\|"",ctx,\{rewrite:autoFix\}\)/.test(html));
 assert(/patchDraftFromReview[\s\S]{0,900}prevEnding:/.test(html)&&/rewriteWholeDraft[\s\S]{0,900}prevEnding:/.test(html),'client truyền prevEnding cho cả vá và viết lại');
 assert(/async function patchWorkerDraft[\s\S]{0,900}prevEnding:/.test(fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8')),'worker truyền prevEnding');
-assert(/async function rewriteDraftFromReview[\s\S]{0,400}patchDraftFromReview[\s\S]{0,400}rewriteWholeDraft/.test(html),'client: vá trước, viết lại cả chương là dự phòng');
+assert(/async function rewriteDraftFromReview[\s\S]{0,2500}patchDraftFromReview[\s\S]{0,2500}rewriteWholeDraft/.test(html),'client: vá trước, sửa theo vùng, rồi mới viết lại cả chương');
 const wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
-assert(/async function rewriteWorkerDraft[\s\S]{0,300}patchWorkerDraft[\s\S]{0,300}rewriteWorkerWhole/.test(wk),'worker: vá trước, viết lại cả chương là dự phòng');
+assert(/async function rewriteWorkerDraft[\s\S]{0,2500}patchWorkerDraft[\s\S]{0,2500}rewriteWorkerWhole/.test(wk),'worker: vá trước, sửa theo vùng, rồi mới viết lại cả chương');
 // script trong index.html vẫn biên dịch được
 const scripts=[...html.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 scripts.forEach((s,i)=>{ try{ new Function(s); }catch(e){ throw new Error('index.html script #'+i+' lỗi cú pháp: '+e.message); } });

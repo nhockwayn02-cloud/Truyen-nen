@@ -980,6 +980,60 @@ function checkPatchAcceptable(oldText, res) {
   return { ok: true, wordCount: newWc };
 }
 
+// V12.45: sửa theo vùng — dùng khi câu neo của patch không ghép được và chương quá dài để viết lại toàn bộ.
+// AI chỉ trả hai mốc nguyên văn + phần thay thế; app tự tìm vùng và giữ nguyên phần còn lại.
+function buildSegmentRepairPrompt(p) {
+  p = p || {}; const rv = p.review || {};
+  return [
+    "SỬA THEO VÙNG BẢN THẢO CHƯƠNG " + p.chapterNumber + " THEO QUALITY REVIEW.",
+    "Không viết lại cả chương. Chọn đúng MỘT vùng nhỏ nhất chứa lỗi được nêu (thường 1 cảnh hoặc 2–8 đoạn), rồi viết lại chỉ vùng đó.",
+    "Giữ nguyên mọi sự kiện, nhân vật, POV, xưng hô, thời gian, điểm kết và thông tin canon. Không thêm biến cố lớn, không mở arc mới.",
+    p.storyControl || "", p.characterLock || "",
+    (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
+    p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 5000, false) : "",
+    "LỖI CẦN SỬA:\n" + (rv.hardFailures || []).concat((rv.warnings || []).slice(0, 8)).map(gateItemText).join("\n"),
+    "HƯỚNG SỬA:\n" + rewriteInstructionsText(rv),
+    "Với lỗi style/pacing: ưu tiên rút gọn câu dài, bỏ lặp ý/triết lý, tăng nhịp; không xóa sự kiện cần thiết.",
+    "ĐỊNH DẠNG — chỉ trả đúng một JSON, không markdown:",
+    '{"start":"8–24 từ NGUYÊN VĂN ở đầu vùng cần sửa","end":"8–24 từ NGUYÊN VĂN ở cuối vùng cần sửa","replacement":"toàn bộ văn xuôi mới thay cho vùng đó"}',
+    "QUY TẮC MỐC:",
+    "- start và end phải chép đúng từng chữ từ BẢN THẢO, không dùng mã [R], mô tả vị trí hoặc câu tự chế.",
+    "- start phải đứng trước end; vùng thay thế không quá khoảng 30% chương.",
+    "- replacement phải là văn xuôi tiếng Việt thuần, nối mượt với phần trước/sau; không ghi chú, không tiêu đề.",
+    "- Với cảnh bị dài, replacement có thể ngắn hơn bản cũ nhưng vẫn phải giữ nguyên nguyên nhân–kết quả và điểm kết.",
+    "BẢN THẢO HIỆN TẠI:\n" + (p.draft || "")
+  ].filter(Boolean).join("\n\n");
+}
+function parseSegmentRepairResponse(raw) {
+  const s = String(raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  let obj; try { obj = JSON.parse(s); } catch (_) {
+    const a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { obj = JSON.parse(s.slice(a, b + 1)); } catch (__) {} }
+  }
+  if (!obj || typeof obj !== "object") return null;
+  const start = String(obj.start || obj.startMarker || "").trim();
+  const end = String(obj.end || obj.endMarker || "").trim();
+  const replacement = String(obj.replacement || obj.text || "").trim();
+  return start && end && replacement ? { start, end, replacement } : null;
+}
+function applySegmentRepair(text, repair) {
+  const src = String(text || ""), r = repair || {};
+  const sh = _patchLocate(src, r.start), eh = _patchLocate(src, r.end);
+  if (!sh.length) return { ok: false, reason: "start: không tìm thấy mốc đầu vùng" };
+  if (!eh.length) return { ok: false, reason: "end: không tìm thấy mốc cuối vùng" };
+  const start = sh[0].start;
+  const after = eh.filter(x => x.start >= start);
+  if (!after.length) return { ok: false, reason: "mốc cuối nằm trước mốc đầu" };
+  const end = after[0].end;
+  if (end <= start || end - start > src.length * 0.30) return { ok: false, reason: "vùng sửa quá rộng hoặc không hợp lệ" };
+  const replacement = String(r.replacement || "").trim();
+  if (countWords(replacement) < 20) return { ok: false, reason: "phần thay thế quá ngắn" };
+  const out = (src.slice(0, start) + replacement + src.slice(end)).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const oldWc = countWords(src), newWc = countWords(out);
+  if (newWc < Math.floor(oldWc * 0.85) || newWc > Math.ceil(oldWc * 1.15)) return { ok: false, reason: "sửa theo vùng làm thay đổi tổng độ dài quá mạnh (" + newWc + "/" + oldWc + " từ)" };
+  return { ok: true, text: out, wordCount: newWc, start: r.start, end: r.end };
+}
+
 // ===== V12.32.13: GIỚI HẠN OUTPUT & MỞ RỘNG CHƯƠNG BẰNG CHÈN ĐOẠN (không viết lại cả chương) =====
 // Mọi lệnh gọi AI bị chặn ở AI_MAX_OUTPUT_TOKENS token output (provider ~8192). Chương dài (vd 5000+ từ ≈ 9–11k token)
 // KHÔNG thể được "viết lại toàn bộ" trong một lệnh gọi → bị cắt/tóm tắt. Thay vào đó AI chỉ viết các đoạn mới cần chèn.
