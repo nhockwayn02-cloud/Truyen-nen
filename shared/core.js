@@ -77,7 +77,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "Lập kế hoạch BÁM SÁT BRIEF — số nhịp bằng đúng số nhịp trong brief:" : "Lập kế hoạch theo NGÂN SÁCH SỰ KIỆN — không vượt quá 3 sự kiện chính:",
     "1. Mục tiêu chương", "2. Xung đột chính",
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
-                 : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
+                 : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả). Mỗi sự kiện có thể có biến cố lớn lồng bên trong nếu thật sự cần cho nhân-quả hoặc cao trào; biến cố lồng không tính thành sự kiện chính thứ 4 và không bắt buộc chương nào cũng phải có.",
     "3a. BEAT LEDGER — phân loại rõ để không biến đề xuất của AI thành canon: đánh mã [R1], [R2]... cho BEAT BẮT BUỘC xuất phát từ brief người dùng, dòng Outline của đúng chương hoặc canon đã xác nhận; đánh mã [S1], [S2]... cho BEAT HỖ TRỢ/CẦU NỐI do AI đề xuất để nối mạch. Mỗi beat ghi: MỤC TIÊU | HÀNH ĐỘNG/THÔNG TIN | NHÂN VẬT/ĐỊA ĐIỂM | BẰNG CHỨNG | HẬU QUẢ. Chỉ [R] mới là điều kiện bắt buộc; [S] được phép thay đổi hoặc bỏ nếu làm truyện mượt hơn.",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
     "5. Địa điểm + DÒNG THỜI GIAN (ghi chú NỘI BỘ để giữ nhất quán, KHÔNG phải để in thành nhãn trong văn): thời điểm tương đối khi mở chương, quãng đã trôi từ chương trước (nếu có nhảy), các beat nối nhau theo thời gian thế nào, cảnh nào thời gian thật sự quan trọng (hạn chót/khẩn cấp); nêu cách thể hiện tự nhiên trong văn (ánh sáng, việc đang làm, một câu chuyển trong mạch kể)",
@@ -886,6 +886,7 @@ function buildPatchPrompt(p) {
     '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
     "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh tự nhiên, chi tiết bổ sung…) sau/trước find. insert_before_end: chèn một cảnh còn thiếu ngay trước đoạn kết cuối cùng, KHÔNG cần find — ưu tiên dùng cho beat/biến cố Outline bị bỏ sót. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
     "- Nếu QUALITY REVIEW nói thiếu một beat/sự kiện bắt buộc nhưng không có câu neo chắc chắn, dùng insert_before_end thay vì bịa find. Cảnh mới phải nối tự nhiên với đoạn trước và không viết lại đoạn kết.",
+    p.retryNote ? ("RETRY VÁ — lượt trước không ghép được patch. Với mọi [R] thiếu, BẮT BUỘC dùng insert_before_end có text là cảnh ngắn hoàn chỉnh; không dùng find [R1]/[R2] hoặc tên beat vì các mã đó thường không nằm trong bản thảo. Chỉ dùng replace/insert_after khi find là câu nguyên văn chắc chắn trong BẢN THẢO. Lý do lượt trước: " + p.retryNote) : "",
     "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
     p.prevEnding ? "- Khi sửa lỗi nối cảnh/địa điểm: đọc ĐOẠN KẾT CHƯƠNG TRƯỚC, rồi viết câu chuyển cảnh nối đúng từ chỗ đó vào cảnh mở đầu của bản thảo (ví dụ chương trước kết ở hành lang thì phải có hành động đi tiếp/mở cửa/bước vào trước khi tả cảnh trong phòng). Không dời cảnh sang địa điểm mới nào khác." : "",
     "- Chi tiết thêm vào (ngoại hình, đồ vật, thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
@@ -1276,7 +1277,7 @@ function storyControlPrompt(st) {
   const sc = normalizeStoryControl(st);
   return [
     "STORY CONTROL LAYER — BẮT BUỘC:",
-    `- Ngân sách sự kiện: tối đa ${sc.maxMainEvents} sự kiện chính; không thêm biến cố lớn thứ ${sc.maxMainEvents + 1}.`,
+    `- Ngân sách sự kiện: tối đa ${sc.maxMainEvents} sự kiện trục chính. Được phép có biến cố lớn LỒNG BÊN TRONG một sự kiện khi nó là nguyên nhân, bước ngoặt, phản ứng hoặc hậu quả trực tiếp của sự kiện đó và thật sự cần cho mạch truyện; không tính thành sự kiện chính thứ ${sc.maxMainEvents + 1}. Không tự thêm biến cố lồng nếu chương đã đủ lực.`,
     `- Nhân vật có tên xuất hiện trực tiếp: tối đa ${sc.maxNamedCharacters}; ưu tiên nhân vật đã tồn tại.`,
     `- Thread mới: tối đa ${sc.maxNewThreads}; không mở tuyến mới chỉ để kéo dài chương.`,
     "- Continuity: nguyên nhân → hành động → phản ứng → hậu quả phải nhất quán với trạng thái hiện tại.",
@@ -1288,7 +1289,7 @@ function storyControlPrompt(st) {
     "- Không tạo năng lực, quy tắc thế giới hoặc vật phẩm quan trọng mới chỉ để giải quyết vấn đề tức thời.",
     "- Chapter Focus chỉ kiểm soát phạm vi chủ đề trưởng thành; không được dùng nó để mở rộng cốt truyện ngoài brief.",
     "- Nếu Directive/Story Bible/Current Status xung đột, không âm thầm sửa canon; ưu tiên dữ liệu canon và ghi nhận xung đột khi cần.",
-    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ, chi tiết đời thường BÊN TRONG các sự kiện chính; không được dùng quyền này để mở arc lớn, thêm nhân vật quan trọng mới hay tiết lộ thông tin để dành cho chương sau. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
+    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ và cả biến cố lồng khi chúng phục vụ trực tiếp một trong các sự kiện trục. Biến cố lồng phải có quan hệ nhân-quả rõ, không mở arc độc lập, không thêm nhân vật quan trọng mới và không phải chương nào cũng cần. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
     "- TIẾN TRIỂN: chiều sâu KHÔNG có nghĩa là đứng yên — cuối chương phải có ít nhất một thay đổi thật (quan hệ, thông tin, quyền lực, mục tiêu hoặc hậu quả); không lặp cùng hành động/miêu tả để kéo dài.",
     "- Mục tiêu là chiều sâu và tính liên tục, không phải nhồi thêm biến cố lớn.",
     scenePresencePrompt(),
@@ -1456,6 +1457,14 @@ async function runGateLoop(chapter, deps, opts) {
       chapter.review.warnings = (chapter.review.warnings || []).concat(["Bản sửa bị từ chối: " + ((rw && rw.reason) || "không rõ") + " — giữ nguyên bản thảo."]);
       notify(); break;
     }
+    chapter.review.revisionTrace = (chapter.review.revisionTrace || []).concat([{
+      attempt,
+      patched: Number(rw.patched || 0),
+      trace: rw.trace || [],
+      skippedReasons: rw.skippedReasons || []
+    }]);
+    chapter.review.warnings = (chapter.review.warnings || []).concat(["AI tự sửa: đã áp dụng " + Number(rw.patched || 0) + " thao tác vá; bản sửa sẽ được chấm lại. Không có thao tác nào bị coi là đã sửa nếu chưa ghép được vào văn bản."]);
+    notify();
   }
   // Nếu các vòng sửa sau làm điểm tụt, khôi phục bản tốt nhất đã được chấm.
   if (bestReview && String(chapter.text || "") !== bestText) {

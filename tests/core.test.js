@@ -65,7 +65,7 @@ t("normalizeStoryControl: mặc định + kẹp giới hạn", () => {
 });
 t("storyControlPrompt: nêu đúng ngân sách; tắt NO RETCON thì bỏ dòng đó", () => {
   const p = T.storyControlPrompt({ storyControl: { maxMainEvents: 2, maxNamedCharacters: 5, noRetcon: false } });
-  assert(p.includes("tối đa 2 sự kiện chính") && p.includes("tối đa: 5") === false && p.includes("tối đa 5;")); assert(!p.includes("NO RETCON"));
+  assert(p.includes("tối đa 2 sự kiện trục chính") && p.includes("tối đa: 5") === false && p.includes("tối đa 5;")); assert(!p.includes("NO RETCON"));
   assert(T.storyControlPrompt(null).includes("NO RETCON"));
 });
 /* ---- Kiểm tra cứng ---- */

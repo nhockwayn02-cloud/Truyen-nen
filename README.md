@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V12.39.0.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V12.44.0.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -14,6 +14,16 @@ V12.37 bổ sung Gender Anatomy Lock: truyền giới tính từng nhân vật v
 V12.38 bổ sung Tình trạng hôn nhân và người phối ngẫu/người yêu cho nhân vật chính và NPC; dữ liệu được truyền vào prompt và khóa khỏi thay đổi tùy tiện.
 
 V12.39 bổ sung Canon Barrier: chương SOFT_FAIL không còn tự động trở thành nền sự thật cho chương sau nếu chưa được người dùng duyệt; Beat Ledger cũng phân biệt beat bắt buộc `[R]` với beat hỗ trợ `[S]` do AI đề xuất.
+
+V12.40 giữ tối đa 3 sự kiện trục chính nhưng cho phép biến cố lớn lồng bên trong một sự kiện khi có quan hệ nhân-quả trực tiếp và thật sự cần; AI không được tự thêm biến cố chỉ để kéo dài chương.
+
+V12.41 bổ sung AutoFix Retry cho Required Beat bị thiếu và Patch Trace để hiển thị AI đã sửa ở đâu, bao nhiêu thao tác, hoặc vì sao patch không ghép được.
+
+V12.42 bảo vệ Chapter Plan khỏi phản hồi bị cắt: ô hiển thị có thanh cuộn, còn AI sẽ tự retry nếu kế hoạch bị dừng do giới hạn token.
+
+V12.43 bổ sung Required Beat Barrier. Khi bật, chương còn thiếu `[R]` sẽ không được Manual Override, Sync Canon hoặc xuất bản TXT/MD/DOC. Đây là khóa mặc định để lỗi Outline không trở thành Canon.
+
+V12.44 sửa luồng E2E và Background Postprocess: cảnh báo server được hiển thị đúng, lỗi mã truy cập có thông báo thân thiện, payload slim và snapshot được kiểm tra đúng theo luồng hiện hành.
 
 V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, hardened background mode (`REQUIRE_HARDENED_SECURITY=1`), Chế độ đơn giản/Chuyên gia, wizard bắt đầu truyện và thanh tiến trình viết.
 

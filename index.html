@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.39.0</title>
+<title>Xưởng Truyện AI Pro Max v12.44.0</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -376,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.39.0 · Canon Barrier · Required Beat Contract · Marital Status Lock</div>
+<div class="brand-sub">v12.44.0 · E2E Stable · Required Beat Barrier · Canon Barrier</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
@@ -791,6 +791,7 @@ html{color-scheme:dark}
 </div>
 <div class="toggle-row"><span>🛡 Quality Gate (chấm + tự sửa trước khi ghi Canon)</span><label class="switch"><input checked="" id="qualityGateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Tắt để chương SOFT_FAIL phải sửa đạt PASS trước khi viết chương tiếp">🚧 Chặn điểm thấp vào Canon</span><label class="switch"><input id="qualityAcceptSoftToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
+<div class="toggle-row"><span title="Khóa cứng: còn Required Beat [R] thiếu thì không Manual Override, không Sync Canon, không xuất bản">🧱 Chặn thiếu Required Beat [R]</span><label class="switch"><input checked id="requiredBeatBarrierToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>📝 Rà chính tả + xưng hô</span><label class="switch"><input checked="" id="spellCheckToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>🔄 Auto-continue</span><label class="switch"><input checked="" id="autoContinueToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>📄 Auto summary</span><label class="switch"><input checked="" id="autoSummaryToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
@@ -1030,7 +1031,7 @@ const DEFAULT_ADVANCED_RULES = [
   "QUY TẮC GHI NHỚ QUAN HỆ: Ghi nhớ trạng thái quan hệ, ranh giới, mức hấp dẫn hiện tại của từng nhân vật.",
   "QUY TẮC TÂM LÝ: Mọi thay đổi tính cách / dục vọng có nguyên nhân rõ.",
   "QUY TẮC CHỐNG NHÀM & CHỐNG LẶP: Mỗi chương có ít nhất một yếu tố mới. Không lặp sự kiện, cách giải quyết, cấu trúc chương, câu chữ, hình ảnh đã dùng.",
-  "QUY TẮC NHỊP CHƯƠNG: Mỗi chương CHỈ tập trung 1–3 SỰ KIỆN CHÍNH có liên quan nhân-quả. Không nhồi quá nhiều biến cố, tuyến phụ hay bước ngoặt trong một chương. Các beat nhỏ chỉ được dùng để triển khai 1–3 sự kiện đó, không biến thành sự kiện mới.",
+  "QUY TẮC NHỊP CHƯƠNG: Mỗi chương tập trung tối đa 3 SỰ KIỆN TRỤC CHÍNH có liên quan nhân-quả. Bên trong một sự kiện trục được phép có biến cố lớn lồng vào nếu thật sự cần cho nguyên nhân, bước ngoặt, phản ứng hoặc hậu quả; biến cố lồng không tính thành sự kiện chính thứ 4. Không phải chương nào cũng cần biến cố lồng. Không nhồi tuyến phụ hoặc bước ngoặt độc lập.",
   "QUY TẮC NHÂN VẬT PHỤ: Không tùy tiện tạo nhân vật quan trọng mới. Chỉ tạo nhân vật mới khi câu chuyện thực sự cần; mỗi nhân vật xuất hiện phải có lý do rõ ràng, vai trò cụ thể và liên hệ với sự kiện đang diễn ra. Ưu tiên tái sử dụng nhân vật đã có. Nếu không cần, không thêm người mới chỉ để lấp cảnh.",
   "QUY TẮC XUNG ĐỘT LIÊN TỤC: Mỗi chương có ít nhất một xung đột ảnh hưởng về sau.",
   "QUY TẮC KẾT CHƯƠNG: Để lại câu hỏi, hậu quả, phát hiện, hoặc thay đổi quan hệ.",
@@ -1120,7 +1121,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "Lập kế hoạch BÁM SÁT BRIEF — số nhịp bằng đúng số nhịp trong brief:" : "Lập kế hoạch theo NGÂN SÁCH SỰ KIỆN — không vượt quá 3 sự kiện chính:",
     "1. Mục tiêu chương", "2. Xung đột chính",
     hasUserBrief ? "3. DANH SÁCH CÁC NHỊP/SỰ KIỆN THEO ĐÚNG THỨ TỰ BRIEF (mỗi nhịp ghi: mục đích + diễn biến + hậu quả); KHÔNG gộp, KHÔNG bỏ nhịp nào"
-                 : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả)",
+                 : "3. DANH SÁCH 1-3 SỰ KIỆN CHÍNH (mỗi sự kiện ghi: mục đích + diễn biến + hậu quả). Mỗi sự kiện có thể có biến cố lớn lồng bên trong nếu thật sự cần cho nhân-quả hoặc cao trào; biến cố lồng không tính thành sự kiện chính thứ 4 và không bắt buộc chương nào cũng phải có.",
     "3a. BEAT LEDGER — phân loại rõ để không biến đề xuất của AI thành canon: đánh mã [R1], [R2]... cho BEAT BẮT BUỘC xuất phát từ brief người dùng, dòng Outline của đúng chương hoặc canon đã xác nhận; đánh mã [S1], [S2]... cho BEAT HỖ TRỢ/CẦU NỐI do AI đề xuất để nối mạch. Mỗi beat ghi: MỤC TIÊU | HÀNH ĐỘNG/THÔNG TIN | NHÂN VẬT/ĐỊA ĐIỂM | BẰNG CHỨNG | HẬU QUẢ. Chỉ [R] mới là điều kiện bắt buộc; [S] được phép thay đổi hoặc bỏ nếu làm truyện mượt hơn.",
     "4. Nhân vật xuất hiện: BẮT BUỘC có nhân vật chính; TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện trực tiếp trong cả chương; ưu tiên nhân vật đã có.",
     "5. Địa điểm + DÒNG THỜI GIAN (ghi chú NỘI BỘ để giữ nhất quán, KHÔNG phải để in thành nhãn trong văn): thời điểm tương đối khi mở chương, quãng đã trôi từ chương trước (nếu có nhảy), các beat nối nhau theo thời gian thế nào, cảnh nào thời gian thật sự quan trọng (hạn chót/khẩn cấp); nêu cách thể hiện tự nhiên trong văn (ánh sáng, việc đang làm, một câu chuyển trong mạch kể)",
@@ -1929,6 +1930,7 @@ function buildPatchPrompt(p) {
     '- Nếu find/from xuất hiện nhiều lần (đoạn bị lặp), thêm which = số thứ tự lần xuất hiện cần tác động (1, 2, 3...) hoặc "last" cho lần cuối. Muốn xoá bản lặp ở cuối chương thì which = "last".',
     "- replace: thay đoạn tìm được bằng text. delete: xoá, không có text. insert_after / insert_before: chèn text (câu chuyển cảnh tự nhiên, chi tiết bổ sung…) sau/trước find. insert_before_end: chèn một cảnh còn thiếu ngay trước đoạn kết cuối cùng, KHÔNG cần find — ưu tiên dùng cho beat/biến cố Outline bị bỏ sót. insert_start / insert_end: chèn ở đầu / cuối chương, không cần find.",
     "- Nếu QUALITY REVIEW nói thiếu một beat/sự kiện bắt buộc nhưng không có câu neo chắc chắn, dùng insert_before_end thay vì bịa find. Cảnh mới phải nối tự nhiên với đoạn trước và không viết lại đoạn kết.",
+    p.retryNote ? ("RETRY VÁ — lượt trước không ghép được patch. Với mọi [R] thiếu, BẮT BUỘC dùng insert_before_end có text là cảnh ngắn hoàn chỉnh; không dùng find [R1]/[R2] hoặc tên beat vì các mã đó thường không nằm trong bản thảo. Chỉ dùng replace/insert_after khi find là câu nguyên văn chắc chắn trong BẢN THẢO. Lý do lượt trước: " + p.retryNote) : "",
     "- text: văn xuôi tiếng Việt thuần, không đánh dấu, không ghi chú. Câu chuyển cảnh chỉ 1–3 câu.",
     p.prevEnding ? "- Khi sửa lỗi nối cảnh/địa điểm: đọc ĐOẠN KẾT CHƯƠNG TRƯỚC, rồi viết câu chuyển cảnh nối đúng từ chỗ đó vào cảnh mở đầu của bản thảo (ví dụ chương trước kết ở hành lang thì phải có hành động đi tiếp/mở cửa/bước vào trước khi tả cảnh trong phòng). Không dời cảnh sang địa điểm mới nào khác." : "",
     "- Chi tiết thêm vào (ngoại hình, đồ vật, thời gian) phải khớp CANON CONTEXT và hồ sơ nhân vật, không mâu thuẫn với phần còn lại của chương.",
@@ -2319,7 +2321,7 @@ function storyControlPrompt(st) {
   const sc = normalizeStoryControl(st);
   return [
     "STORY CONTROL LAYER — BẮT BUỘC:",
-    `- Ngân sách sự kiện: tối đa ${sc.maxMainEvents} sự kiện chính; không thêm biến cố lớn thứ ${sc.maxMainEvents + 1}.`,
+    `- Ngân sách sự kiện: tối đa ${sc.maxMainEvents} sự kiện trục chính. Được phép có biến cố lớn LỒNG BÊN TRONG một sự kiện khi nó là nguyên nhân, bước ngoặt, phản ứng hoặc hậu quả trực tiếp của sự kiện đó và thật sự cần cho mạch truyện; không tính thành sự kiện chính thứ ${sc.maxMainEvents + 1}. Không tự thêm biến cố lồng nếu chương đã đủ lực.`,
     `- Nhân vật có tên xuất hiện trực tiếp: tối đa ${sc.maxNamedCharacters}; ưu tiên nhân vật đã tồn tại.`,
     `- Thread mới: tối đa ${sc.maxNewThreads}; không mở tuyến mới chỉ để kéo dài chương.`,
     "- Continuity: nguyên nhân → hành động → phản ứng → hậu quả phải nhất quán với trạng thái hiện tại.",
@@ -2331,7 +2333,7 @@ function storyControlPrompt(st) {
     "- Không tạo năng lực, quy tắc thế giới hoặc vật phẩm quan trọng mới chỉ để giải quyết vấn đề tức thời.",
     "- Chapter Focus chỉ kiểm soát phạm vi chủ đề trưởng thành; không được dùng nó để mở rộng cốt truyện ngoài brief.",
     "- Nếu Directive/Story Bible/Current Status xung đột, không âm thầm sửa canon; ưu tiên dữ liệu canon và ghi nhận xung đột khi cần.",
-    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ, chi tiết đời thường BÊN TRONG các sự kiện chính; không được dùng quyền này để mở arc lớn, thêm nhân vật quan trọng mới hay tiết lộ thông tin để dành cho chương sau. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
+    "- ĐƯỢC TỰ DO: thêm cảnh phụ, chuyển cảnh, hội thoại, nội tâm, giác quan, hành động nhỏ và cả biến cố lồng khi chúng phục vụ trực tiếp một trong các sự kiện trục. Biến cố lồng phải có quan hệ nhân-quả rõ, không mở arc độc lập, không thêm nhân vật quan trọng mới và không phải chương nào cũng cần. Quyền tự do này KHÔNG áp dụng cho địa vị, nghề, quyền hạn, tài sản, năng lực, tuổi, kiến thức và cách nói của nhân vật — các điều đó phải đúng HỒ SƠ.",
     "- TIẾN TRIỂN: chiều sâu KHÔNG có nghĩa là đứng yên — cuối chương phải có ít nhất một thay đổi thật (quan hệ, thông tin, quyền lực, mục tiêu hoặc hậu quả); không lặp cùng hành động/miêu tả để kéo dài.",
     "- Mục tiêu là chiều sâu và tính liên tục, không phải nhồi thêm biến cố lớn.",
     scenePresencePrompt(),
@@ -2499,6 +2501,14 @@ async function runGateLoop(chapter, deps, opts) {
       chapter.review.warnings = (chapter.review.warnings || []).concat(["Bản sửa bị từ chối: " + ((rw && rw.reason) || "không rõ") + " — giữ nguyên bản thảo."]);
       notify(); break;
     }
+    chapter.review.revisionTrace = (chapter.review.revisionTrace || []).concat([{
+      attempt,
+      patched: Number(rw.patched || 0),
+      trace: rw.trace || [],
+      skippedReasons: rw.skippedReasons || []
+    }]);
+    chapter.review.warnings = (chapter.review.warnings || []).concat(["AI tự sửa: đã áp dụng " + Number(rw.patched || 0) + " thao tác vá; bản sửa sẽ được chấm lại. Không có thao tác nào bị coi là đã sửa nếu chưa ghép được vào văn bản."]);
+    notify();
   }
   // Nếu các vòng sửa sau làm điểm tụt, khôi phục bản tốt nhất đã được chấm.
   if (bestReview && String(chapter.text || "") !== bestText) {
@@ -3118,7 +3128,7 @@ const state = {
   snapshotLimit: 7,
   wakeLockEnabled: true,
   slidingWindowWords: 1500,
-  qualityGateEnabled: true, qualityAcceptSoft: false, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5
+  qualityGateEnabled: true, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5
 };
 
 function newMainCharProfile(){
@@ -3152,7 +3162,7 @@ function newStoryState(name){
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
     characterCards: [], banWords: [], glossaryLock: [], characterStateTracker:{}, plotArchive:[],
     tokenCapPerPrompt:5, snapshotLimit:7, wakeLockEnabled:true, slidingWindowWords:1500,
-    qualityGateEnabled:true, qualityAcceptSoft:false, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5
+    qualityGateEnabled:true, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5
   };
 }
 
@@ -4890,6 +4900,7 @@ includeKeyToggle.addEventListener("change", ()=>{ state.includeKeyOnExport = inc
 spellCheckToggle.addEventListener("change", ()=>{ state.spellCheckEnabled = spellCheckToggle.checked; persist(); });
 $ID("qualityGateToggle").addEventListener("change", ()=>{ state.qualityGateEnabled = $ID("qualityGateToggle").checked; persist(); });
 $ID("qualityAcceptSoftToggle").addEventListener("change", ()=>{ state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked; persist(); });
+$ID("requiredBeatBarrierToggle").addEventListener("change", ()=>{ state.requiredBeatBarrier = $ID("requiredBeatBarrierToggle").checked; persist(); });
 autoContinueToggle.addEventListener("change", ()=>{ state.autoContinueEnabled = autoContinueToggle.checked; persist(); });
 autoSummaryToggle.addEventListener("change", ()=>{ state.autoSummaryEnabled = autoSummaryToggle.checked; persist(); });
 autoSceneToggle.addEventListener("change", ()=>{ state.autoSceneEnabled = autoSceneToggle.checked; persist(); });
@@ -6893,11 +6904,11 @@ function buildMainWritePrompt(o){
     recentFullText ? ("\nChương gần (tránh lặp sự kiện / cấu trúc):\n" + recentFullText) : "",
     olderSummaries ? ("\nTÓM TẮT CHƯƠNG XA:\n" + olderSummaries) : "",
     plan ? ("\nKẾ HOẠCH CHƯƠNG " + chapterNumber + ":\n" + plan) : "",
-    plan ? "\nBEAT LEDGER — CÁCH THI HÀNH: coi mọi mã [B1], [B2]... trong kế hoạch là việc bắt buộc. Viết theo đúng thứ tự; mỗi beat phải để lại bằng chứng rõ trong văn xuôi bằng hành động, lời thoại, thông tin hoặc hậu quả. Trước khi viết đoạn kết, tự kiểm tra từng mã beat. Nếu còn beat chưa có bằng chứng, KHÔNG được kết chương; phải viết beat còn thiếu trước rồi mới đi tới Ending Anchor. Không được đánh dấu đã hoàn thành nếu chỉ nhắc lại kế hoạch." : "",
+    plan ? "\nBEAT LEDGER — CÁCH THI HÀNH: mã [R1], [R2]... là Required Beat bắt buộc; mã [S1], [S2]... là Support Beat do AI đề xuất, chỉ dùng khi giúp mạch truyện tự nhiên. Viết các [R] theo đúng thứ tự và để lại bằng chứng rõ trong văn xuôi bằng hành động, lời thoại, thông tin hoặc hậu quả. Trước khi viết đoạn kết, tự kiểm tra từng [R]. Nếu còn [R] chưa có bằng chứng, KHÔNG được kết chương; phải viết beat còn thiếu trước rồi mới đi tới Ending Anchor. Không được biến [S] thành nghĩa vụ hoặc mở tuyến độc lập." : "",
     "\nNGÂN SÁCH SỰ KIỆN — BẮT BUỘC:",
     "- Toàn chương chỉ có 1–3 SỰ KIỆN CHÍNH. Không thêm sự kiện lớn thứ 4 dù còn dung lượng từ.",
-    "- Các cảnh/beat nhỏ chỉ là bước triển khai, phản ứng hoặc hậu quả của 1–3 sự kiện chính; không được biến thành tuyến sự kiện mới.",
-    "- Nếu chương cần dài hơn, hãy đào sâu diễn biến, đối thoại, nội tâm, nguyên nhân–hậu quả và chi tiết cảnh thay vì nhồi thêm biến cố — nhưng mỗi sự kiện chính phải là một BƯỚC TIẾN thật về phía mục tiêu Arc/Outline (nếu có mục TIẾN ĐỘ ARC/OUTLINE thì thực hiện đúng việc bắt buộc của chương), không dừng lại ở bước đã làm.",
+    "- Các cảnh/beat nhỏ là bước triển khai, phản ứng hoặc hậu quả của 1–3 sự kiện trục. Được phép có biến cố lớn lồng bên trong một sự kiện trục khi có quan hệ nhân-quả trực tiếp và thật sự cần; ghi rõ nó thuộc sự kiện nào, không mở thành tuyến độc lập, không tính là sự kiện chính thứ 4 và không tự thêm nếu không cần.",
+    "- Nếu chương cần dài hơn, trước hết đào sâu diễn biến, đối thoại, nội tâm, nguyên nhân–hậu quả và chi tiết cảnh. Chỉ thêm biến cố lồng khi nó làm rõ hoặc đẩy một sự kiện trục tiến lên; không nhồi thêm cho đủ chữ. Mỗi sự kiện trục phải là một BƯỚC TIẾN thật về phía mục tiêu Arc/Outline (nếu có mục TIẾN ĐỘ ARC/OUTLINE thì thực hiện đúng việc bắt buộc của chương), không dừng lại ở bước đã làm.",
     "\nNHÂN VẬT PHỤ — BẮT BUỘC:",
     "- GIỚI HẠN CỨNG: TỐI ĐA 4 NHÂN VẬT CÓ TÊN RIÊNG xuất hiện TRỰC TIẾP (có lời thoại hoặc hành động cụ thể) trong toàn chương, tính cả nhân vật chính. Đám đông/người qua đường không tên không tính vào số này.",
     "- Nếu chương 1 hoặc mở đầu một arc mới cần giới thiệu bối cảnh, KHÔNG dồn hết dàn nhân vật vào 1 chương — chỉ giới thiệu những ai TRỰC TIẾP tham gia 1-3 sự kiện chính của CHƯƠNG NÀY; người còn lại để dành cho chương sau.",
@@ -6951,7 +6962,13 @@ function buildMainWritePrompt(o){
 async function buildChapterPlan(context, recent, chapterNumber){
   const prompt = buildChapterPlanPrompt({ chapterNumber, context, recent, directive: state.directive, hint: state.nextChapterHint,
     mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPromptClient() });
-  try{ const { text } = await callAI(prompt, {maxTokens:1400, temperature:0.45}); return text; }catch(err){ return ""; }
+  try{
+    let r = await callAI(prompt, {maxTokens:2400, temperature:0.4});
+    if(String(r && r.finishReason || "").toLowerCase()==="length"){
+      r = await callAI(prompt + "\n\nCẢNH BÁO: Kế hoạch trước bị cắt. Bắt buộc trả đủ Chapter Contract, toàn bộ [R] và [S], REQUIRED_DONE, STOP_AFTER và CONFLICT nếu có; không dừng giữa một beat.", {maxTokens:3200, temperature:0.25});
+    }
+    return String(r && r.text || "").trim();
+  }catch(err){ return ""; }
 }
 
 /* V12.24: hỏi AI xem chương đã VIẾT TỚI điểm kết của gợi ý chưa. reached: true | false | null (lỗi/không đọc được -> coi là không biết). */
@@ -7544,6 +7561,7 @@ function renderQualityReview(ch){
     +(hard?'<div style="margin-top:7px;"><b>Hard failure:</b>\n'+hard+'</div>':'')
     +(warn?'<div style="margin-top:7px;"><b>Cảnh báo:</b>\n'+warn+'</div>':'')
     +((r.rewriteInstructions||[]).length?'<div style="margin-top:7px;"><b>Hướng sửa:</b>\n'+r.rewriteInstructions.map(x=>'• '+escapeHtml(x)).join('\n')+'</div>':'')
+    +((r.revisionTrace||[]).length?'<div style="margin-top:7px;"><b>AI đã thử sửa:</b>\n'+r.revisionTrace.slice(-4).map(x=>'• Lượt '+escapeHtml(String(x.attempt))+': '+escapeHtml(String(x.patched||0))+' patch'+(x.trace&&x.trace.length?' — '+x.trace.map(t=>escapeHtml((t.op||'')+(t.anchor?' tại “'+t.anchor+'”':''))).join('; '):'')+(x.skippedReasons&&x.skippedReasons.length?' | bỏ qua: '+escapeHtml(x.skippedReasons.join('; ')):'')).join('\n')+'</div>':'')
     +(ch.sync&&ch.sync.canonVersion?'<div style="margin-top:7px;">Canon v'+escapeHtml(String(ch.sync.canonVersion))+'</div>':'');
 }
 async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
@@ -7565,14 +7583,21 @@ async function patchDraftFromReview(chapter, review, chapterNumber, plan, contex
   const prompt=buildPatchPrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:oldText,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500)});
   try{
     const r=await callAI(prompt,{maxTokens:4000,temperature:0.3,modelOverride:chapter.modelUsed||state.model});
-    const patches=parsePatchResponse(r.text);
+    let patches=parsePatchResponse(r.text);
     if(!patches||!patches.length) return {ok:false,reason:"AI không trả danh sách vá hợp lệ"};
-    const res=applyChapterPatches(oldText,patches);
+    let res=applyChapterPatches(oldText,patches);
+    // Missing Required Beat thường bị AI neo vào mã [R2]/[R3] không tồn tại trong văn bản.
+    if(!res.applied && (review.hardFailures||[]).some(x=>/thiếu.*\[R\d+\]/i.test(gateItemText(x)))) {
+      const retryPrompt=buildPatchPrompt({chapterNumber,storyControl:storyControlPrompt(state),characterLock:characterLockPrompt(state.mainCharProfile,lockCharsForText(state,chapter.text),true),contract:plan,contractLabel:"OUTLINE/CONTRACT",context:contextSummary,review,draft:oldText,prevEnding:((state.chapters[chapterNumber-2]||{}).text||"").slice(-1500),retryNote:res.skipped.map(x=>x.reason).join("; ")||"không có thao tác nào được ghép"});
+      const retry=await callAI(retryPrompt,{maxTokens:4000,temperature:0.2,modelOverride:chapter.modelUsed||state.model});
+      patches=parsePatchResponse(retry.text);
+      if(patches&&patches.length) res=applyChapterPatches(oldText,patches);
+    }
     const acc=checkPatchAcceptable(oldText,res);
-    if(!acc.ok) return acc;
+    if(!acc.ok) return Object.assign(acc,{skipped:res.skipped||[]});
     backupBeforeRewrite(chapter,"Trước khi AI vá cục bộ (lần "+(((chapter.review||{}).attempt)||1)+", "+res.applied+" chỗ)");
     chapter.text=res.text; chapter.wordCount=acc.wordCount;
-    return {ok:true,patched:res.applied,skipped:res.skipped.length};
+    return {ok:true,patched:res.applied,skipped:res.skipped.length,trace:patches.slice(0,res.applied).map(x=>({op:x.op,anchor:String(x.find||x.from||"").slice(0,90),text:String(x.text||"").slice(0,160)})),skippedReasons:res.skipped.slice(0,4).map(x=>x.reason)};
   }catch(e){
     if(e && e.userAbort) return {ok:false,stopped:true,reason:"Đã dừng"};
     return {ok:false,reason:(e&&e.message)||"lỗi gọi AI"};
@@ -7644,6 +7669,29 @@ async function runCanonPostProcess(chapterObj, cn, text, rawForPolish, briefUsed
   await startBackgroundPostProcess(chapterObj, cn, String(chapterObj.text || text || ""), briefUsed);
 }
 
+function requiredBeatBarrierStatus(chapter){
+  if(state.requiredBeatBarrier===false) return {ok:true,missing:[]};
+  const review=chapter&&chapter.review||{};
+  const items=[].concat(review.hardFailures||[]).map(gateItemText);
+  const missing=[];
+  items.forEach(t=>{
+    if(!/thiếu|missing|chưa có|chưa được thực hiện|chưa có bằng chứng/i.test(t)) return;
+    const codes=t.match(/\[R\d+\]/gi)||[];
+    codes.forEach(c=>{ if(!missing.includes(c.toUpperCase())) missing.push(c.toUpperCase()); });
+  });
+  return {ok:missing.length===0,missing};
+}
+function blockIfRequiredBeatsMissing(chapterOrChapters, action){
+  const list=Array.isArray(chapterOrChapters)?chapterOrChapters:[chapterOrChapters];
+  const missingByChapter=[];
+  list.forEach((ch,i)=>{ const b=requiredBeatBarrierStatus(ch); if(!b.ok) missingByChapter.push("Ch"+(i+1)+": "+b.missing.join(", ")); });
+  if(missingByChapter.length){
+    setStatus("⛔ Đã chặn "+action+": còn thiếu Required Beat — "+missingByChapter.join("; ")+". Hãy sửa và chạy lại Quality Gate.",false);
+    return true;
+  }
+  return false;
+}
+
 async function reviewCurrentChapter(opts){
   const autoFix=!!(opts&&opts.autoFix===true); /* V12.32.10: nút 🛠 AI tự sửa */
   if(generating) return;
@@ -7659,6 +7707,7 @@ async function reviewCurrentChapter(opts){
     setStatus(autoFix?("🛠 AI đang tự sửa chương "+n+"..."):("🔎 Đang duyệt lại chương "+n+"..."),true);
     const gate=await runQualityGate(ch,n,ch.plan||"",ctx,{rewrite:autoFix});
     if(gate.stopped){ ch.status=wasSynced?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED"; persist(); renderChapterNav(); renderCurrentChapter(); setStatus(autoFix?"Đã dừng tự sửa (bản thảo giữ nguyên hoặc đã vá đến lượt trước; xem 🕘 phiên bản để khôi phục).":"Đã dừng duyệt lại.",false); return; }
+    if(blockIfRequiredBeatsMissing(ch,"Sync Canon / xuất bản")) return;
     if(!gate.approved){
       const why=gate.error?("Không đọc được kết quả review ("+gate.error+")"):("Quality Gate: "+((ch.review&&ch.review.verdict)||"chưa đạt"));
       if(!await showConfirm(why+".\nVẫn duyệt thủ công chương "+n+" và đồng bộ vào Canon?")){
@@ -7927,6 +7976,17 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       persist(); renderChapterNav(); renderCurrentChapter(); refreshStatBar();
       setStatus("⚠ Không khởi động được hậu kỳ server: " + String(e && e.message || e), false);
     });
+    /* Rà chính tả nền: không chặn chương đã lưu, chỉ thay bản nếu chương vẫn còn nguyên. */
+    if(state.spellCheckEnabled){
+      const polishSource=String(chapterObj.text||"");
+      polishVietnamese(polishSource,{modelOverride:state.model}).then(fixed=>{
+        const live=state.chapters[state.currentChapterIndex];
+        if(!live || live.id!==chapterObj.id || String(live.text||"")!==polishSource) return;
+        const next=String(fixed||polishSource).trim();
+        if(next && next!==polishSource){ live.text=next; live.wordCount=countWords(next); }
+        live.polished=true; live.polishedAt=Date.now(); persist(); renderChapterNav(); renderCurrentChapter();
+      }).catch(()=>{});
+    }
 
 
   }catch(err){
@@ -8630,6 +8690,7 @@ function downloadBlob(content, filename, mime, addBom){
   URL.revokeObjectURL(url);
 }
 $ID("exportTxtBtn").addEventListener("click", ()=>{
+  if(blockIfRequiredBeatsMissing(state.chapters,"xuất bản")) return;
   if(!state.chapters.length){ setStatus("Chưa có chương.", false); return; }
   const lines = [novelTitle(), "", "MỤC LỤC", ""];
   state.chapters.forEach((c,i)=> lines.push((i+1)+". "+c.title));
@@ -8640,6 +8701,7 @@ $ID("exportTxtBtn").addEventListener("click", ()=>{
   downloadBlob(lines.join("\n"), "tieu-thuyet-" + Date.now() + ".txt", "text/plain;charset=utf-8", true);
 });
 $ID("exportMdBtn").addEventListener("click", ()=>{
+  if(blockIfRequiredBeatsMissing(state.chapters,"xuất bản")) return;
   if(!state.chapters.length){ setStatus("Chưa có chương.", false); return; }
   const lines = ["# " + novelTitle(), "", "## Mục lục", ""];
   state.chapters.forEach((c,i)=> lines.push("- ["+ (i+1) +". "+c.title+"](#chuong-"+(i+1)+")"));
@@ -8650,6 +8712,7 @@ $ID("exportMdBtn").addEventListener("click", ()=>{
   downloadBlob(lines.join("\n"), "tieu-thuyet-" + Date.now() + ".md", "text/markdown;charset=utf-8");
 });
 $ID("exportDocBtn").addEventListener("click", ()=>{
+  if(blockIfRequiredBeatsMissing(state.chapters,"xuất bản")) return;
   if(!state.chapters.length){ setStatus("Chưa có chương.", false); return; }
   const esc = s => escapeHtml(s).replace(/\n/g,"<br>");
   let toc = state.chapters.map((c,i)=>'<p style="margin:2px 0;">'+(i+1)+'. '+escapeHtml(c.title)+'</p>').join("");
@@ -8775,6 +8838,7 @@ function hydrateFormFromState(){
   spellCheckToggle.checked = state.spellCheckEnabled !== false;
   $ID("qualityGateToggle").checked = state.qualityGateEnabled !== false;
   $ID("qualityAcceptSoftToggle").checked = state.qualityAcceptSoft === false;
+  $ID("requiredBeatBarrierToggle").checked = state.requiredBeatBarrier !== false;
   autoContinueToggle.checked = state.autoContinueEnabled !== false;
   autoSummaryToggle.checked = state.autoSummaryEnabled !== false;
   autoSceneToggle.checked = state.autoSceneEnabled !== false;
@@ -9056,6 +9120,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
   const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}
   if(res.status===401) throw new Error("Sai hoặc thiếu Mã truy cập server (mục 🔒).");
   if(!res.ok || !data.jobId || !data.accessToken) throw new Error(data.error || ("HTTP "+res.status));
+  bgWarnText=Array.isArray(data.warnings)&&data.warnings.length ? " ⚠ "+data.warnings.join(" | ") : "";
   const record={jobId:data.jobId,accessToken:data.accessToken,storyId:state.storyId,baseChapterCount:state.chapters.length,createdAt:Date.now(),briefAtStart:String(state.nextChapterHint||""),mode:"postprocess",chapterNumber:Number(chapterNumber)};
   localStorage.setItem(BG_JOB_KEY,JSON.stringify(record));
   chapterObj.postProcess=Object.assign({},chapterObj.postProcess||{},{status:"RUNNING",startedAt:Date.now(),serverSide:true,error:null,jobId:data.jobId});
@@ -9129,7 +9194,7 @@ function pollBackgroundJob(record){
       }
     }catch(e){}
   };
-  poll(); bgPollTimer=setInterval(poll,12000);
+  poll(); bgPollTimer=setInterval(poll,window.__XTA_TEST__?1000:12000);
 }
 
 function mergeArrayByIdOrName(localArr,incomingArr,nameKey="name"){
@@ -9176,6 +9241,7 @@ async function mergeBackgroundChapter(statusData,record){
       const lch=state.chapters[i];
       if(!ich||!lch||i>=base||String(lch.title||"")!==String(ich.title||"")) return;
       BG_HEAVY_CHAPTER_KEYS.forEach(k=>{ if(ich[k]===undefined && lch[k]!==undefined) ich[k]=lch[k]; });
+      ["polished","polishedAt"].forEach(k=>{ if(ich[k]===undefined && lch[k]!==undefined) ich[k]=lch[k]; });
     });
     state.chapters=incoming.chapters;
     state.currentChapterIndex=state.chapters.length-1;
@@ -9229,6 +9295,7 @@ async function retryBackgroundPostProcess(){
   try{
     await startBackgroundPostProcess(ch,idx+1,ch.text,ch.briefUsed||state.nextChapterHint||"");
   }catch(e){
+    setBgStatus("⚠ "+String(e&&e.message||e),true);
     setStatus("⚠ Không gửi được hậu kỳ server: "+String(e&&e.message||e),false);
   }
 }

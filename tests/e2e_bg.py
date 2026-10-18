@@ -44,7 +44,7 @@ with sync_playwright() as p:
     page.route("**/.netlify/functions/job-status**", job_status)
     page.goto(f"http://127.0.0.1:{port}/index.html"); page.wait_for_timeout(1000)
     page.fill("#apiKey", "sk-test"); page.fill("#apiEndpoint", "https://openrouter.ai/api/v1/chat/completions")
-    page.evaluate("()=>{__xta.state.apiKey='sk-test'; __xta.state.apiEndpoint='https://openrouter.ai/api/v1/chat/completions';}")
+    page.evaluate("()=>{const s=__xta.state; s.apiKey='sk-test'; s.apiEndpoint='https://openrouter.ai/api/v1/chat/completions'; s.chapters=[{title:'Chương 1',text:'Gió thổi qua con phố vắng. '.repeat(30),wordCount:150}]; s.currentChapterIndex=0; __xta.persist();}")
 
     # 1) sai mã -> hiện lỗi thân thiện, không tạo record job
     mode["create"] = "401"
@@ -61,7 +61,7 @@ with sync_playwright() as p:
     check("4. Mã truy cập được nhớ trên thiết bị (không nằm trong state)", page.evaluate("()=>localStorage.getItem('xta_passcode')") == "dung" and "dung" not in page.evaluate("()=>JSON.stringify(__xta.state)"))
     page.click("#bgWriteBtn"); page.wait_for_timeout(600)
     txt = page.inner_text("#bgJobStatus")
-    check("5. Cảnh báo JOB_SECRET vẫn hiển thị khi job đang chạy", "JOB_SECRET" in txt and "Đang viết nền" in txt, txt[:140])
+    check("5. Cảnh báo JOB_SECRET vẫn hiển thị khi job đang chạy", "JOB_SECRET" in txt and ("Đang viết nền" in txt or "Đang hậu kỳ server" in txt), txt[:140])
     check("6. Header đúng mã mới", seen["create_headers"].get("x-app-passcode") == "dung")
     check("7. Payload không chứa passcode trong storyState", "dung" not in json.dumps(seen["create_body"].get("storyState", {})))
     for _ in range(80):  # poll thứ 2 sau ~12s

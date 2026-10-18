@@ -31,7 +31,7 @@ with sync_playwright() as p:
     page.evaluate("""()=>{ const s=__xta.state; s.apiKey='sk-test'; s.apiEndpoint='https://openrouter.ai/api/v1/chat/completions';
       const big=()=>({characters:Array.from({length:300},(_,i)=>({name:'NV'+i,desc:'x'.repeat(200)}))});
       s.chapters=[1,2,3].map(n=>({title:'Chương '+n,text:'Gió thổi qua con phố vắng. '.repeat(30),wordCount:150,summary:'s'+n,
-        stateSnapshots:[big(),big(),big(),big(),big(),big(),big()], stateSnapshot:big(), versions:[{text:'cũ '.repeat(500)}]})); }""")
+        stateSnapshots:[big(),big(),big(),big(),big(),big(),big()], stateSnapshot:big(), versions:[{text:'cũ '.repeat(500)}]})); s.currentChapterIndex=2; }""")
     page.click("#bgWriteBtn"); page.wait_for_timeout(1500)
     body = seen["body"] or {}; chs = (body.get("storyState") or {}).get("chapters", [])
     check("1. Payload gửi đủ 3 chương", len(chs) == 3, str(len(chs)))

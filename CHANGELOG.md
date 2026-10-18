@@ -1,5 +1,38 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.44.0] — E2E Stable Patch
+
+- Sửa hiển thị cảnh báo `JOB_SECRET` và lỗi mã truy cập trong Background Postprocess.
+- Poll Background Job nhanh hơn trong môi trường test, giữ Canon version và trạng thái rà khi hợp nhất.
+- Bổ sung mock Netlify Job cho E2E giao diện; cập nhật payload/snapshot E2E theo luồng Postprocess hiện hành.
+- Unit/Core 39/39 và các E2E giao diện, job nền, payload slim được chuẩn hóa để kiểm tra đúng hành vi hiện tại.
+
+## [V12.43.0] — Required Beat Barrier
+
+- Thêm công tắc mặc định bật: `Chặn thiếu Required Beat [R]`.
+- Khi còn `[R]` thiếu, không cho Manual Override, không Sync Canon và không xuất bản TXT/MD/DOC.
+- Xuất bản kiểm tra toàn bộ chương trong truyện, không chỉ chương đang mở.
+- Có thể tắt khóa trong phần Quality Gate nếu người dùng chủ động muốn xuất bản bản nháp.
+
+## [V12.42.0] — Plan Completion Guard
+
+- Ô kế hoạch vẫn có thanh cuộn; nội dung không bị mất chỉ vì vượt 220px chiều cao hiển thị.
+- Tăng ngân sách lập Chapter Plan và tự retry khi model trả `finishReason: length`.
+- Lượt retry yêu cầu trả đủ `[R]`, `[S]`, `REQUIRED_DONE`, `STOP_AFTER` và `CONFLICT`, tránh viết chương dựa trên kế hoạch bị cắt.
+
+## [V12.41.0] — AutoFix Retry + Patch Trace
+
+- Khi thiếu `[R]` nhưng lượt vá đầu không ghép được, AI được retry với `insert_before_end` thay vì neo vào mã beat không có trong bản thảo.
+- Quality Review hiển thị số patch đã ghép, thao tác và đoạn neo; không còn báo mơ hồ rằng AI đã sửa nếu thực tế không ghép được.
+- Giữ Best Draft Guard: bản sửa làm điểm tụt vẫn bị khôi phục.
+
+## [V12.40.0] — Nested Main Events
+
+- Giữ giới hạn tối đa 3 sự kiện trục chính mỗi chương.
+- Cho phép biến cố lớn lồng bên trong một sự kiện trục khi có quan hệ nhân-quả trực tiếp và thật sự cần.
+- Không ép chương nào cũng phải thêm biến cố lồng; không tính biến cố lồng thành sự kiện chính thứ 4.
+- Đồng bộ luật này vào planner, writer prompt và Story Control.
+
 ## [V12.39.0] — Canon Barrier + Required Beat Contract
 
 - Mặc định không cho bản SOFT_FAIL trở thành Canon; thêm công tắc **Chặn điểm thấp vào Canon**.
@@ -49,7 +82,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.39.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.43.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---
