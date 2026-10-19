@@ -1,5 +1,6 @@
 const fs = require('fs'), vm = require('vm'), assert = require('assert'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
+const indexSrc = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const box = { console, state: {} };
 vm.createContext(box);
 vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
@@ -83,4 +84,9 @@ test('Quality Gate hard-fail chương dưới 4.500 từ', () => {
   assert(T.gateHardChecks({ text: Array.from({length: 4500}, (_, i) => 'từ' + i).join(' ') }).find(c => c.id === 'text_nonempty').ok);
 });
 
-console.log(`\n${pass}/9 PASS`);
+test('viết lại chương vẫn đi qua Adaptive Scene + Top-up', () => {
+  assert(indexSrc.includes('if(state.adaptiveScenePipeline !== false){'), 'nhánh viết lại không được bỏ qua adaptive pipeline');
+  assert(indexSrc.includes('V13.3: viết lại chương cũng phải đi qua Adaptive Scene + Top-up'));
+});
+
+console.log(`\n${pass}/10 PASS`);

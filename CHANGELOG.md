@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V13.3] — Viết lại dùng chung Adaptive Scene
+
+- Sửa lỗi nút **Viết lại** bỏ qua Adaptive Scene/Top-up vì nhánh cũ chỉ áp dụng cho chương mới.
+- Cả tạo chương mới và viết lại nay đều phải đi qua Scene Graph, scene nối tiếp và Top-up tối thiểu 4.500 từ.
+
 ## [V13.2] — Adaptive Scene Top-up và Hard Minimum
 
 - Khi Adaptive Scene ghép xong dưới 4.500 từ, app tự viết bổ sung tối đa 6 lượt bằng prompt compact chỉ truyền đoạn đuôi, state delta và Required Beat; prompt yêu cầu tối thiểu phần từ còn thiếu.

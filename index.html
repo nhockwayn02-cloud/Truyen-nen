@@ -8307,7 +8307,10 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
 
     let rawText = "", finishReason = null;
     let firstResult = null;
-    if(!isRegen && state.adaptiveScenePipeline !== false){
+    // V13.3: viết lại chương cũng phải đi qua Adaptive Scene + Top-up.
+    // Trước đây chỉ chương mới đi qua nhánh này; nút Viết lại vì thế có thể
+    // quay về pipeline cũ và kết thúc ở 1.000–1.500 từ mà không bù độ dài.
+    if(state.adaptiveScenePipeline !== false){
       const adaptive = await generateAdaptiveChapterText({
         context, priorChapters, model: targetModel, usingNsfw
       });
