@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v12.46.1</title>
+<title>Xưởng Truyện AI Pro Max v12.47.1</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -376,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max</div>
-<div class="brand-sub">v12.46.1 · Canon Warning AutoFix · Semantic Prose Check</div>
+<div class="brand-sub">v12.47.1 · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
@@ -764,7 +764,7 @@ html{color-scheme:dark}
 <div class="progress-strip" id="writeProgress" aria-live="polite">
 <span class="progress-step" data-progress="plan">1. Kế hoạch</span><span class="progress-step" data-progress="write">2. Viết</span><span class="progress-step" data-progress="expand">3. Mở rộng</span><span class="progress-step" data-progress="gate">4. Quality Gate</span><span class="progress-step" data-progress="post">5. Hậu kỳ</span><span class="progress-step" data-progress="sync">6. Sync Canon</span>
 </div>
-<button class="btn btn-blue" id="writeChapterBtn">✨ Tạo Chương Mới</button>
+<button class="btn btn-blue" id="writeChapterBtn">✦ Tạo Chương Hoàn Chỉnh</button>
 <button class="btn btn-ghost" id="continueChapterBtn">➕ Viết Tiếp</button>
 <button class="btn btn-stop" id="stopBtn" style="display:none;">⏹ Dừng</button>
 <button class="btn btn-teal" id="bgWriteBtn" title="Chạy hậu kỳ trên server; có thể tắt máy">☁ Chạy hậu kỳ server (tắt máy được)</button>
@@ -790,6 +790,7 @@ html{color-scheme:dark}
 </select>
 </div>
 <div class="toggle-row"><span>🛡 Quality Gate (chấm + tự sửa trước khi ghi Canon)</span><label class="switch"><input checked="" id="qualityGateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
+<div class="toggle-row"><span title="Tự động sửa các cảnh báo Canon/continuity/Beat rồi chấm lại trước khi ghi Canon">✦ Tạo chương hoàn chỉnh (tự sửa)</span><label class="switch"><input checked id="autoRepairOnCreateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Tắt để chương SOFT_FAIL phải sửa đạt PASS trước khi viết chương tiếp">🚧 Chặn điểm thấp vào Canon</span><label class="switch"><input id="qualityAcceptSoftToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Khóa cứng: còn Required Beat [R] thiếu thì không Manual Override, không Sync Canon, không xuất bản">🧱 Chặn thiếu Required Beat [R]</span><label class="switch"><input checked id="requiredBeatBarrierToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>📝 Rà chính tả + xưng hô</span><label class="switch"><input checked="" id="spellCheckToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
@@ -3089,7 +3090,7 @@ function buildChapterData(source){
     characterStateTracker:s.characterStateTracker||{},
     plotArchive:s.plotArchive||[],
     canonVersion:Number(s.canonVersion||0),
-    qualityGate:{enabled:s.qualityGateEnabled!==false,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||5)},
+    qualityGate:{enabled:s.qualityGateEnabled!==false,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||5),autoRepairOnCreate:s.autoRepairOnCreate!==false},
     version:3
   };
 }
@@ -3120,7 +3121,7 @@ function hydrateFromRecord(record){
     out.chapters=ch.chapters||[];
     out.chapterDrafts=ch.chapterDrafts||[];
     out.canonVersion=Number(ch.canonVersion||0);
-    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||5);
+    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||5); out.autoRepairOnCreate=ch.qualityGate?.autoRepairOnCreate!==false;
     out.chapters.forEach(c=>{ if(c && c.sync && c.sync.status==="SYNCED" && !c.status) c.status="SYNCED"; });
     out.scenes=ch.scenes||out.scenes||[];
     out.knowledgeLedger=ch.knowledgeLedger||out.knowledgeLedger||[];
@@ -3250,7 +3251,7 @@ const state = {
   snapshotLimit: 7,
   wakeLockEnabled: true,
   slidingWindowWords: 1500,
-  qualityGateEnabled: true, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5
+  qualityGateEnabled: true, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5, autoRepairOnCreate: true
 };
 
 function newMainCharProfile(){
@@ -3284,7 +3285,7 @@ function newStoryState(name){
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
     characterCards: [], banWords: [], glossaryLock: [], characterStateTracker:{}, plotArchive:[],
     tokenCapPerPrompt:5, snapshotLimit:7, wakeLockEnabled:true, slidingWindowWords:1500,
-    qualityGateEnabled:true, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5
+    qualityGateEnabled:true, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5, autoRepairOnCreate:true
   };
 }
 
@@ -3652,7 +3653,7 @@ const autoContinueToggle = $ID("autoContinueToggle"), autoSummaryToggle = $ID("a
 const autoSceneToggle = $ID("autoSceneToggle");
 const dupCheckToggle = $ID("dupCheckToggle"), streamingToggle = $ID("streamingToggle");
 const queueToggle = $ID("queueToggle"), parallelToggle = $ID("parallelToggle");
-const checkpointToggle = $ID("checkpointToggle");
+const checkpointToggle = $ID("checkpointToggle"), autoRepairOnCreateToggle = $ID("autoRepairOnCreateToggle");
 const minWordsInput = $ID("minWordsInput"), autoContinueMaxInput = $ID("autoContinueMaxInput");
 const regenModeSelect = $ID("regenModeSelect");
 const descriptionLevelSelect = $ID("descriptionLevelSelect");
@@ -5042,6 +5043,7 @@ autoToggle.addEventListener("change", ()=>{ scheduleNextAuto(); if(autoToggle.ch
 includeKeyToggle.addEventListener("change", ()=>{ state.includeKeyOnExport = includeKeyToggle.checked; persist(); });
 spellCheckToggle.addEventListener("change", ()=>{ state.spellCheckEnabled = spellCheckToggle.checked; persist(); });
 $ID("qualityGateToggle").addEventListener("change", ()=>{ state.qualityGateEnabled = $ID("qualityGateToggle").checked; persist(); });
+$ID("autoRepairOnCreateToggle").addEventListener("change", ()=>{ state.autoRepairOnCreate = $ID("autoRepairOnCreateToggle").checked; persist(); });
 $ID("qualityAcceptSoftToggle").addEventListener("change", ()=>{ state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked; persist(); });
 $ID("requiredBeatBarrierToggle").addEventListener("change", ()=>{ state.requiredBeatBarrier = $ID("requiredBeatBarrierToggle").checked; persist(); });
 autoContinueToggle.addEventListener("change", ()=>{ state.autoContinueEnabled = autoContinueToggle.checked; persist(); });
@@ -8110,8 +8112,9 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(dupWarnings.length) chapterObj.continuityWarnings = dupWarnings;
 
     const reviewContext = buildStoryBibleSummary() + "\n" + characterSummaryForPrompt(relevantCharacters(20));
-    setStatus("🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true); setWriteProgress("gate");
-    const gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext);
+    const autonomousRepair = state.autoRepairOnCreate !== false && state.qualityGateEnabled !== false;
+    setStatus(autonomousRepair ? "✦ Đang tự hoàn thiện chương " + chapterNumber + ": Quality Gate + sửa lỗi..." : "🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true); setWriteProgress("gate");
+    const gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext, {rewrite:autonomousRepair,forceWarnings:autonomousRepair});
     if(!gate.approved){
       clearDraftProgress();
       chapterObj.status = gate.stopped ? "DRAFTED" : "REVISION_REQUIRED";
@@ -9025,6 +9028,7 @@ function hydrateFormFromState(){
   includeKeyToggle.checked = !!state.includeKeyOnExport;
   spellCheckToggle.checked = state.spellCheckEnabled !== false;
   $ID("qualityGateToggle").checked = state.qualityGateEnabled !== false;
+  $ID("autoRepairOnCreateToggle").checked = state.autoRepairOnCreate !== false;
   $ID("qualityAcceptSoftToggle").checked = state.qualityAcceptSoft === false;
   $ID("requiredBeatBarrierToggle").checked = state.requiredBeatBarrier !== false;
   autoContinueToggle.checked = state.autoContinueEnabled !== false;

@@ -93,7 +93,7 @@ with sync_playwright() as p:
 
     # ---- Luồng viết chương với API giả (mock SSE / JSON) ----
     calls = {"stream": 0, "json": 0}
-    gate = {"mode": "pass"}
+    gate = {"mode": "pass", "warningOnce": False}
     def mock_api(route):
         req = route.request
         try: body = json.loads(req.post_data or "{}")
@@ -108,6 +108,9 @@ with sync_playwright() as p:
             obj = {"score":95,"verdict":"PASS","dimensions":{},"mainEventCount":1,"namedCharacterCount":1,"unauthorizedImportantCharacter":False,"knowledgeViolation":False,"retcon":False,"outlineDeviation":False,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}
             if gate["mode"] == "fail":
                 obj.update({"score":50,"verdict":"HARD_FAIL","retcon":True,"hardFailures":["Retcon giả lập"],"rewriteInstructions":["Sửa retcon"]})
+            elif gate["mode"] == "pass_warning" and not gate["warningOnce"]:
+                gate["warningOnce"] = True
+                obj.update({"warnings":["Canon: cảnh mở đầu cần nối đúng địa điểm"],"rewriteInstructions":["Nối lại địa điểm theo Canon"]})
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":json.dumps(obj, ensure_ascii=False)},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if body.get("stream"):
             calls["stream"] += 1
@@ -189,6 +192,13 @@ with sync_playwright() as p:
     last = "()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return {n:__xta.state.chapters.length,status:c.status,verdict:(c.review||{}).verdict,score:(c.review||{}).score,canon:__xta.state.canonVersion||0,len:(c.text||'').length,vers:(c.versions||[]).length,warn:(c.review||{}).warnings||[],sync:(c.sync||{}).status}}"
     info = page.evaluate(last)
     check("22. Gate PASS: chương ở trạng thái SYNCED, có điểm + canonVersion", info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and info["verdict"] == "PASS" and info["score"] == 95 and info["canon"] >= 1, str(info))
+    # V12.47: PASS kèm cảnh báo Canon vẫn phải tự sửa rồi chấm lại khi tạo chương mới.
+    gate["mode"] = "pass_warning"; gate["warningOnce"] = False; reviews_before = calls.get("review", 0)
+    n_before_warning = page.evaluate("()=>__xta.state.chapters.length")
+    ok_warning = write_chapter()
+    info_warning = page.evaluate(last)
+    check("22b. Tạo chương hoàn chỉnh tự sửa cảnh báo Canon rồi Sync", ok_warning and info_warning["n"] == n_before_warning + 1 and info_warning["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and calls.get("review",0) >= reviews_before + 2, str(info_warning) + " reviews=" + str(calls.get("review",0)-reviews_before))
+    gate["mode"] = "pass"
     # sửa tay chương đã Sync
     page.evaluate("()=>{const el=document.getElementById('chapterText'); el.textContent=el.textContent+' Một câu sửa tay.'; el.dispatchEvent(new Event('input',{bubbles:true}));}")
     st = page.evaluate("()=>__xta.state.chapters[__xta.state.chapters.length-1].status")

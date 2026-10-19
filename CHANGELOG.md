@@ -1,5 +1,20 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V12.47.1] — Background Worker Parity
+
+- Background Worker nay dùng cùng chế độ `autoRepairOnCreate` với client.
+- Cảnh báo Canon/continuity/Beat có thể hành động sẽ buộc chạy rewrite/Targeted Repair và chấm lại trước khi Sync Canon.
+- Worker tôn trọng cả `qualityAcceptSoft`, tránh duyệt mềm ngoài cấu hình người dùng.
+- Bổ sung regression assertion cho parity client/worker.
+
+## [V12.47.0] — Tạo Chương Hoàn Chỉnh
+
+- Đổi nút chính thành **✦ Tạo Chương Hoàn Chỉnh**.
+- Thêm công tắc bật mặc định để tự động chạy Semantic Prose Check, Quality Gate, patch/Targeted Segment Repair và chấm lại trước khi Sync Canon.
+- Khi tạo chương mới, cảnh báo Canon/continuity/Beat có thể hành động không còn bị bỏ qua chỉ vì điểm tổng là `PASS`.
+- Lưu cấu hình tự sửa vào Story Record; người dùng vẫn có thể tắt trong phần Công Cụ Sáng Tác.
+- Thêm regression test cho pipeline tự hoàn thiện.
+
 ## [V12.46.1] — Canon Warning AutoFix
 
 - Sửa lỗi nút **AI tự sửa** dừng ngay khi Quality Gate trả `PASS` dù vẫn có cảnh báo Canon/continuity/Beat có hướng xử lý.
@@ -102,7 +117,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.46.0** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản mới nhất: **V12.47.1** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

@@ -4122,7 +4122,12 @@ async function runWorkerQualityGate(job, chapter, n) {
     review: () => qualityReviewWorker(job, chapter, n),
     rewrite: (review) => rewriteWorkerDraft(job, chapter, n, review),
     onStatus: (m) => { job.progress = m; }
-  }, { enabled: job.storyState.qualityGateEnabled !== false, maxAttempts: job.storyState.qualityMaxAttempts });
+  }, {
+    enabled: job.storyState.qualityGateEnabled !== false,
+    maxAttempts: job.storyState.qualityMaxAttempts,
+    acceptSoft: job.storyState.qualityAcceptSoft !== false,
+    forceWarnings: job.storyState.autoRepairOnCreate !== false
+  });
 }
 
 exports.handler = async (event) => {

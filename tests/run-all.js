@@ -42,6 +42,7 @@ const dir = __dirname; const suites = [
   ["V12.43 Required Beat Barrier", process.execPath, ["v12_43_required_beat_barrier.test.js"]],
   ["V12.46 Semantic Prose Check", process.execPath, ["v12_46_semantic_prose.test.js"]],
   ["V12.46 Canon warning AutoFix", process.execPath, ["v12_46_canon_warning_autofix.test.js"]],
+  ["V12.47 Tạo chương hoàn chỉnh", process.execPath, ["v12_47_autonomous_write.test.js"]],
   ["Định tuyến 18+", process.execPath, ["worker.routing.js"]],
   ["Bảo mật server", process.execPath, ["security.test.js"]],
   ["Tích hợp worker", process.execPath, ["worker.integration.js"], { EXTRACT_CONCURRENCY: "3" }],
