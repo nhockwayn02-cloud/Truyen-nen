@@ -60,4 +60,12 @@ test('Scene Graph prompt cấm khuôn vai trò cố định', () => {
   assert(/JSON object/.test(prompt));
 });
 
-console.log(`\n${pass}/6 PASS`);
+test('required beat checklist được truyền trực tiếp vào plan và scene', () => {
+  const required = '[OUTLINE Ch12] [S1] Tu luyện Huyền Nguyên Quyết; [R3] trinh sát hẻm Song Hành';
+  const plan = T.buildAdaptiveScenePlanPrompt({ state: {}, context: 'canon', requiredBeats: required });
+  const scene = T.buildAdaptiveSceneWritePrompt({ state: {}, scene: { id: 'S1', targetWords: 900 }, requiredBeats: required });
+  assert(plan.includes(required));
+  assert(scene.includes('REQUIRED CHECKLIST') && scene.includes('Huyền Nguyên Quyết'));
+});
+
+console.log(`\n${pass}/7 PASS`);

@@ -1112,6 +1112,7 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
     'Không thêm biến cố lớn ngoài brief/canon. Không viết văn xuôi.',
     'Trả duy nhất JSON object hợp lệ theo schema: {"chapterGoal":"","endingAnchor":"","scenes":[{"id":"S1","purpose":"","beats":[""],"characters":[""],"location":"","time":"","targetWords":900,"mustChange":"","handoff":""}]}',
+    o.requiredBeats ? 'REQUIRED BEAT CHECKLIST — PHẢI PHÂN BỔ VÀO SCENE, KHÔNG ĐƯỢC BỎ SÓT:\n' + String(o.requiredBeats).slice(0, 1800) : '',
     'Bối cảnh/canon:\n' + String(o.context || '').slice(0, 18000),
     o.recent ? 'Đoạn gần nhất:\n' + String(o.recent).slice(-5000) : '',
     o.directive ? 'Mệnh lệnh người dùng:\n' + String(o.directive).slice(0, 6000) : '',
@@ -1148,6 +1149,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     'Tổng chương ' + limits.minAccept + '–' + limits.maxAccept + ' từ; scene khoảng ' + s.targetWords + ' từ. Ưu tiên nhịp tự nhiên, không độn.',
     'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
     o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
+    o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
     o.previousTail ? 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n' + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
@@ -8042,13 +8044,25 @@ function compactSceneStyleLock(usingNsfw){
   if(vocab) parts.push("từ_khóa=" + vocab.replace(/\s+/g, " ").slice(0, 260));
   return parts.join("; ");
 }
+function adaptiveRequiredBeatBlock(st, chapterNumber){
+  const lines = [], n = Number(chapterNumber) || (((st && st.chapters) || []).length + 1);
+  const ol = outlineOf(st, n);
+  if(ol){
+    const per = outlineChapterLines(ol.content);
+    if(per[n]) lines.push("[OUTLINE Ch" + n + "] " + String(per[n]).replace(/\s+/g, " ").slice(0, 1000));
+  }
+  if(st && st.directive) lines.push("[BRIEF] " + String(st.directive).replace(/\s+/g, " ").slice(0, 700));
+  if(st && st.nextChapterHint) lines.push("[HINT] " + String(st.nextChapterHint).replace(/\s+/g, " ").slice(0, 700));
+  return lines.join("\n");
+}
 async function generateAdaptiveChapterText(o){
   const st = state;
   const limits = adaptiveChapterWordLimits(st);
   const recent = buildRecentBlocks(o.priorChapters || []).recentFullText;
+  const requiredBeats = adaptiveRequiredBeatBlock(st, (o.priorChapters || []).length + 1);
   const planPrompt = buildAdaptiveScenePlanPrompt({
     state: st, context: o.context, recent,
-    directive: st.directive, hint: st.nextChapterHint
+    directive: st.directive, hint: st.nextChapterHint, requiredBeats
   });
   let planRaw;
   try{
@@ -8083,6 +8097,7 @@ async function generateAdaptiveChapterText(o){
       state: st, scene, chapterGoal: graph.chapterGoal,
       endingAnchor: graph.endingAnchor, previousTail,
       stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
+      requiredBeats,
       isFinalScene: i === graph.scenes.length - 1,
       style: compactSceneStyleLock(o.usingNsfw)
     });
@@ -8113,8 +8128,8 @@ async function generateAdaptiveChapterText(o){
   }
   const text = pieces.join('\n\n').trim();
   const wc = countWords(text);
-  if(wc < limits.minAccept) return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(graph), underTarget:true};
-  return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(graph), underTarget:false};
+  if(wc < limits.minAccept) return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:true};
+  return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:false};
 }
 
 async function generateChapter(regenIndex, regenMode, forceNsfw){
