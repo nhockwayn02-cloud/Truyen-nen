@@ -177,7 +177,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
   return [
     'VIẾT BỔ SUNG TIẾP NỐI bằng tiếng Việt; chỉ trả văn xuôi, không tiêu đề/giải thích.',
     'Chương hiện mới khoảng ' + (Number(p.currentWords) || '?') + ' từ và còn thiếu khoảng ' + need + ' từ để đạt tối thiểu 4.500 từ.',
-    'Viết khoảng ' + need + '–' + Math.ceil(need * 1.15) + ' từ diễn biến MỚI, tự nhiên; không tóm tắt, không lặp, không kéo dài rỗng.',
+    'BẮT BUỘC viết ít nhất ' + need + ' từ (mục tiêu ' + Math.ceil(need * 1.15) + ' từ) diễn biến MỚI, tự nhiên; không tóm tắt, không lặp, không kéo dài rỗng.',
     'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
     p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
     p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
