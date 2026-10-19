@@ -8185,6 +8185,41 @@ async function generateAdaptiveChapterText(o){
   return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats, topUpAttempts})), underTarget};
 }
 
+// V13.4: hàng rào cuối cho mọi nhánh tạo chương. Nếu Scene Graph lỗi/không parse được,
+// fallback cũ vẫn phải được bù từ; không để bản 1.000–2.000 từ lọt qua vì adaptive trả null.
+async function topUpShortDraftText(initialText, o){
+  let text = String(initialText || '').trim(), attempts = 0;
+  const limits = adaptiveChapterWordLimits(state);
+  const requiredBeats = adaptiveRequiredBeatBlock(state, Number(o && o.chapterNumber) || (state.chapters.length + 1));
+  while(countWords(text) < limits.minAccept && attempts < 6){
+    const currentWords = countWords(text), needWords = Math.min(1800, limits.minAccept - currentWords);
+    attempts++;
+    try{
+      const r = await callAI(buildAdaptiveSceneTopUpPrompt({
+        state, currentWords, needWords,
+        chapterGoal:'Hoàn thiện chương hiện tại theo Outline/Brief; tạo diễn biến mới và kết nối tự nhiên.',
+        endingAnchor:'Chỉ kết thúc sau khi chương đạt tối thiểu 4.500 từ và đã xử lý các Required Beat.',
+        previousTail:text.slice(-2400), requiredBeats,
+        style:compactSceneStyleLock(!!(o && o.usingNsfw))
+      }), {
+        maxTokens:Math.min(4200, Math.max(1800, Math.ceil(needWords * 2.1) + 450)),
+        temperature:o && o.usingNsfw ? 0.76 : 0.70, modelOverride:o && o.model,
+        frequency_penalty:0.22, presence_penalty:0.18, streaming:false
+      });
+      let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      if(detectNonVietnamese(extra)) extra = stripForeign(extra);
+      if(countWords(extra) < 80) break;
+      const before = currentWords;
+      text = text + '\n\n' + extra;
+      if(countWords(text) <= before) break;
+    }catch(e){
+      console.warn('[AdaptiveScene] fallback top-up failed', e && e.message);
+      break;
+    }
+  }
+  return text;
+}
+
 async function generateChapter(regenIndex, regenMode, forceNsfw){
   if(generating){ setStatus("Đang bận...", true); return; }
   setWriteProgress("plan");
@@ -8342,6 +8377,12 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     }
 
     rawText = formatParagraphs(dedupeRepeatedScene(stripForeign(stripThinkingOutput(rawText))));
+    // Không nhánh nào được bỏ qua minimum khi Adaptive Scene đang bật,
+    // kể cả khi plan/scene lỗi và phải dùng fallback prompt cũ.
+    if(state.adaptiveScenePipeline !== false && countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){
+      setStatus('⚙ Bản nháp còn ' + countWords(rawText) + ' từ — đang bù đến tối thiểu 4.500 từ...', true);
+      rawText = await topUpShortDraftText(rawText, {chapterNumber, model:targetModel, usingNsfw});
+    }
     const titleMatch = rawText.match(/TIÊU ĐỀ:\s*(.+)/i);
     const bodyMatch = rawText.match(/NỘI DUNG:\s*([\s\S]*)/i);
 

@@ -89,4 +89,9 @@ test('viết lại chương vẫn đi qua Adaptive Scene + Top-up', () => {
   assert(indexSrc.includes('V13.3: viết lại chương cũng phải đi qua Adaptive Scene + Top-up'));
 });
 
-console.log(`\n${pass}/10 PASS`);
+test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
+  assert(indexSrc.includes('async function topUpShortDraftText'), 'thiếu fallback top-up');
+  assert(indexSrc.includes('rawText = await topUpShortDraftText'), 'fallback chưa gọi top-up');
+});
+
+console.log(`\n${pass}/11 PASS`);

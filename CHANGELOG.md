@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V13.4] — Fallback Short-Draft Guard
+
+- Thêm hàng rào Top-up cuối cho mọi bản nháp dưới 4.500 từ, kể cả khi Scene Graph lỗi và app phải dùng fallback prompt cũ.
+- Không còn đường tạo chương nào được lưu trực tiếp ở khoảng 1.000–2.000 từ khi Adaptive Scene đang bật.
+
 ## [V13.3] — Viết lại dùng chung Adaptive Scene
 
 - Sửa lỗi nút **Viết lại** bỏ qua Adaptive Scene/Top-up vì nhánh cũ chỉ áp dụng cho chương mới.
