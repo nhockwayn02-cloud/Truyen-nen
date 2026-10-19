@@ -41,6 +41,15 @@ test('Scene write prompt chỉ truyền tail bị giới hạn, không truyền 
   assert(!prompt.includes('x'.repeat(10000)));
 });
 
+test('scene đầu chương khóa nối địa điểm với đoạn kết trước', () => {
+  const prompt = T.buildAdaptiveSceneWritePrompt({
+    state: { minChapterWords: 5000 }, scene: { id: 'S1', targetWords: 900, purpose: 'mở chương' },
+    previousTail: 'Bùi Lạc hòa vào dòng chảy im lặng của thành phố.', isOpeningScene: true
+  });
+  assert(/KHÓA CẢNH MỞ/.test(prompt));
+  assert(/địa điểm, thời điểm và người/.test(prompt));
+});
+
 test('state delta không chứa lastTail để tránh gửi đuôi scene hai lần', () => {
   const delta = T.compactSceneStateDelta({ sceneId: 'S1', location: 'phòng', lastTail: 'lặp rất dài', handoff: 'tiếp' });
   assert.strictEqual(delta.lastTail, undefined);
@@ -95,4 +104,4 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
-console.log(`\n${pass}/11 PASS`);
+console.log(`\n${pass}/12 PASS`);
