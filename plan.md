@@ -1,33 +1,29 @@
-# Kế hoạch hoàn thiện Xưởng Truyện AI
+# Kế hoạch V13 — Adaptive Scene Pipeline
 
 ## Mục tiêu
-Nâng bản V12.32.18 thành bản dễ dùng hơn, an toàn hơn khi triển khai Netlify và có nền tảng mở rộng mà không phá dữ liệu truyện cũ.
 
-## P0 — An toàn và kiểm chứng
-- Age Gate 18+ khi mở ứng dụng, có thể ghi nhớ xác nhận trên thiết bị.
-- Bảng kiểm tra cấu hình bảo mật deployment: JOB_SECRET, APP_PASSCODE, ALLOWED_ORIGIN, ALLOWED_API_HOSTS.
-- Chế độ bảo mật nghiêm ngặt cho background job qua `REQUIRE_HARDENED_SECURITY=1`; khi bật sẽ từ chối thiếu JOB_SECRET/APP_PASSCODE.
-- Thông báo lỗi rõ ràng khi cấu hình chưa đủ.
-- Chạy unit test và E2E nếu môi trường có Chromium.
+Tạo chương tiểu thuyết tiếng Việt dài khoảng 4.500–5.500 từ, đặc biệt phù hợp với chương 18+, nhưng không ép scene theo vai trò cố định. Beat bắt buộc, canon, ending anchor và tính liên kết được giữ; số scene, chức năng và độ dài scene do AI quyết định theo diễn biến.
 
-## P1 — UX cho người dùng phổ thông
-- Chuyển đổi Chế độ đơn giản / Chuyên gia.
-- Chế độ đơn giản ẩn các nhóm nâng cao nhưng giữ các trường cốt lõi.
-- Wizard khởi tạo truyện: tên, thể loại, nhân vật chính, tuổi và ý tưởng chương đầu.
-- Wizard tự điền vào Story Bible, nhân vật chính và mệnh lệnh chương.
+## Quyết định triển khai
 
-## P2 — Nền tảng mở rộng
-- Tiến trình viết có các bước rõ ràng: kế hoạch, viết, mở rộng, Quality Gate, hậu kỳ, Sync Canon.
-- Tài liệu hóa ranh giới module và quy ước đồng bộ `shared/core.js`.
-- Tách dần mã nguồn theo module ở mức tài liệu và adapter, chưa di chuyển hàng loạt để tránh rủi ro.
-- Bổ sung kiểm thử hồi quy cho các tính năng mới.
+- Một lần gọi AI lập Scene Graph/Scene Contract ngắn.
+- Viết scene tuần tự; mỗi scene chỉ nhận contract, 600–900 từ cuối scene trước và state delta compact.
+- Ghép scene bằng code, không gọi AI để viết lại toàn chương.
+- Mục tiêu chương 5.000 từ; chấp nhận 4.500–5.500; hard cap khoảng 5.600 để bảo vệ ending.
+- Chỉ continuation lại scene hiện tại khi scene bị cắt hoặc thiếu rõ ràng; không auto-continue toàn chương theo quota.
+- Quality Gate giữ ở mức review cuối và tối đa một lần sửa vùng; các cảnh báo mềm không tự gọi rewrite.
+- Semantic Prose Check và AI spell-check không chạy mặc định trong pipeline nhanh/cân bằng.
+- Hậu kỳ mặc định ưu tiên summary + next hint; cập nhật canon chi tiết chạy riêng.
 
-## Cấu trúc hiện tại và trách nhiệm
-- `index.html`: giao diện và client runtime hiện tại; sẽ tiếp tục là artifact deploy trong giai đoạn chuyển tiếp.
-- `shared/core.js`: nguồn logic dùng chung Quality Gate, patch, insert, canon.
-- `netlify/functions/`: API tạo job, trạng thái job và worker nền.
-- `lib/security.js`: kiểm tra endpoint, passcode, cảnh báo cấu hình.
-- `tests/`: test lõi, bảo mật, worker, E2E.
+## Cấu trúc chính
 
-## Quyết định thiết kế
-Phong cách giữ nguyên: dark workshop — giao diện xưởng sáng tác chuyên sâu, ưu tiên mật độ thông tin và thao tác nhanh. Chế độ đơn giản sẽ giảm mật độ này cho người mới, không thay đổi dữ liệu hay prompt engine.
+- `shared/core.js`: giới hạn từ và các helper prompt/parse cho Scene Graph, Scene Contract, state delta.
+- `index.html`: pipeline client adaptive scene, ghi telemetry theo step và fallback về pipeline cũ khi scene plan lỗi.
+- `write-chapter-background.js`: đồng bộ helper và giữ compatibility với job cũ; sau khi client ổn định sẽ thêm nhánh scene worker.
+- `tests/`: regression cho giới hạn từ, scene plan parse, prompt không gửi toàn bộ chương và ngân sách scene.
+
+## Trạng thái
+
+- V12.47.1: baseline.
+- V13.0: đợt đầu giới hạn từ + helper Scene Graph + client scene writer + regression.
+- V13.1: system prompt compact riêng cho Scene Graph/scene writer; contract/state/tail được rút gọn, loại bỏ `lastTail` trùng và chỉ gửi ending anchor ở scene cuối.

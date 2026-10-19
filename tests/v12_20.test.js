@@ -99,8 +99,10 @@ function job(extra) { return { apiEndpoint: "x", apiKey: "k", model: "m", storyS
   t("extractClosingBeat nhận cả 'Ending Anchor'", () => {
     assert(/tắt đèn/.test(T.extractClosingBeat("Cô vào phòng.\nEnding Anchor: cô viết dòng chữ rồi tắt đèn.")));
   });
-  t("hardMax nới lên 1.4× mục tiêu (không cắt mất anchor khi AI viết dài hơn)", () => {
-    assert.strictEqual(T.chapterWordLimits({ minChapterWords: 5000 }).hardMax, 7000);
+  t("hardMax giữ chương trong vùng 4500–5500 từ và chừa đệm nhỏ cho anchor", () => {
+    assert.strictEqual(T.chapterWordLimits({ minChapterWords: 5000 }).minAccept, 4500);
+    assert.strictEqual(T.chapterWordLimits({ minChapterWords: 5000 }).maxAccept, 5500);
+    assert.strictEqual(T.chapterWordLimits({ minChapterWords: 5000 }).hardMax, 5600);
   });
   sandbox.callWithRetry = async (a) => { const p = a.messages[a.messages.length - 1].content; calls.push(p); return { text: para(150), finishReason: "stop" }; };
   // Không gợi ý: vẫn viết tiếp như cũ

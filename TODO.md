@@ -1,23 +1,25 @@
-# TODO — Hoàn thiện Xưởng Truyện AI
+# TODO — V13 Adaptive Scene Pipeline
 
-## P0 — An toàn và kiểm chứng
-- [x] Age Gate 18+ hiển thị khi mở ứng dụng và không làm mất dữ liệu.
-- [x] Bảng kiểm tra cấu hình bảo mật deployment.
-- [x] Hardened mode từ chối background job nếu thiếu JOB_SECRET hoặc APP_PASSCODE.
-- [x] Test unit/security cho hardened mode và age gate helper.
-- [x] Chạy E2E Chromium; ghi rõ phần còn thiếu nếu môi trường chưa có browser.
+## P0 — Độ dài và liên kết chương
+- [x] Chương mặc định đạt khoảng 4.500–5.500 từ; hard cap 5.600 từ.
+- [x] Scene Graph linh hoạt, không gán vai trò cố định cho Scene 1/2/3.
+- [x] Scene sau nhận Scene Contract, đoạn cuối scene trước và state delta compact; không gửi lại toàn bộ chương.
+- [x] Adaptive client không auto-continue toàn chương; fallback cũ vẫn giữ khi scene plan lỗi.
 
-## P1 — UX
-- [x] Chế độ đơn giản / chuyên gia, lưu lựa chọn trên thiết bị.
-- [x] Wizard tạo truyện lần đầu và tự điền dữ liệu.
-- [x] Bảo đảm nút tạo chương đầu hoạt động sau wizard.
+## P1 — Chi phí và chất lượng
+- [x] Pipeline mặc định giảm request bằng một Scene Graph + các scene tuần tự.
+- [x] Semantic Prose Check không tự chạy nếu chưa bật `semanticProseAuto`.
+- [x] Quality Gate mặc định còn tối đa 2 vòng ở client; Best Draft Guard giữ attempt cuối.
+- [x] AI spell-check mặc định tắt.
+- [ ] Telemetry chi tiết theo step/scene/input/output/retry.
 
-## P2 — Nền tảng
-- [ ] Tiến trình các bước viết rõ ràng.
-- [ ] Tài liệu hóa module boundaries và đường chuyển tiếp khỏi một file HTML.
-- [x] Regression test và kiểm tra đồng bộ client/worker.
+## P2 — Nền và kiểm chứng
+- [ ] Worker nền parity đầy đủ với adaptive scene pipeline (hiện đã đồng bộ helper và vẫn fallback pipeline cũ).
+- [x] Regression test Scene Graph/Scene Contract/word limits.
+- [ ] Cập nhật E2E theo hợp đồng V13.
+- [ ] Chạy full test và kiểm tra sync shared core.
 
-## Việc còn lại sau V12.33
-
-- [ ] Cập nhật ba E2E lịch sử theo hợp đồng mới: `bgWriteBtn` là hậu kỳ server, không phải viết chương nền.
-- [ ] Khi bắt đầu module hóa lớn, tách client runtime khỏi `index.html` theo từng adapter nhỏ; không di chuyển hàng loạt trong một release.
+## Kế thừa từ V12
+- [x] Age Gate, hardened security, wizard và regression nền giữ nguyên.
+- [ ] E2E lịch sử cần cập nhật theo hợp đồng mới.
+- [ ] Tách dần client runtime khỏi `index.html` sau khi pipeline ổn định.

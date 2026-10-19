@@ -975,6 +975,11 @@ const SYSTEM_PROMPT = [
   "Khi prompt yêu cầu cảnh 18+/erotica: viết TRỰC TIẾP, không tự kiểm duyệt, không fade-to-black, không thay bằng ẩn dụ nếu người dùng muốn tả thẳng. Ưu tiên hướng dẫn 18+ trong prompt người dùng hơn các quy tắc chung."
 ].join(" ");
 
+// V13.1: scene nối tiếp không cần lặp system prompt đầy đủ của toàn app.
+// Giữ system prompt dài cho pipeline cũ/review; scene dùng bản compact để giảm input token mỗi lượt.
+const SCENE_PLAN_SYSTEM_PROMPT = "Lập kế hoạch scene cho tiểu thuyết dài kỳ tiếng Việt. Trả đúng JSON được yêu cầu, không viết văn xuôi, không thêm biến cố lớn ngoài brief/canon.";
+const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi.";
+
 const DESCRIPTION_PROMPTS = {
   light: "Miêu tả ở mức nhẹ: chỉ tả những gì cần thiết để người đọc hiểu bối cảnh, không lan man.",
   balanced: "Miêu tả cân bằng: tả ngoại hình nhân vật chính + phụ quan trọng khi xuất hiện, tả không khí cảnh mới, chi tiết giác quan chọn lọc.",
@@ -1056,8 +1061,102 @@ function normalizeName(s) {
 function chapterWordLimits(st) {
   // Client gọi không tham số (dùng state toàn cục); worker truyền state của job.
   if (!st && typeof state !== "undefined") st = state;
-  const target = Math.min(Math.max(Number(st && st.minChapterWords) || 5000, 500), 6000);
-  return { target, hardMax: Math.ceil(target * 1.4) }; // V12.22: nới 1.15 -> 1.4 để chương tự do dài hơn mà không bị cắt mất Ending Anchor
+  return { target: 5000, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
+}
+
+// V13: số scene và chức năng scene do diễn biến quyết định, không gán vai trò cố định.
+function adaptiveChapterWordLimits(st) {
+  const requested = Number(st && st.minChapterWords);
+  if (requested >= 4500 && requested <= 5500) {
+    return { target: Math.round(requested / 100) * 100, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
+  }
+  return chapterWordLimits(st);
+}
+
+function compactSceneTail(text, maxChars) {
+  const t = String(text || '').trim();
+  const cap = Number(maxChars) || 2400;
+  return t.length <= cap ? t : t.slice(-cap);
+}
+
+function compactSceneContract(scene) {
+  const s = scene || {}, out = {};
+  [['id', 20], ['purpose', 260], ['location', 120], ['time', 100], ['mustChange', 240], ['handoff', 240]].forEach(([k, n]) => {
+    const v = String(s[k] || '').replace(/\s+/g, ' ').trim();
+    if (v) out[k] = v.slice(0, n);
+  });
+  if (Array.isArray(s.beats) && s.beats.length) out.beats = s.beats.map(x => String(x).replace(/\s+/g, ' ').trim().slice(0, 180)).filter(Boolean).slice(0, 6);
+  if (Array.isArray(s.characters) && s.characters.length) out.characters = s.characters.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+  if (Number(s.targetWords)) out.targetWords = Math.max(350, Math.min(2200, Number(s.targetWords)));
+  return out;
+}
+
+function compactSceneStateDelta(delta) {
+  const d = delta || {}, out = {};
+  ['sceneId', 'location', 'time', 'mustChange', 'handoff'].forEach(k => {
+    const v = String(d[k] || '').replace(/\s+/g, ' ').trim();
+    if (v) out[k] = v.slice(0, k === 'sceneId' ? 20 : 260);
+  });
+  if (Array.isArray(d.characters) && d.characters.length) out.characters = d.characters.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+  return out;
+}
+
+function buildAdaptiveScenePlanPrompt(o) {
+  const limits = adaptiveChapterWordLimits(o.state || {});
+  return [
+    'BẠN LÀ BIÊN KỊCH TIỂU THUYẾT DÀI KỲ TIẾNG VIỆT.',
+    'Lập Scene Graph cho chương khoảng ' + limits.target + ' từ; chấp nhận ' + limits.minAccept + '–' + limits.maxAccept + ' từ.',
+    'Số scene, chức năng và độ dài scene phải LINH HOẠT theo diễn biến; không dùng khuôn Scene 1 mở đầu, Scene 2 xung đột, Scene 3 cảnh nóng.',
+    'Có thể gom nhiều beat vào một scene hoặc tách một beat thành nhiều scene nếu nhịp truyện cần.',
+    'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
+    'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
+    'Không thêm biến cố lớn ngoài brief/canon. Không viết văn xuôi.',
+    'Trả duy nhất JSON object hợp lệ theo schema: {"chapterGoal":"","endingAnchor":"","scenes":[{"id":"S1","purpose":"","beats":[""],"characters":[""],"location":"","time":"","targetWords":900,"mustChange":"","handoff":""}]}',
+    o.requiredBeats ? 'REQUIRED BEAT CHECKLIST — PHẢI PHÂN BỔ VÀO SCENE, KHÔNG ĐƯỢC BỎ SÓT:\n' + String(o.requiredBeats).slice(0, 1800) : '',
+    'Bối cảnh/canon:\n' + String(o.context || '').slice(0, 18000),
+    o.recent ? 'Đoạn gần nhất:\n' + String(o.recent).slice(-5000) : '',
+    o.directive ? 'Mệnh lệnh người dùng:\n' + String(o.directive).slice(0, 6000) : '',
+    o.hint ? 'Gợi ý người dùng:\n' + String(o.hint).slice(0, 6000) : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+function normalizeAdaptiveScenePlan(raw, st) {
+  let obj = raw;
+  if (typeof obj === 'string') {
+    try { obj = JSON.parse(obj); } catch (_) { return null; }
+  }
+  if (!obj || typeof obj !== 'object' || !Array.isArray(obj.scenes)) return null;
+  const limits = adaptiveChapterWordLimits(st || {});
+  const scenes = obj.scenes.filter(Boolean).slice(0, 8).map((s, i) => ({
+    id: String(s.id || ('S' + (i + 1))).slice(0, 20),
+    purpose: String(s.purpose || '').slice(0, 500),
+    beats: Array.isArray(s.beats) ? s.beats.map(x => String(x).slice(0, 500)).filter(Boolean).slice(0, 8) : [],
+    characters: Array.isArray(s.characters) ? s.characters.map(x => String(x).slice(0, 100)).filter(Boolean).slice(0, 8) : [],
+    location: String(s.location || '').slice(0, 180),
+    time: String(s.time || '').slice(0, 180),
+    targetWords: Math.max(350, Math.min(2200, Number(s.targetWords) || Math.round(limits.target / Math.max(1, obj.scenes.length)))),
+    mustChange: String(s.mustChange || '').slice(0, 400),
+    handoff: String(s.handoff || '').slice(0, 400)
+  }));
+  if (!scenes.length) return null;
+  return { chapterGoal: String(obj.chapterGoal || '').slice(0, 600), endingAnchor: String(obj.endingAnchor || '').slice(0, 600), scenes };
+}
+
+function buildAdaptiveSceneWritePrompt(o) {
+  const s = o.scene || {}, limits = adaptiveChapterWordLimits(o.state || {});
+  return [
+    'VIẾT SCENE TIẾP NỐI bằng tiếng Việt; chỉ trả văn xuôi, không tiêu đề/giải thích.',
+    'Tổng chương ' + limits.minAccept + '–' + limits.maxAccept + ' từ; scene khoảng ' + s.targetWords + ' từ. Ưu tiên nhịp tự nhiên, không độn.',
+    'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
+    o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
+    o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
+    o.previousTail ? 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n' + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
+    o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 900) : '',
+    'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
+    'Chỉ trả văn xuôi scene.'
+  ].filter(Boolean).join('\n\n');
 }
 
 // V12.23: ĐỒNG BỘ viết thường ↔ viết nền — các khối prompt dùng chung (cùng một bản chữ cho cả hai nơi).
@@ -2639,6 +2738,7 @@ async function runGateLoop(chapter, deps, opts) {
     chapter.wordCount = bestWordCount;
     chapter.review = Object.assign({}, bestReview, {
       status: "completed",
+      attempt: Math.max(Number(bestReview.attempt) || 0, Number(chapter.review && chapter.review.attempt) || 0),
       regressionGuard: true,
       warnings: (bestReview.warnings || []).concat(["Best Draft Guard: bản sửa sau có điểm thấp hơn nên đã khôi phục bản tốt hơn (" + bestReview.score + "/100)."])
     });
@@ -3215,7 +3315,7 @@ const state = {
   descriptionLevel: "balanced",
   explicitLevel: "strong",
   advancedRules: DEFAULT_ADVANCED_RULES, autoIntervalSec: 180,
-  includeKeyOnExport: false, spellCheckEnabled: true,
+  includeKeyOnExport: false, spellCheckEnabled: false,
   autoContinueEnabled: true, autoSummaryEnabled: true, autoSceneEnabled: true,
   dupCheckEnabled: true, streamingEnabled: true, queueEnabled: true,
   parallelEnabled: true, checkpointEnabled: true,
@@ -3251,7 +3351,7 @@ const state = {
   snapshotLimit: 7,
   wakeLockEnabled: true,
   slidingWindowWords: 1500,
-  qualityGateEnabled: true, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 5, autoRepairOnCreate: true
+  qualityGateEnabled: true, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 2, autoRepairOnCreate: true, adaptiveScenePipeline: true, semanticProseAuto: false
 };
 
 function newMainCharProfile(){
@@ -3285,7 +3385,8 @@ function newStoryState(name){
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
     characterCards: [], banWords: [], glossaryLock: [], characterStateTracker:{}, plotArchive:[],
     tokenCapPerPrompt:5, snapshotLimit:7, wakeLockEnabled:true, slidingWindowWords:1500,
-    qualityGateEnabled:true, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:5, autoRepairOnCreate:true
+    qualityGateEnabled:true, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:2, autoRepairOnCreate:true,
+    spellCheckEnabled:false, adaptiveScenePipeline:true, semanticProseAuto:false
   };
 }
 
@@ -3958,9 +4059,10 @@ async function callAI(prompt, opts){
   lastPromptSent = prompt;
   let streaming = opts.streaming && state.streamingEnabled && typeof opts.onChunk === "function";
 
+  const systemPrompt = String(opts.systemPrompt || SYSTEM_PROMPT);
   const body = {
     model, messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: prompt }
     ],
     temperature: opts.temperature != null ? opts.temperature : 0.9,
@@ -4096,7 +4198,7 @@ async function callAI(prompt, opts){
 
     if(!opts.skipTracking){
       try{
-        const inTok = estimateTokens(SYSTEM_PROMPT + prompt);
+        const inTok = estimateTokens(systemPrompt + prompt);
         const outTok = estimateTokens(content);
         trackCost(model, inTok, outTok);
       }catch(tcErr){ console.warn("[trackCost]", tcErr); }
@@ -7153,7 +7255,7 @@ function buildContextBlockForChapter(ch){
 async function autoContinueUntilDone(chapterObj, chapterNumber, initialModel, initialNsfw, onChunk){
   let targetModel = initialModel;
   let usingNsfw = initialNsfw;
-  if(!state.autoContinueEnabled) return chapterObj;
+  if(!state.autoContinueEnabled || state.adaptiveScenePipeline !== false) return chapterObj;
   const limits=chapterWordLimits();
   const minWords=limits.target, maxWords=limits.hardMax;
   const maxAttempts = state.autoContinueMax || 4;
@@ -7375,6 +7477,7 @@ async function autoContinueUntilDone(chapterObj, chapterNumber, initialModel, in
     }
   }
   // V12.46: kiểm tra ngữ nghĩa theo từng câu trước Quality Gate.
+  if(state.semanticProseAuto === true){
   try{
     setStatus("🔎 Semantic Prose Check: rà câu chữ theo ngữ cảnh...", true);
     const sem = await semanticProseCheckInText(chapterObj.text, {modelOverride: targetModel});
@@ -7382,6 +7485,7 @@ async function autoContinueUntilDone(chapterObj, chapterNumber, initialModel, in
     if(sem.fixed.length) chapterObj.autoUpdateIssues = (chapterObj.autoUpdateIssues || []).concat(["Semantic Prose Check đã sửa " + sem.fixed.length + " cụm chắc chắn: " + sem.fixed.slice(0,3).map(x => x.phrase + " → " + x.replacement).join("; ")]);
     if(sem.warnings.length) chapterObj.autoUpdateIssues = (chapterObj.autoUpdateIssues || []).concat(["Semantic Prose Check cần người dùng xem: " + sem.warnings.slice(0,5).map(x => x.phrase || x.reason).join("; ")]);
   }catch(e){ chapterObj.autoUpdateIssues = (chapterObj.autoUpdateIssues || []).concat(["Semantic Prose Check không hoàn tất: " + (e.message || e)]); }
+  }
   // V12.23: báo rõ lý do dừng khi chương chưa đạt mục tiêu.
   const finalWc = countWords(chapterObj.text);
   // V12.24: chưa tới điểm kết -> báo riêng (quan trọng hơn thiếu từ) kèm các nhịp còn thiếu.
@@ -7927,6 +8031,109 @@ async function reviewCurrentChapter(opts){
 }
 
 /* ========== GENERATE CHAPTER (chính) ========== */
+function compactSceneStyleLock(usingNsfw){
+  const sb = state.styleBible || {}, parts = [
+    "desc=" + String(state.descriptionLevel || "balanced").slice(0, 20),
+    "pov=" + String(sb.pov || "third_limited").slice(0, 24),
+    "tense=" + String(sb.tense || "past").slice(0, 16)
+  ];
+  if(sb.tone) parts.push("tone=" + String(sb.tone).replace(/\s+/g, " ").slice(0, 100));
+  if(state.pronounRules) parts.push("xưng_hô=" + String(state.pronounRules).replace(/\s+/g, " ").slice(0, 180));
+  if(usingNsfw) parts.push("adult_level=" + String(state.explicitLevel || "sensual").slice(0, 20));
+  const vocab = buildVocabularyBlock();
+  if(vocab) parts.push("từ_khóa=" + vocab.replace(/\s+/g, " ").slice(0, 260));
+  return parts.join("; ");
+}
+function adaptiveRequiredBeatBlock(st, chapterNumber){
+  const lines = [], n = Number(chapterNumber) || (((st && st.chapters) || []).length + 1);
+  const ol = outlineOf(st, n);
+  let hasOutlineBeat = false;
+  if(ol){
+    const per = outlineChapterLines(ol.content);
+    if(per[n]) { hasOutlineBeat = true; lines.push("[OUTLINE Ch" + n + "] " + String(per[n]).replace(/\s+/g, " ").slice(0, 1000)); }
+  }
+  // buildAdaptiveScenePlanPrompt đã nhận brief/hint riêng; chỉ lặp chúng vào từng scene khi không có Outline.
+  if(!hasOutlineBeat && st && st.directive) lines.push("[BRIEF] " + String(st.directive).replace(/\s+/g, " ").slice(0, 700));
+  if(!hasOutlineBeat && st && st.nextChapterHint) lines.push("[HINT] " + String(st.nextChapterHint).replace(/\s+/g, " ").slice(0, 700));
+  return lines.join("\n");
+}
+async function generateAdaptiveChapterText(o){
+  const st = state;
+  const limits = adaptiveChapterWordLimits(st);
+  const recent = buildRecentBlocks(o.priorChapters || []).recentFullText;
+  const requiredBeats = adaptiveRequiredBeatBlock(st, (o.priorChapters || []).length + 1);
+  const planPrompt = buildAdaptiveScenePlanPrompt({
+    state: st, context: o.context, recent,
+    directive: st.directive, hint: st.nextChapterHint, requiredBeats
+  });
+  let planRaw;
+  try{
+    const planRes = await callAI(planPrompt, {maxTokens:1800, temperature:0.35, modelOverride:o.model, systemPrompt:SCENE_PLAN_SYSTEM_PROMPT});
+    planRaw = String(planRes && planRes.text || '');
+  }catch(e){
+    console.warn('[AdaptiveScene] plan failed', e && e.message);
+    return null;
+  }
+  const graph = normalizeAdaptiveScenePlan(planRaw, st);
+  if(!graph || !graph.scenes.length) return null;
+
+  // Rebalance ngân sách mềm về khoảng 5.000 từ, không áp vai trò cố định cho scene.
+  const rawSum = graph.scenes.reduce((n, x) => n + Math.max(1, Number(x.targetWords) || 1), 0);
+  let remaining = limits.target;
+  graph.scenes.forEach((scene, i) => {
+    if(i === graph.scenes.length - 1) scene.targetWords = Math.max(350, remaining);
+    else {
+      scene.targetWords = Math.max(350, Math.round((scene.targetWords / rawSum) * limits.target / 50) * 50);
+      remaining -= scene.targetWords;
+    }
+  });
+
+  const pieces = [], sceneStates = [];
+  let previousTail = o.priorChapters && o.priorChapters.length
+    ? String(o.priorChapters[o.priorChapters.length - 1].text || '').slice(-900)
+    : '';
+  for(let i = 0; i < graph.scenes.length; i++){
+    const scene = graph.scenes[i];
+    if(countWords(pieces.join('\n\n')) >= limits.maxAccept) break;
+      const prompt = buildAdaptiveSceneWritePrompt({
+      state: st, scene, chapterGoal: graph.chapterGoal,
+      endingAnchor: graph.endingAnchor, previousTail,
+      stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
+      requiredBeats,
+      isFinalScene: i === graph.scenes.length - 1,
+      style: compactSceneStyleLock(o.usingNsfw)
+    });
+    try{
+      const r = await callAI(prompt, {
+        maxTokens: Math.min(3600, Math.max(1100, Math.ceil(scene.targetWords * 1.9))),
+        temperature: o.usingNsfw ? 0.78 : 0.72,
+        modelOverride: o.model,
+        systemPrompt: SCENE_SYSTEM_PROMPT,
+        frequency_penalty: 0.22,
+        presence_penalty: 0.18,
+        streaming: false
+      });
+      let text = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      if(detectNonVietnamese(text)) text = stripForeign(text);
+      if(countWords(text) < 80) return null;
+      pieces.push(text);
+      previousTail = text.slice(-1200);
+      sceneStates.push({
+        sceneId: scene.id, location: scene.location, time: scene.time,
+        characters: scene.characters, mustChange: scene.mustChange,
+        handoff: scene.handoff
+      });
+    }catch(e){
+      console.warn('[AdaptiveScene] scene failed', scene.id, e && e.message);
+      return null;
+    }
+  }
+  const text = pieces.join('\n\n').trim();
+  const wc = countWords(text);
+  if(wc < limits.minAccept) return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:true};
+  return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:false};
+}
+
 async function generateChapter(regenIndex, regenMode, forceNsfw){
   if(generating){ setStatus("Đang bận...", true); return; }
   setWriteProgress("plan");
@@ -7994,7 +8201,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     let recentFullText = _rb.recentFullText, olderSummaries = _rb.olderSummaries;
 
     let plan = "";
-    if(!isRegen) plan = await buildChapterPlan(context, recentFullText, chapterNumber);
+    if(!isRegen && state.adaptiveScenePipeline === false) plan = await buildChapterPlan(context, recentFullText, chapterNumber);
 
     /* Auto NSFW pre-flight: từ khóa trước, rồi mới chấm nhiệt */
     if(state.nsfwMode === "auto" && matureFocusAllowsRouting() && state.modelNsfw && !forceNsfw){
@@ -8047,14 +8254,28 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       else if(!streamTimer){ streamTimer = setTimeout(()=>{ streamTimer = null; streamLastAt = Date.now(); renderStream(streamLatest); }, 120); }
     } : null;
 
-    let firstResult = await callAI(prompt, {
-      maxTokens: 16000, temperature: 0.85, modelOverride: targetModel,
-      frequency_penalty: usingNsfw ? 0.25 : 0.45,
-      presence_penalty: usingNsfw ? 0.25 : 0.35,
-      streaming: !!streamingTarget, onChunk: onChunk
-    });
-    let rawText = firstResult.text;
-    let finishReason = firstResult.finishReason;
+    let rawText = "", finishReason = null;
+    let firstResult = null;
+    if(!isRegen && state.adaptiveScenePipeline !== false){
+      const adaptive = await generateAdaptiveChapterText({
+        context, priorChapters, model: targetModel, usingNsfw
+      });
+      if(adaptive && adaptive.text){
+        rawText = adaptive.text;
+        plan = adaptive.plan;
+        if(adaptive.underTarget) setStatus("⚠ Scene Graph tạo chương dưới 4.500 từ; giữ bản nháp để người dùng quyết định.", true);
+      }
+    }
+    if(!rawText){
+      firstResult = await callAI(prompt, {
+        maxTokens: 7800, temperature: 0.85, modelOverride: targetModel,
+        frequency_penalty: usingNsfw ? 0.25 : 0.45,
+        presence_penalty: usingNsfw ? 0.25 : 0.35,
+        streaming: !!streamingTarget, onChunk: onChunk
+      });
+      rawText = firstResult.text;
+      finishReason = firstResult.finishReason;
+    }
     cancelStream(); if(streamingTarget && streamLatest) renderStream(streamLatest);
     chapterTextEl.classList.remove("streaming");
 
@@ -9291,7 +9512,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
     c.briefUsed=briefUsed==null?c.briefUsed:briefUsed;
     storyBlob.chapters[chapterNumber-1]=c;
   }
-  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
+  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax","spellCheckEnabled","adaptiveScenePipeline","semanticProseAuto","qualityMaxAttempts"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
   const payload={
     mode:"postprocess", chapterNumber:Number(chapterNumber),
     hintStyle:state.hintStyle||"normal", hintFormat:state.hintFormat||"detail",

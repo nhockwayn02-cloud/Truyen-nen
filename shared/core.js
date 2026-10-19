@@ -11,8 +11,102 @@ function normalizeName(s) {
 function chapterWordLimits(st) {
   // Client gọi không tham số (dùng state toàn cục); worker truyền state của job.
   if (!st && typeof state !== "undefined") st = state;
-  const target = Math.min(Math.max(Number(st && st.minChapterWords) || 5000, 500), 6000);
-  return { target, hardMax: Math.ceil(target * 1.4) }; // V12.22: nới 1.15 -> 1.4 để chương tự do dài hơn mà không bị cắt mất Ending Anchor
+  return { target: 5000, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
+}
+
+// V13: số scene và chức năng scene do diễn biến quyết định, không gán vai trò cố định.
+function adaptiveChapterWordLimits(st) {
+  const requested = Number(st && st.minChapterWords);
+  if (requested >= 4500 && requested <= 5500) {
+    return { target: Math.round(requested / 100) * 100, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
+  }
+  return chapterWordLimits(st);
+}
+
+function compactSceneTail(text, maxChars) {
+  const t = String(text || '').trim();
+  const cap = Number(maxChars) || 2400;
+  return t.length <= cap ? t : t.slice(-cap);
+}
+
+function compactSceneContract(scene) {
+  const s = scene || {}, out = {};
+  [['id', 20], ['purpose', 260], ['location', 120], ['time', 100], ['mustChange', 240], ['handoff', 240]].forEach(([k, n]) => {
+    const v = String(s[k] || '').replace(/\s+/g, ' ').trim();
+    if (v) out[k] = v.slice(0, n);
+  });
+  if (Array.isArray(s.beats) && s.beats.length) out.beats = s.beats.map(x => String(x).replace(/\s+/g, ' ').trim().slice(0, 180)).filter(Boolean).slice(0, 6);
+  if (Array.isArray(s.characters) && s.characters.length) out.characters = s.characters.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+  if (Number(s.targetWords)) out.targetWords = Math.max(350, Math.min(2200, Number(s.targetWords)));
+  return out;
+}
+
+function compactSceneStateDelta(delta) {
+  const d = delta || {}, out = {};
+  ['sceneId', 'location', 'time', 'mustChange', 'handoff'].forEach(k => {
+    const v = String(d[k] || '').replace(/\s+/g, ' ').trim();
+    if (v) out[k] = v.slice(0, k === 'sceneId' ? 20 : 260);
+  });
+  if (Array.isArray(d.characters) && d.characters.length) out.characters = d.characters.map(x => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+  return out;
+}
+
+function buildAdaptiveScenePlanPrompt(o) {
+  const limits = adaptiveChapterWordLimits(o.state || {});
+  return [
+    'BẠN LÀ BIÊN KỊCH TIỂU THUYẾT DÀI KỲ TIẾNG VIỆT.',
+    'Lập Scene Graph cho chương khoảng ' + limits.target + ' từ; chấp nhận ' + limits.minAccept + '–' + limits.maxAccept + ' từ.',
+    'Số scene, chức năng và độ dài scene phải LINH HOẠT theo diễn biến; không dùng khuôn Scene 1 mở đầu, Scene 2 xung đột, Scene 3 cảnh nóng.',
+    'Có thể gom nhiều beat vào một scene hoặc tách một beat thành nhiều scene nếu nhịp truyện cần.',
+    'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
+    'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
+    'Không thêm biến cố lớn ngoài brief/canon. Không viết văn xuôi.',
+    'Trả duy nhất JSON object hợp lệ theo schema: {"chapterGoal":"","endingAnchor":"","scenes":[{"id":"S1","purpose":"","beats":[""],"characters":[""],"location":"","time":"","targetWords":900,"mustChange":"","handoff":""}]}',
+    o.requiredBeats ? 'REQUIRED BEAT CHECKLIST — PHẢI PHÂN BỔ VÀO SCENE, KHÔNG ĐƯỢC BỎ SÓT:\n' + String(o.requiredBeats).slice(0, 1800) : '',
+    'Bối cảnh/canon:\n' + String(o.context || '').slice(0, 18000),
+    o.recent ? 'Đoạn gần nhất:\n' + String(o.recent).slice(-5000) : '',
+    o.directive ? 'Mệnh lệnh người dùng:\n' + String(o.directive).slice(0, 6000) : '',
+    o.hint ? 'Gợi ý người dùng:\n' + String(o.hint).slice(0, 6000) : ''
+  ].filter(Boolean).join('\n\n');
+}
+
+function normalizeAdaptiveScenePlan(raw, st) {
+  let obj = raw;
+  if (typeof obj === 'string') {
+    try { obj = JSON.parse(obj); } catch (_) { return null; }
+  }
+  if (!obj || typeof obj !== 'object' || !Array.isArray(obj.scenes)) return null;
+  const limits = adaptiveChapterWordLimits(st || {});
+  const scenes = obj.scenes.filter(Boolean).slice(0, 8).map((s, i) => ({
+    id: String(s.id || ('S' + (i + 1))).slice(0, 20),
+    purpose: String(s.purpose || '').slice(0, 500),
+    beats: Array.isArray(s.beats) ? s.beats.map(x => String(x).slice(0, 500)).filter(Boolean).slice(0, 8) : [],
+    characters: Array.isArray(s.characters) ? s.characters.map(x => String(x).slice(0, 100)).filter(Boolean).slice(0, 8) : [],
+    location: String(s.location || '').slice(0, 180),
+    time: String(s.time || '').slice(0, 180),
+    targetWords: Math.max(350, Math.min(2200, Number(s.targetWords) || Math.round(limits.target / Math.max(1, obj.scenes.length)))),
+    mustChange: String(s.mustChange || '').slice(0, 400),
+    handoff: String(s.handoff || '').slice(0, 400)
+  }));
+  if (!scenes.length) return null;
+  return { chapterGoal: String(obj.chapterGoal || '').slice(0, 600), endingAnchor: String(obj.endingAnchor || '').slice(0, 600), scenes };
+}
+
+function buildAdaptiveSceneWritePrompt(o) {
+  const s = o.scene || {}, limits = adaptiveChapterWordLimits(o.state || {});
+  return [
+    'VIẾT SCENE TIẾP NỐI bằng tiếng Việt; chỉ trả văn xuôi, không tiêu đề/giải thích.',
+    'Tổng chương ' + limits.minAccept + '–' + limits.maxAccept + ' từ; scene khoảng ' + s.targetWords + ' từ. Ưu tiên nhịp tự nhiên, không độn.',
+    'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
+    o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
+    o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
+    o.previousTail ? 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n' + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
+    o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 900) : '',
+    'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
+    'Chỉ trả văn xuôi scene.'
+  ].filter(Boolean).join('\n\n');
 }
 
 // V12.23: ĐỒNG BỘ viết thường ↔ viết nền — các khối prompt dùng chung (cùng một bản chữ cho cả hai nơi).
@@ -1594,6 +1688,7 @@ async function runGateLoop(chapter, deps, opts) {
     chapter.wordCount = bestWordCount;
     chapter.review = Object.assign({}, bestReview, {
       status: "completed",
+      attempt: Math.max(Number(bestReview.attempt) || 0, Number(chapter.review && chapter.review.attempt) || 0),
       regressionGuard: true,
       warnings: (bestReview.warnings || []).concat(["Best Draft Guard: bản sửa sau có điểm thấp hơn nên đã khôi phục bản tốt hơn (" + bestReview.score + "/100)."])
     });
