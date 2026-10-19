@@ -10,7 +10,7 @@ Tạo chương tiểu thuyết tiếng Việt dài khoảng 4.500–5.500 từ, 
 - Viết scene tuần tự; mỗi scene chỉ nhận contract, 600–900 từ cuối scene trước và state delta compact.
 - Ghép scene bằng code, không gọi AI để viết lại toàn chương.
 - Mục tiêu chương 5.000 từ; chấp nhận 4.500–5.500; hard cap khoảng 5.600 để bảo vệ ending.
-- Chỉ continuation lại scene hiện tại khi scene bị cắt hoặc thiếu rõ ràng; không auto-continue toàn chương theo quota.
+- Khi các scene ban đầu thiếu độ dài, chạy Adaptive Scene Top-up tối đa 3 lượt; mỗi lượt chỉ gửi đoạn đuôi và state delta compact, không gửi lại toàn chương.
 - Quality Gate giữ ở mức review cuối và tối đa một lần sửa vùng; các cảnh báo mềm không tự gọi rewrite.
 - Semantic Prose Check và AI spell-check không chạy mặc định trong pipeline nhanh/cân bằng.
 - Hậu kỳ mặc định ưu tiên summary + next hint; cập nhật canon chi tiết chạy riêng.
@@ -27,3 +27,4 @@ Tạo chương tiểu thuyết tiếng Việt dài khoảng 4.500–5.500 từ, 
 - V12.47.1: baseline.
 - V13.0: đợt đầu giới hạn từ + helper Scene Graph + client scene writer + regression.
 - V13.1: system prompt compact riêng cho Scene Graph/scene writer; contract/state/tail được rút gọn, loại bỏ `lastTail` trùng và chỉ gửi ending anchor ở scene cuối.
+- V13.2: Adaptive Scene Top-up và Hard Fail bắt buộc cho chương dưới 4.500 từ.

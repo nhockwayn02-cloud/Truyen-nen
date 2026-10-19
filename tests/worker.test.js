@@ -191,7 +191,7 @@ function scripted(replies, log) {
 
 tg("Gate: PASS ngay lần đầu → APPROVED, không viết lại", async () => {
   const log = []; scripted([review()], log);
-  const ch = { text: longText("gió", 300), versions: [] };
+  const ch = { text: longText("gió", 4500), versions: [] };
   const r = await T.runWorkerQualityGate(gateJob(), ch, 1);
   assert.strictEqual(r.approved, true); assert.strictEqual(ch.status, "APPROVED"); assert.deepStrictEqual(log, ["review"]);
 });
@@ -211,7 +211,7 @@ tg("Gate: vượt ngân sách sự kiện / nhân vật → HARD_FAIL", async ()
 tg("Gate: ngưỡng điểm 90/75 → 80 là SOFT_FAIL, 70 là HARD_FAIL, 90 là PASS", async () => {
   for (const [score, want] of [[90, "PASS"], [80, "SOFT_FAIL"], [70, "HARD_FAIL"]]) {
     scripted([review({ score })]);
-    const r = await T.qualityReviewWorker(gateJob(), { text: longText("a", 150) }, 1);
+    const r = await T.qualityReviewWorker(gateJob(), { text: longText("a", 4500) }, 1);
     assert.strictEqual(r.review.verdict, want, `score ${score}`);
   }
 });
@@ -224,12 +224,12 @@ tg("Gate (worker): prompt Auditor có quy tắc + schema dùng chung và tên NV
   const log = []; let seen = "";
   sandbox.callWithRetry = async (a) => { seen = a.messages[a.messages.length - 1].content; return { text: review() }; };
   const job = gateJob({ characters: [{ name: "Minh Khoa" }, { name: "Lan" }] });
-  await T.qualityReviewWorker(job, { text: longText("Minh Khoa", 150) + " Minh Khoa gặp Lan." }, 1);
+  await T.qualityReviewWorker(job, { text: longText("Minh Khoa", 4500) + " Minh Khoa gặp Lan." }, 1);
   assert(/QUALITY AUDITOR/.test(seen) && /SCHEMA:/.test(seen) && /QUY TẮC:/.test(seen) && /CHAPTER BRIEF/.test(seen));
   assert(/TÊN NHÂN VẬT ĐÃ BIẾT[^\n]*\n\nMinh Khoa, Lan|Minh Khoa, Lan/.test(seen), "thiếu danh sách tên đã biết");
 });
 tg("Gate (V12.32.10): trượt → AI vá cục bộ → đạt; chỉ đổi đúng chỗ, bản gốc lưu vào versions", async () => {
-  const log = []; const orig = longText("cũ", 300);
+  const log = []; const orig = longText("cũ", 4500);
   const patchJson = JSON.stringify({ patches: [{ op: "insert_start", text: "Chiều thứ Sáu, trời đã nhá nhem." }] });
   scripted([review({ score: 60 }), patchJson, review()], log);
   const ch = { text: orig, versions: [] };
@@ -239,7 +239,7 @@ tg("Gate (V12.32.10): trượt → AI vá cục bộ → đạt; chỉ đổi đ
   assert.strictEqual(ch.versions.length, 1); assert(ch.versions[0].text === orig && /vá cục bộ/.test(ch.versions[0].note));
 });
 tg("Gate: vá cục bộ không ghép được → dự phòng viết lại cả chương → đạt; bản gốc được lưu vào versions", async () => {
-  const log = []; const orig = longText("cũ", 300), fixed = longText("mới", 300);
+  const log = []; const orig = longText("cũ", 4500), fixed = longText("mới", 4500);
   scripted([review({ score: 60 }), "AI không trả JSON", fixed, review()], log);
   const ch = { text: orig, versions: [] };
   const r = await T.runWorkerQualityGate(gateJob(), ch, 1);
@@ -248,7 +248,7 @@ tg("Gate: vá cục bộ không ghép được → dự phòng viết lại cả
   assert.strictEqual(ch.versions.length, 1); assert(ch.versions[0].text.includes("cũ"), "bản gốc phải còn trong versions");
 });
 tg("Gate: bản sửa rỗng/ngắn bất thường bị TỪ CHỐI, giữ nguyên bản thảo", async () => {
-  const orig = longText("gốc", 300);
+  const orig = longText("gốc", 4500);
   scripted([review({ score: 50 }), "Quá ngắn."]);
   const ch = { text: orig, versions: [] };
   const r = await T.runWorkerQualityGate(gateJob(), ch, 1);

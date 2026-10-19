@@ -2,7 +2,7 @@ const fs = require('fs'), vm = require('vm'), assert = require('assert'), path =
 const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const box = { console, state: {} };
 vm.createContext(box);
-vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,buildAdaptiveSceneWritePrompt};', box);
+vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
 const T = box.__t;
 let pass = 0;
 function test(name, fn){ fn(); console.log('PASS ' + name); pass++; }
@@ -68,4 +68,19 @@ test('required beat checklist được truyền trực tiếp vào plan và scen
   assert(scene.includes('REQUIRED CHECKLIST') && scene.includes('Huyền Nguyên Quyết'));
 });
 
-console.log(`\n${pass}/7 PASS`);
+test('top-up prompt compact chỉ nhận đuôi và bắt buộc viết thêm diễn biến', () => {
+  const prompt = T.buildAdaptiveSceneTopUpPrompt({ currentWords: 2886, needWords: 1614, previousTail: 'x'.repeat(10000), requiredBeats: '[S1] tu luyện' });
+  assert(prompt.includes('còn thiếu khoảng 1614 từ'));
+  assert(prompt.includes('REQUIRED BEATS') && prompt.includes('tu luyện'));
+  assert(!prompt.includes('x'.repeat(10000)));
+  assert(prompt.length < 7000);
+});
+
+test('Quality Gate hard-fail chương dưới 4.500 từ', () => {
+  const short = T.gateHardChecks({ text: Array.from({length: 2886}, (_, i) => 'từ' + i).join(' ') });
+  const lengthCheck = short.find(c => c.id === 'text_nonempty');
+  assert(lengthCheck && lengthCheck.ok === false);
+  assert(T.gateHardChecks({ text: Array.from({length: 4500}, (_, i) => 'từ' + i).join(' ') }).find(c => c.id === 'text_nonempty').ok);
+});
+
+console.log(`\n${pass}/9 PASS`);

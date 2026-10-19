@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V13.2] — Adaptive Scene Top-up và Hard Minimum
+
+- Khi Adaptive Scene ghép xong dưới 4.500 từ, app tự viết bổ sung tối đa 3 lượt bằng prompt compact chỉ truyền đoạn đuôi, state delta và Required Beat.
+- Chương dưới 4.500 từ bị Quality Gate đánh dấu `HARD_FAIL`, không thể được coi là đạt chỉ vì điểm văn phong/continuity cao.
+- Bổ sung regression cho prompt top-up, giới hạn token và hard minimum 4.500 từ.
+
 ## [V12.47.1] — Background Worker Parity
 
 - Background Worker nay dùng cùng chế độ `autoRepairOnCreate` với client.

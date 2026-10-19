@@ -1159,6 +1159,23 @@ function buildAdaptiveSceneWritePrompt(o) {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildAdaptiveSceneTopUpPrompt(o) {
+  const p = o || {}, need = Math.max(200, Math.min(1800, Number(p.needWords) || 800));
+  return [
+    'VIẾT BỔ SUNG TIẾP NỐI bằng tiếng Việt; chỉ trả văn xuôi, không tiêu đề/giải thích.',
+    'Chương hiện mới khoảng ' + (Number(p.currentWords) || '?') + ' từ và còn thiếu khoảng ' + need + ' từ để đạt tối thiểu 4.500 từ.',
+    'Viết khoảng ' + need + '–' + Math.ceil(need * 1.15) + ' từ diễn biến MỚI, tự nhiên; không tóm tắt, không lặp, không kéo dài rỗng.',
+    'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
+    p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
+    p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
+    p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
+    p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 800) : '',
+    'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
+  ].filter(Boolean).join('\n\n');
+}
+
 // V12.23: ĐỒNG BỘ viết thường ↔ viết nền — các khối prompt dùng chung (cùng một bản chữ cho cả hai nơi).
 function buildVocabularyBlockFrom(state) {
   const v = (state && state.vocabulary) || {};
@@ -2558,9 +2575,10 @@ function storyControlPrompt(st) {
 function gateHardChecks(chapter) {
   const text = String((chapter && chapter.text) || "");
   const warns = (chapter && chapter.continuityWarnings) || [];
+  const lengthLimits = chapterWordLimits();
   return [
     { id: "language", ok: !detectNonVietnamese(text), message: "Ngôn ngữ: tiếng Việt" },
-    { id: "text_nonempty", ok: countWords(text) > 100, message: "Bản thảo có đủ nội dung" },
+    { id: "text_nonempty", ok: countWords(text) >= lengthLimits.minAccept, message: "Bản thảo có đủ nội dung và đạt tối thiểu " + lengthLimits.minAccept + " từ" },
     { id: "duplicate", ok: !warns.some(x => x && (x.severity === "high" || x.severity === "critical")), message: "Không có lỗi continuity mức cao đã phát hiện" }
   ];
 }
@@ -8128,10 +8146,41 @@ async function generateAdaptiveChapterText(o){
       return null;
     }
   }
-  const text = pieces.join('\n\n').trim();
-  const wc = countWords(text);
-  if(wc < limits.minAccept) return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:true};
-  return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats})), underTarget:false};
+  let text = pieces.join('\n\n').trim();
+  let wc = countWords(text), topUpAttempts = 0;
+  // V13.2: Adaptive Scene không được kết thúc dưới minAccept. Top-up chỉ gửi đuôi + state delta,
+  // không gửi lại toàn bộ chương; chỉ kích hoạt khi các scene ban đầu bị model trả thiếu.
+  while(wc < limits.minAccept && topUpAttempts < 3){
+    const needWords = Math.min(1800, limits.minAccept - wc);
+    const topUpPrompt = buildAdaptiveSceneTopUpPrompt({
+      state: st, currentWords: wc, needWords, chapterGoal: graph.chapterGoal,
+      endingAnchor: graph.endingAnchor, previousTail: text.slice(-2400),
+      stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
+      requiredBeats, style: compactSceneStyleLock(o.usingNsfw)
+    });
+    topUpAttempts++;
+    try{
+      const r = await callAI(topUpPrompt, {
+        maxTokens: Math.min(4200, Math.max(1800, Math.ceil(needWords * 2.1) + 450)),
+        temperature: o.usingNsfw ? 0.76 : 0.70, modelOverride:o.model,
+        frequency_penalty:0.22, presence_penalty:0.18, streaming:false
+      });
+      let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      if(detectNonVietnamese(extra)) extra = stripForeign(extra);
+      if(countWords(extra) < 80) break;
+      const before = wc;
+      text = text ? text + '\n\n' + extra : extra;
+      wc = countWords(text);
+      if(wc <= before) break;
+      previousTail = text.slice(-1200);
+      sceneStates.push({sceneId:'TOPUP' + topUpAttempts, handoff:'Đã bổ sung ' + (wc - before) + ' từ; tiếp tục nếu còn thiếu.'});
+    }catch(e){
+      console.warn('[AdaptiveScene] top-up failed', e && e.message);
+      break;
+    }
+  }
+  const underTarget = wc < limits.minAccept;
+  return {text, plan: 'ADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats, topUpAttempts})), underTarget};
 }
 
 async function generateChapter(regenIndex, regenMode, forceNsfw){

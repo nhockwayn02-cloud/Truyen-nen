@@ -109,6 +109,23 @@ function buildAdaptiveSceneWritePrompt(o) {
   ].filter(Boolean).join('\n\n');
 }
 
+function buildAdaptiveSceneTopUpPrompt(o) {
+  const p = o || {}, need = Math.max(200, Math.min(1800, Number(p.needWords) || 800));
+  return [
+    'VIẾT BỔ SUNG TIẾP NỐI bằng tiếng Việt; chỉ trả văn xuôi, không tiêu đề/giải thích.',
+    'Chương hiện mới khoảng ' + (Number(p.currentWords) || '?') + ' từ và còn thiếu khoảng ' + need + ' từ để đạt tối thiểu 4.500 từ.',
+    'Viết khoảng ' + need + '–' + Math.ceil(need * 1.15) + ' từ diễn biến MỚI, tự nhiên; không tóm tắt, không lặp, không kéo dài rỗng.',
+    'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
+    p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
+    p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
+    p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
+    p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 800) : '',
+    'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
+  ].filter(Boolean).join('\n\n');
+}
+
 // V12.23: ĐỒNG BỘ viết thường ↔ viết nền — các khối prompt dùng chung (cùng một bản chữ cho cả hai nơi).
 function buildVocabularyBlockFrom(state) {
   const v = (state && state.vocabulary) || {};
@@ -1508,9 +1525,10 @@ function storyControlPrompt(st) {
 function gateHardChecks(chapter) {
   const text = String((chapter && chapter.text) || "");
   const warns = (chapter && chapter.continuityWarnings) || [];
+  const lengthLimits = chapterWordLimits();
   return [
     { id: "language", ok: !detectNonVietnamese(text), message: "Ngôn ngữ: tiếng Việt" },
-    { id: "text_nonempty", ok: countWords(text) > 100, message: "Bản thảo có đủ nội dung" },
+    { id: "text_nonempty", ok: countWords(text) >= lengthLimits.minAccept, message: "Bản thảo có đủ nội dung và đạt tối thiểu " + lengthLimits.minAccept + " từ" },
     { id: "duplicate", ok: !warns.some(x => x && (x.severity === "high" || x.severity === "critical")), message: "Không có lỗi continuity mức cao đã phát hiện" }
   ];
 }

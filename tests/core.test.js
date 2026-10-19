@@ -71,10 +71,10 @@ t("storyControlPrompt: nêu đúng ngân sách; tắt NO RETCON thì bỏ dòng 
 /* ---- Kiểm tra cứng ---- */
 const words = n => Array.from({ length: n }, (_, i) => "từ" + i).join(" ");
 t("gateHardChecks: bản đủ dài/tiếng Việt → tất cả ok; quá ngắn/continuity cao → trượt", () => {
-  assert(T.gateHardChecks({ text: words(200) }).every(c => c.ok));
+  assert(T.gateHardChecks({ text: words(4500) }).every(c => c.ok));
   assert.strictEqual(T.gateHardChecks({ text: "ngắn" }).find(c => c.id === "text_nonempty").ok, false);
-  assert.strictEqual(T.gateHardChecks({ text: words(200), continuityWarnings: [{ severity: "critical" }] }).find(c => c.id === "duplicate").ok, false);
-  assert.strictEqual(T.gateHardChecks({ text: words(200), continuityWarnings: [{ severity: "low" }] }).find(c => c.id === "duplicate").ok, true);
+  assert.strictEqual(T.gateHardChecks({ text: words(4500), continuityWarnings: [{ severity: "critical" }] }).find(c => c.id === "duplicate").ok, false);
+  assert.strictEqual(T.gateHardChecks({ text: words(4500), continuityWarnings: [{ severity: "low" }] }).find(c => c.id === "duplicate").ok, true);
   assert.strictEqual(T.gateHardChecks(null).length, 3);
 });
 t("gateKnownNames + knownNameMentions: khớp nguyên từ, phân biệt hoa/thường, chỉ tên có thật", () => {
