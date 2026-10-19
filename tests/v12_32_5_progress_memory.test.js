@@ -2,7 +2,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
 const core=fs.readFileSync(path.join(__dirname,'../shared/core.js'),'utf8');
 const sb={console};vm.createContext(sb);
-vm.runInContext(core+'\n;Object.assign(this,{progressRulesPrompt,storySoFarPrompt,openLoopsPrompt,evaluateReview,buildQualityReviewPrompt,buildChapterPlanPrompt,storyControlPrompt,GATE_REVIEW_SCHEMA});',sb);
+vm.runInContext(core+'\n;Object.assign(this,{progressRulesPrompt,storySoFarPrompt,openLoopsPrompt,evaluateReview,buildQualityReviewPrompt,buildChapterPlanPrompt,storyControlPrompt,buildRewritePrompt,GATE_REVIEW_SCHEMA});',sb);
 // progress rules
 const p1=sb.progressRulesPrompt({chapterMatureFocus:'primary'});
 assert(/THAY ĐỔI/.test(p1)&&/hai phần ba/.test(p1)&&/cấm lặp lại cùng một hành động/i.test(p1),'luật tiến triển + PRIMARY');
@@ -14,6 +14,9 @@ assert(/THAY ĐỔI\/TIẾN TRIỂN/.test(sb.buildChapterPlanPrompt({chapterNumb
 assert(/stagnation/.test(sb.GATE_REVIEW_SCHEMA),'schema stagnation');
 const rv=sb.evaluateReview({score:99,stagnation:true,stagnationNotes:['lặp cảnh 3 lần']},{});
 assert.strictEqual(rv.verdict,'HARD_FAIL');assert(rv.hardFailures.some(x=>/dậm chân/.test(x)&&/lặp cảnh/.test(x)));
+const clean=sb.evaluateReview({score:99,hardFailures:['Không có lỗi continuity mức cao đã phát hiện']},{});
+assert.strictEqual(clean.hardFailures.length,0,'dòng kiểm tra đạt không được thành hard failure');
+assert(/SỬA STAGNATION BẮT BUỘC/.test(sb.buildRewritePrompt({chapterNumber:1,review:{stagnation:true},draft:'x'})),'rewrite phải có hướng sửa stagnation cụ thể');
 assert(/stagnation=true CHỈ KHI/.test(sb.buildQualityReviewPrompt({draft:'x'})),'review prompt có luật stagnation');
 // story so far
 const chs=[];for(let i=1;i<=30;i++)chs.push({summary:'**Tóm tắt chương:** Sự kiện số '+i+' xảy ra. '+'Chi tiết dài '.repeat(40)});

@@ -968,7 +968,9 @@ function evaluateReview(obj, opts) {
   const maxEv = Number(opts.maxMainEvents) || 3, maxCh = Number(opts.maxNamedCharacters) || 4;
   const passScore = Number(opts.passScore) || 90, softScore = Number(opts.softFailScore) || 75;
   const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
-  const hard = arr(obj.hardFailures, 20);
+  // Một số Auditor đặt câu kiểm tra đạt vào hardFailures dù đây không phải lỗi.
+  // Không để dòng "Không có lỗi continuity mức cao..." làm nhiễu Gate/UI.
+  const hard = arr(obj.hardFailures, 20).filter(x => !/^\s*Không có lỗi continuity mức cao/i.test(gateItemText(x)));
   (opts.extraHard || []).forEach(m => hard.push(m));
   if (Number(obj.mainEventCount) > maxEv) hard.push("Vượt ngân sách sự kiện: " + obj.mainEventCount + " > " + maxEv);
   if (Number(obj.namedCharacterCount) > maxCh) hard.push("Vượt số nhân vật có tên: " + obj.namedCharacterCount + " > " + maxCh);
@@ -1603,6 +1605,13 @@ function buildQualityReviewPrompt(p) {
 }
 // p: { chapterNumber, storyControl, contract, contractLabel, context, review, draft }
 function buildRewritePrompt(p) {
+  const review = p.review || {};
+  const stagnationFix = review.stagnation ? [
+    "SỬA STAGNATION BẮT BUỘC:",
+    "- Không lặp lại ý niệm/ẩn dụ 'vách ngăn vô hình', cô độc hoặc khinh miệt xã hội nếu không có thông tin mới.",
+    "- Giữ nguyên phần đúng nhưng phải tạo ít nhất MỘT thay đổi cụ thể và không thể coi như chưa xảy ra: mục tiêu đổi, thông tin mới được xác nhận, quan hệ/quyền lực thay đổi, quyết định có hậu quả, hoặc hành động mở ra bước tiếp theo.",
+    "- Thay đổi phải xuất hiện trong hành động/thoại/hậu quả ở cuối chương, không chỉ được tuyên bố trong nội tâm."
+  ].join("\n") : "";
   return [
     "SỬA LẠI BẢN THẢO CHƯƠNG " + p.chapterNumber + " THEO QUALITY REVIEW.",
     "Chỉ sửa đúng các lỗi được nêu; giữ nguyên các sự kiện hợp lệ, nhân vật hợp lệ, POV, xưng hô và giọng văn.",
@@ -1613,8 +1622,9 @@ function buildRewritePrompt(p) {
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
     p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu phải nối tiếp đúng địa điểm/thời điểm/người có mặt ở đây):\n" + String(p.prevEnding).slice(-1500) : "",
     (p.review && p.review.alreadyFixed && p.review.alreadyFixed.length) ? "LỖI ĐÃ SỬA Ở VÒNG TRƯỚC — giữ nguyên các chỗ đã sửa, không làm hỏng lại:\n- " + p.review.alreadyFixed.join("\n- ") : "",
-    "QUALITY REVIEW:\n" + JSON.stringify(p.review || {}),
-    "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(p.review),
+    "QUALITY REVIEW:\n" + JSON.stringify(review),
+    stagnationFix,
+    "HƯỚNG SỬA ƯU TIÊN:\n" + rewriteInstructionsText(review),
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || ""),
     "CHỈ TRẢ VỀ VĂN XUÔI CHƯƠNG ĐÃ SỬA, KHÔNG tiêu đề, không giải thích, không markdown."
   ].filter(Boolean).join("\n\n");
