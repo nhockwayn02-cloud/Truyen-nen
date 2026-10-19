@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V13.5] — Hard Minimum không phụ thuộc cờ cũ
+
+- Hard minimum 4.500 từ nay luôn được áp dụng, kể cả Story Record cũ đang lưu `adaptiveScenePipeline=false`.
+- Mọi fallback ngắn đều phải chạy Top-up trước khi tạo chapter object và Quality Gate.
+
 ## [V13.4] — Fallback Short-Draft Guard
 
 - Thêm hàng rào Top-up cuối cho mọi bản nháp dưới 4.500 từ, kể cả khi Scene Graph lỗi và app phải dùng fallback prompt cũ.

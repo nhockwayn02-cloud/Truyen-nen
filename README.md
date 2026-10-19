@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V13.4 Adaptive Scene Top-up.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V13.5 Adaptive Scene Top-up.** Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -40,6 +40,8 @@ V13.2 bổ sung **Adaptive Scene Top-up**: nếu các scene ban đầu ngắn h�
 V13.3 sửa luồng **Viết lại**: chương viết lại cũng bắt buộc đi qua Adaptive Scene và Top-up, không còn quay về pipeline cũ có thể kết thúc ở khoảng 1.000 từ.
 
 V13.4 thêm hàng rào Top-up cuối cho cả fallback khi Scene Graph lỗi, tránh lưu trực tiếp chương ngắn 1.000–2.000 từ.
+
+V13.5 áp dụng Hard minimum 4.500 từ ngay cả với Story Record cũ đang lưu pipeline Adaptive tắt.
 
 V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, hardened background mode (`REQUIRE_HARDENED_SECURITY=1`), Chế độ đơn giản/Chuyên gia, wizard bắt đầu truyện và thanh tiến trình viết.
 

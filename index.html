@@ -8377,9 +8377,9 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     }
 
     rawText = formatParagraphs(dedupeRepeatedScene(stripForeign(stripThinkingOutput(rawText))));
-    // Không nhánh nào được bỏ qua minimum khi Adaptive Scene đang bật,
-    // kể cả khi plan/scene lỗi và phải dùng fallback prompt cũ.
-    if(state.adaptiveScenePipeline !== false && countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){
+    // V13.5: Hard minimum là hợp đồng của chương, không phụ thuộc cờ pipeline
+    // cũ được lưu trong Story Record. Kể cả adaptive=false/fallback cũ vẫn phải bù.
+    if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){
       setStatus('⚙ Bản nháp còn ' + countWords(rawText) + ' từ — đang bù đến tối thiểu 4.500 từ...', true);
       rawText = await topUpShortDraftText(rawText, {chapterNumber, model:targetModel, usingNsfw});
     }

@@ -92,6 +92,7 @@ test('viết lại chương vẫn đi qua Adaptive Scene + Top-up', () => {
 test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('async function topUpShortDraftText'), 'thiếu fallback top-up');
   assert(indexSrc.includes('rawText = await topUpShortDraftText'), 'fallback chưa gọi top-up');
+  assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
 console.log(`\n${pass}/11 PASS`);
