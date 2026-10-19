@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
+const src=fs.readFileSync(path.join(__dirname,'..','shared/core.js'),'utf8');
+const sb={console};vm.createContext(sb);vm.runInContext(src+'\n;Object.assign(this,{characterLockPrompt,buildQualityReviewPrompt,evaluateReview});',sb);
+const lock=sb.characterLockPrompt({name:'Nam',gender:'nam',age:'28'},[{name:'Nữ',gender:'nữ',age:'25'}],false);
+assert(lock.includes('giới tính theo hồ sơ'));
+assert(lock.includes('GENDER ANATOMY LOCK'));
+assert(lock.includes('Nhân vật nam không được nhận bộ phận'));
+const prompt=sb.buildQualityReviewPrompt({characterLock:lock,contract:'[B1] test',context:'',draft:'',hardChecks:[],knownNames:[],maxMainEvents:3,maxNamedCharacters:4});
+assert(prompt.includes('genderAnatomyMismatch=true'));
+const review=sb.evaluateReview({score:99,verdict:'PASS',genderAnatomyMismatch:true,genderAnatomyNotes:['Nam bị gán mô tả nữ'],hardFailures:[]},{passScore:90,softFailScore:75});
+assert.strictEqual(review.verdict,'HARD_FAIL');
+assert(review.hardFailures.some(x=>String(x).includes('Nhầm giải phẫu')));
+console.log('PASS V12.37 Gender Anatomy Lock');

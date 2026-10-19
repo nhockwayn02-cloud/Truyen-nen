@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
+const root=path.join(__dirname,'..');
+const core=fs.readFileSync(path.join(root,'shared/core.js'),'utf8');
+const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const sb={console};vm.createContext(sb);vm.runInContext(core+'\n;Object.assign(this,{buildChapterPlanPrompt,storyControlPrompt});',sb);
+const plan=sb.buildChapterPlanPrompt({chapterNumber:4,context:'',recent:'',directive:'',hint:'',mainCharName:'A',storyControl:''});
+assert(plan.includes('biến cố lớn lồng bên trong'));
+const control=sb.storyControlPrompt({storyControl:{maxMainEvents:3}});
+assert(control.includes('biến cố lớn LỒNG BÊN TRONG'));
+assert(index.includes('không tính là sự kiện chính thứ 4'));
+assert(index.includes('Không phải chương nào cũng cần biến cố lồng'));
+assert(index.includes('mã [R1], [R2]'));
+console.log('PASS V12.40 Nested Events Within Main Events');

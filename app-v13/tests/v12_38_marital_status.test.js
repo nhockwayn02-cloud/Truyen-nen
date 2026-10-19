@@ -1,0 +1,13 @@
+const fs=require('fs'),assert=require('assert'),vm=require('vm'),path=require('path');
+const index=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const core=fs.readFileSync(path.join(__dirname,'..','shared/core.js'),'utf8');
+assert(index.includes('id="mcMaritalStatusInput"'));
+assert(index.includes('id="mcSpouseNameInput"'));
+assert(index.includes('"maritalStatus"'));
+assert(index.includes('CHAR_JSON_FORMAT_HINT'));
+const sb={console};vm.createContext(sb);vm.runInContext(core+'\n;Object.assign(this,{characterLockPrompt});',sb);
+const p=sb.characterLockPrompt({name:'Bùi Lạc',gender:'nam',maritalStatus:'đã kết hôn',spouseName:'Nguyễn An'},[{name:'Mỹ Duyên',gender:'nữ',maritalStatus:'độc thân'}],false);
+assert(p.includes('tình trạng hôn nhân: đã kết hôn'));
+assert(p.includes('người phối ngẫu/người yêu: Nguyễn An'));
+assert(p.includes('GENDER ANATOMY LOCK'));
+console.log('PASS V12.38 Marital Status Lock');

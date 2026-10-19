@@ -1,0 +1,10 @@
+const fs = require('fs');
+const assert = require('assert');
+const src = fs.readFileSync(require('path').join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
+const start = src.indexOf('async function runUnifiedPostProcess(');
+assert(start >= 0, 'runUnifiedPostProcess exists');
+const end = src.indexOf('\nfunction ', start + 10);
+const body = src.slice(start, end > start ? end : undefined);
+assert(/maxTokens\s*:\s*7800/.test(body), 'unified background post-process maxTokens must be capped at 7800');
+assert(!/maxTokens\s*:\s*16000/.test(body), 'unified background post-process must not request 16000 output tokens');
+console.log('PASS V12.32.1: background post-process output-token cap is below 8192');
