@@ -1851,9 +1851,17 @@ function applySemanticProseFixes(text, sentences, items, minConfidence) {
   let out = String(text || ""); const warnings = [], applied = [];
   const byId = new Map((sentences || []).map(x => [Number(x.id), x]));
   const ops = [];
+  const normPhrase = s => String(s || "").replace(/\s+/g, " ").trim().toLocaleLowerCase("vi");
+  const isFragment = s => {
+    const v = String(s || "").trim(), words = v.split(/\s+/).filter(Boolean);
+    return v.length < 4 || (words.length === 2 && words.every(w => w.replace(/[^\p{L}]/gu, "").length <= 3));
+  };
   (items || []).forEach(x => {
     const row = byId.get(Number(x.id));
     if (!row || x.status === "ok") return;
+    // Không hiển thị/ghi nhận các phản hồi vô tác dụng hoặc mảnh từ do AI cắt sai.
+    if (isFragment(x.phrase)) return;
+    if (normPhrase(x.phrase) === normPhrase(x.replacement)) return;
     if (x.status !== "fix" || Number(x.confidence) < (Number(minConfidence) || 0.85) || !x.phrase || !x.replacement) {
       warnings.push({ id: x.id, phrase: x.phrase, reason: x.reason || "AI không đủ chắc chắn; cần người dùng chọn" }); return;
     }
