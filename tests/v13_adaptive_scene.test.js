@@ -3,7 +3,7 @@ const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const box = { console, state: {} };
 vm.createContext(box);
-vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
+vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,parseAdaptiveScenePlanResponse,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
 const T = box.__t;
 let pass = 0;
 function test(name, fn){ fn(); console.log('PASS ' + name); pass++; }
@@ -39,6 +39,14 @@ test('V14 Contract Validator từ chối nhân vật ngoài cast và thiếu mus
 test('V14 scene validator chặn known character ngoài Contract', () => {
   const result = T.validateSceneTextAgainstContract('Kim Chi bước vào khách sạn.', { allowedCharacters:['Bùi Lạc'], knownCharacters:['Kim Chi'] });
   assert(!result.ok && result.errors.some(x => /Kim Chi/.test(x)));
+});
+
+test('V14 parser cứu Scene Graph trong markdown/lời dẫn/phần thừa', () => {
+  const json = '{"chapterGoal":"g","endingAnchor":"e","scenes":[{"id":"S1","mustChange":"m","handoff":"h"}]}';
+  for (const raw of ['```json\n' + json + '\n```', 'Đây là kế hoạch:\n' + json + '\nHết.', json]) {
+    const p = T.normalizeAdaptiveScenePlan(raw, {});
+    assert(p && p.scenes.length === 1 && p.chapterGoal === 'g');
+  }
 });
 
 test('Scene write prompt chỉ truyền tail bị giới hạn, không truyền toàn chương', () => {
@@ -130,4 +138,4 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
-console.log(`\n${pass}/15 PASS`);
+console.log(`\n${pass}/16 PASS`);

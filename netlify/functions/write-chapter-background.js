@@ -137,11 +137,39 @@ function buildAdaptiveScenePlanPrompt(o) {
   ].filter(Boolean).join('\n\n');
 }
 
-function normalizeAdaptiveScenePlan(raw, st) {
-  let obj = raw;
-  if (typeof obj === 'string') {
-    try { obj = JSON.parse(obj); } catch (_) { return null; }
+// V14.0.1: model đôi khi bọc JSON trong markdown hoặc thêm một câu dẫn.
+// Chỉ lấy object cân bằng đầu tiên; không coi phản hồi hợp lệ là plan rỗng.
+function parseAdaptiveScenePlanResponse(raw) {
+  if (raw && typeof raw === 'object') return raw;
+  let s = String(raw || '').trim();
+  if (!s) return null;
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  try { return JSON.parse(s); } catch (_) {}
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, quoted = false, escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') quoted = false;
+      continue;
+    }
+    if (ch === '"') { quoted = true; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(s.slice(start, i + 1)); } catch (_) { return null; }
+      }
+    }
   }
+  return null;
+}
+
+function normalizeAdaptiveScenePlan(raw, st) {
+  const obj = parseAdaptiveScenePlanResponse(raw);
   if (!obj || typeof obj !== 'object' || !Array.isArray(obj.scenes)) return null;
   const limits = adaptiveChapterWordLimits(st || {});
   const scenes = obj.scenes.filter(Boolean).slice(0, 8).map((s, i) => ({

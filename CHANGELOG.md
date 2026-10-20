@@ -7,6 +7,12 @@
 - Mỗi scene và Top-up giữ cùng Contract; Sync Canon chỉ được thực hiện sau khi Contract barrier đạt.
 - Dọn tài liệu patch cũ vào `docs/patch-notes/`; client và worker dùng chung helper V14.
 
+## [V14.0.1] — Scene Graph Response Parser
+
+- Cứu phản hồi Scene Graph hợp lệ khi model bọc JSON trong markdown, thêm lời dẫn hoặc có phần văn bản sau JSON.
+- Lần retry hiển thị đúng lỗi parse thay vì báo sai đồng thời “không có scene/chapterGoal/endingAnchor”.
+- Bổ sung regression parser và đồng bộ client/worker.
+
 ## [V13.6] — Arc Lock và chống Plot Drift
 
 - Scene Graph nhận Arc/Outline lock, allowed cast và danh sách hướng drift bị cấm; các scene và top-up đều giữ cùng ràng buộc.
