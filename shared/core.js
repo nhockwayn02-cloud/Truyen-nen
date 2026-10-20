@@ -135,6 +135,7 @@ function compactChapterContract(contract) {
     allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 24) : [],
     canonicalCharacters: Array.isArray(c.canonicalCharacters) ? c.canonicalCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : (Array.isArray(c.knownCharacters) ? c.knownCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : []),
     forbiddenDrift: Array.isArray(c.forbiddenDrift) ? c.forbiddenDrift.map(x => String(x).replace(/\s+/g, ' ').slice(0, 300)).filter(Boolean).slice(0, 8) : [],
+    userBrief: String(c.userBrief || '').replace(/\s+/g, ' ').slice(0, 2000),
     openingContinuity: String(c.openingContinuity || '').replace(/\s+/g, ' ').slice(-1200),
     mustChange: String(c.mustChange || '').replace(/\s+/g, ' ').slice(0, 600),
     minWords: Number(c.minWords) || 4500,
@@ -170,7 +171,9 @@ function validateAdaptiveScenePlan(plan, contract) {
   // ("vệ", "sĩ", "khách"... trùng "bảo vệ", "bác sĩ", "khách" thông thường nên chương nào cũng bị từ chối).
   // Chủ đề nào Outline/Arc/requiredBeats của chương ĐÃ ghi rõ thì được phép xuất hiện trong plan.
   const allPlan = JSON.stringify(p).toLowerCase();
-  const allowedSource = [c.chapterOutline, c.arcGoal, c.mustChange].concat(c.requiredBeats || []).join(' ').toLowerCase();
+  // Chủ đề được phép nếu đã có trong: Outline/Arc/beat, MỆNH LỆNH + GỢI Ý của người dùng, hoặc đoạn kết chương trước
+  // (cảnh đang diễn ra ở khách sạn thì chương sau nối tiếp ở đó là liên tục, không phải lệch tuyến).
+  const allowedSource = [c.chapterOutline, c.arcGoal, c.mustChange, c.userBrief, c.openingContinuity].concat(c.requiredBeats || []).join(' ').toLowerCase();
   const DRIFT_TOPICS = [
     { rule: /vệ sĩ/i, plan: /vệ sĩ/ },
     { rule: /khách sạn/i, plan: /khách sạn/ },
@@ -180,7 +183,7 @@ function validateAdaptiveScenePlan(plan, contract) {
   (c.forbiddenDrift || []).forEach(rule => {
     DRIFT_TOPICS.forEach(t => {
       if (t.rule.test(String(rule)) && t.plan.test(allPlan) && !t.plan.test(allowedSource)) {
-        errors.push('Plan chạm forbidden drift (' + (allPlan.match(t.plan) || [''])[0] + '): ' + String(rule).slice(0, 180));
+        errors.push('Plan nhắc tới "' + (allPlan.match(t.plan) || [''])[0] + '" nhưng Outline/Brief/Gợi ý/đoạn kết chương trước không có — bỏ tuyến này hoặc ghi rõ vào Outline/Gợi ý. Luật: ' + String(rule).slice(0, 140));
       }
     });
   });

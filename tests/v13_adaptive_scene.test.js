@@ -156,3 +156,13 @@ test('V14.0.6 forbidden drift theo cụm chủ đề, không chặn nhầm "bả
   const withOutline = Object.assign({}, contract, { chapterOutline:'Lạc thuê vệ sĩ ở khách sạn' });
   assert(T.validateAdaptiveScenePlan(mk('tại khách sạn'), withOutline).ok);
 });
+
+test('V14.0.6 forbidden drift cho phép chủ đề có trong Gợi ý/Mệnh lệnh hoặc đoạn kết chương trước', () => {
+  const base = { allowedCharacters:['Bùi Lạc'], chapterOutline:'Lạc đối chất', forbiddenDrift:['Không mở tuyến vệ sĩ, khách sạn, shop váy cưới hoặc tuyến xã hội khác nếu Outline không ghi rõ.'] };
+  const plan = T.normalizeAdaptiveScenePlan({ chapterGoal:'Lạc đối chất tại khách sạn', endingAnchor:'e', scenes:[{id:'S1', characters:['Bùi Lạc'], mustChange:'m', handoff:'h'}] }, {});
+  assert(!T.validateAdaptiveScenePlan(plan, base).ok);
+  assert(T.validateAdaptiveScenePlan(plan, Object.assign({}, base, { userBrief:'Lạc gặp đối tác ở khách sạn' })).ok);
+  assert(T.validateAdaptiveScenePlan(plan, Object.assign({}, base, { openingContinuity:'Cửa phòng khách sạn khép lại sau lưng Lạc.' })).ok);
+  const r = T.validateAdaptiveScenePlan(plan, base);
+  assert(/Outline\/Brief\/Gợi ý/.test(r.errors[0]), r.errors[0]);
+});
