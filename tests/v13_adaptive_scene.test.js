@@ -3,7 +3,7 @@ const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const box = { console, state: {} };
 vm.createContext(box);
-vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
+vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
 const T = box.__t;
 let pass = 0;
 function test(name, fn){ fn(); console.log('PASS ' + name); pass++; }
@@ -26,6 +26,19 @@ test('Scene Graph chấp nhận số scene linh hoạt và chuẩn hoá ngân s�
   assert.strictEqual(p.scenes.length, 3);
   assert.strictEqual(p.scenes[0].targetWords, 350);
   assert.strictEqual(p.scenes[1].targetWords, 2200);
+});
+
+test('V14 Contract Validator từ chối nhân vật ngoài cast và thiếu mustChange', () => {
+  const contract = { allowedCharacters: ['Bùi Lạc'], forbiddenDrift: ['Không mở tuyến vệ sĩ/Kim Chi/khách sạn.'] };
+  const plan = T.normalizeAdaptiveScenePlan({ chapterGoal: 'g', endingAnchor: 'e', scenes: [{ id:'S1', characters:['Kim Chi'], mustChange:'', handoff:'' }] }, {});
+  const result = T.validateAdaptiveScenePlan(plan, contract);
+  assert(!result.ok);
+  assert(result.errors.some(x => /Kim Chi/.test(x)));
+});
+
+test('V14 scene validator chặn known character ngoài Contract', () => {
+  const result = T.validateSceneTextAgainstContract('Kim Chi bước vào khách sạn.', { allowedCharacters:['Bùi Lạc'], knownCharacters:['Kim Chi'] });
+  assert(!result.ok && result.errors.some(x => /Kim Chi/.test(x)));
 });
 
 test('Scene write prompt chỉ truyền tail bị giới hạn, không truyền toàn chương', () => {
@@ -117,4 +130,4 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
-console.log(`\n${pass}/13 PASS`);
+console.log(`\n${pass}/15 PASS`);

@@ -1,4 +1,13 @@
-# TODO — V13 Adaptive Scene Pipeline
+# TODO — V14 Contract-First Complete Chapter Pipeline
+
+## V14 — Contract-First
+- [x] Chapter Contract bất biến khóa Arc/Outline, required beats, allowed cast, forbidden drift, opening continuity, must-change và ngân sách từ.
+- [x] Scene Graph phải được validate trước khi viết; plan drift bị retry một lần rồi dừng an toàn, không fallback âm thầm.
+- [x] Mỗi scene và top-up nhận cùng Contract; scene lỗi không được ghép tiếp vào chương.
+- [x] Quality Gate ưu tiên Contract/Arc/beat/continuity trước score văn phong thông qua contract plan được lưu cùng chương.
+- [x] Chỉ Sync khi Contract barrier, required beat, opening continuity, ending anchor và độ dài đều đạt qua pipeline hiện hành.
+- [ ] Worker không dùng writer cũ âm thầm khi Contract bị từ chối.
+- [x] Regression test cho plan rejection, allowed cast, missing beat, scene contract và safe failure.
 
 ## P0 — Độ dài và liên kết chương
 - [x] Chương mặc định đạt khoảng 4.500–5.500 từ; hard cap 5.600 từ.

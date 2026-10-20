@@ -124,6 +124,7 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
     'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
     'Không thêm biến cố lớn ngoài brief/canon. Không tự biến nhân vật phụ/nhân vật mới thành tuyến chính nếu Outline/Arc không giao việc đó. Không đổi nghề, tài nguyên, địa vị hoặc mục tiêu sinh tồn của nhân vật chính.',
+    o.chapterContract ? 'CHAPTER CONTRACT BẤT BIẾN — không được sửa các trường này:\n' + JSON.stringify(compactChapterContract(o.chapterContract)) : '',
     o.arcProgress ? 'ARC/OUTLINE LOCK — chương này bắt buộc đi đúng hướng sau, không được mở tuyến thay thế:\n' + String(o.arcProgress).replace(/\s+/g, ' ').slice(0, 2600) : '',
     o.allowedCast ? 'ALLOWED CAST — chỉ dùng các nhân vật/tên dưới đây; nhân vật khác chỉ được xuất hiện thoáng qua nếu chính Outline/Brief cho phép và không được thành tuyến chính:\n' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1800) : '',
     o.forbiddenDrift ? 'FORBIDDEN DRIFT — tuyệt đối không làm các hướng sau:\n' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 1200) : '',
@@ -158,6 +159,71 @@ function normalizeAdaptiveScenePlan(raw, st) {
   return { chapterGoal: String(obj.chapterGoal || '').slice(0, 600), endingAnchor: String(obj.endingAnchor || '').slice(0, 600), scenes };
 }
 
+// V14: Contract-First — kế hoạch AI không được tự thay đổi các trường này.
+function compactChapterContract(contract) {
+  const c = contract || {};
+  return {
+    chapterNumber: Number(c.chapterNumber) || 0,
+    arcGoal: String(c.arcGoal || '').replace(/\s+/g, ' ').slice(0, 700),
+    chapterOutline: String(c.chapterOutline || '').replace(/\s+/g, ' ').slice(0, 1000),
+    requiredBeats: Array.isArray(c.requiredBeats) ? c.requiredBeats.map(x => String(x).replace(/\s+/g, ' ').slice(0, 400)).filter(Boolean).slice(0, 8) : [],
+    allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 12) : [],
+    forbiddenDrift: Array.isArray(c.forbiddenDrift) ? c.forbiddenDrift.map(x => String(x).replace(/\s+/g, ' ').slice(0, 300)).filter(Boolean).slice(0, 8) : [],
+    openingContinuity: String(c.openingContinuity || '').replace(/\s+/g, ' ').slice(-1200),
+    mustChange: String(c.mustChange || '').replace(/\s+/g, ' ').slice(0, 600),
+    minWords: Number(c.minWords) || 4500,
+    maxWords: Number(c.maxWords) || 5500
+  };
+}
+
+function _contractNameSet(contract) {
+  return new Set((compactChapterContract(contract).allowedCharacters || []).map(normalizeName).filter(Boolean));
+}
+
+function _looksLikeNamedCharacter(value) {
+  const s = String(value || '').trim();
+  return /^[A-ZÀ-ỸĐ][\p{L}]+(?:\s+[A-ZÀ-ỸĐ][\p{L}]+)+$/u.test(s);
+}
+
+function validateAdaptiveScenePlan(plan, contract) {
+  const p = plan || {}, c = compactChapterContract(contract), errors = [];
+  if (!p || !Array.isArray(p.scenes) || !p.scenes.length) errors.push('Scene Graph không có scene.');
+  if (!String(p.chapterGoal || '').trim()) errors.push('Scene Graph thiếu chapterGoal.');
+  if (!String(p.endingAnchor || '').trim()) errors.push('Scene Graph thiếu endingAnchor.');
+  const allowed = _contractNameSet(c);
+  (p.scenes || []).forEach(s => {
+    if (!String(s.mustChange || '').trim()) errors.push((s.id || 'scene') + ' thiếu mustChange.');
+    if (!String(s.handoff || '').trim()) errors.push((s.id || 'scene') + ' thiếu handoff.');
+    (s.characters || []).forEach(name => {
+      const n = normalizeName(name);
+      if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài allowed cast: ' + String(name));
+    });
+  });
+  const allPlan = JSON.stringify(p).toLowerCase();
+  (c.forbiddenDrift || []).forEach(rule => {
+    const words = String(rule).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => /vệ|sĩ|khách|sạn|shop|váy|cưới|kim|chi/.test(w));
+    const hits = words.filter(w => allPlan.includes(w));
+    if (hits.length >= 2) errors.push('Plan chạm forbidden drift: ' + String(rule).slice(0, 180));
+  });
+  return { ok: errors.length === 0, errors: errors.slice(0, 20), contract: c };
+}
+
+function validateSceneTextAgainstContract(text, contract) {
+  const c = compactChapterContract(contract), t = String(text || ''), errors = [];
+  if (t.trim().length < 80) errors.push('scene quá ngắn');
+  const allowed = _contractNameSet(c);
+  const names = (c.allowedCharacters || []).map(String).filter(Boolean);
+  // Chỉ chặn các nhân vật đã biết trong Story Bible nhưng không được phép ở chương này;
+  // không cố đoán mọi danh từ chung trong văn xuôi.
+  const known = Array.isArray(contract && contract.knownCharacters) ? contract.knownCharacters : [];
+  known.forEach(name => {
+    if (!name || allowed.has(normalizeName(name))) return;
+    const re = new RegExp('(^|[^\\p{L}])' + String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^\\p{L}]|$)', 'iu');
+    if (re.test(t)) errors.push('scene dùng nhân vật ngoài allowed cast: ' + name);
+  });
+  return { ok: errors.length === 0, errors: errors.slice(0, 10) };
+}
+
 function buildAdaptiveSceneWritePrompt(o) {
   const s = o.scene || {}, limits = adaptiveChapterWordLimits(o.state || {});
   return [
@@ -166,6 +232,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
     o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
     o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(compactChapterContract(o.chapterContract)) : '',
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
@@ -188,6 +255,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
     p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
     p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    p.chapterContract ? 'CONTRACT COMPACT — top-up chỉ mở rộng diễn biến đã hợp lệ, không mở tuyến mới:\n' + JSON.stringify(compactChapterContract(p.chapterContract)) : '',
     p.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(p.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     p.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(p.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',

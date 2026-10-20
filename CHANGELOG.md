@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.0.0] — Contract-First Complete Chapter Pipeline
+
+- Chapter Contract bất biến khóa Arc/Outline, Required Beat, Allowed Cast, Forbidden Drift, continuity mở chương và thay đổi bắt buộc.
+- Scene Graph bị validate trước khi viết; plan drift bị retry một lần rồi dừng an toàn, không fallback âm thầm sang writer cũ.
+- Mỗi scene và Top-up giữ cùng Contract; Sync Canon chỉ được thực hiện sau khi Contract barrier đạt.
+- Dọn tài liệu patch cũ vào `docs/patch-notes/`; client và worker dùng chung helper V14.
+
 ## [V13.6] — Arc Lock và chống Plot Drift
 
 - Scene Graph nhận Arc/Outline lock, allowed cast và danh sách hướng drift bị cấm; các scene và top-up đều giữ cùng ràng buộc.
