@@ -49,6 +49,12 @@ test('V14 parser cứu Scene Graph trong markdown/lời dẫn/phần thừa', ()
   }
 });
 
+test('V14 Contract lấy cast từ toàn bộ Arc/Outline, không chỉ dòng chương hiện tại', () => {
+  assert(indexSrc.includes('const arcSource = arc ? JSON.stringify(arc) : "";'));
+  assert(indexSrc.includes('const outlineSource = ol ? String(ol.content || "") : "";'));
+  assert(indexSrc.includes('arcSource, outlineSource, outlineLine'));
+});
+
 test('Scene write prompt chỉ truyền tail bị giới hạn, không truyền toàn chương', () => {
   const long = 'x'.repeat(20000);
   const prompt = T.buildAdaptiveSceneWritePrompt({
@@ -138,4 +144,4 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
-console.log(`\n${pass}/16 PASS`);
+console.log(`\n${pass}/17 PASS`);

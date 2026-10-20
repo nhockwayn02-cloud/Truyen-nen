@@ -13,6 +13,12 @@
 - Lần retry hiển thị đúng lỗi parse thay vì báo sai đồng thời “không có scene/chapterGoal/endingAnchor”.
 - Bổ sung regression parser và đồng bộ client/worker.
 
+## [V14.0.2] — Allowed Cast Context
+
+- Allowed Cast nay quét toàn bộ Arc/Outline, không chỉ dòng Outline của chương hiện tại.
+- Tránh loại nhầm nhân vật canon hợp lệ như nhân vật được khai báo ở phần setup/consequence của Arc.
+- Nhân vật không có trong Story Bible/Outline vẫn bị chặn khi tự xuất hiện trong scene.
+
 ## [V13.6] — Arc Lock và chống Plot Drift
 
 - Scene Graph nhận Arc/Outline lock, allowed cast và danh sách hướng drift bị cấm; các scene và top-up đều giữ cùng ràng buộc.

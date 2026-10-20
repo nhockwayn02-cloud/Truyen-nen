@@ -8190,7 +8190,11 @@ function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
   const arc = activeArcOf(st), ol = outlineOf(st, n), per = ol ? outlineChapterLines(ol.content) : {};
   const arcGoal = arc ? String(arc.goal || arc.name || "").trim() : "";
   const outlineLine = per[n] || (ol ? String(ol.content || "").slice(0, 900) : "");
-  const source = [arcGoal, outlineLine, st && st.directive, st && st.nextChapterHint,
+  // Dùng toàn bộ outline/arc làm nguồn cast: một nhân vật canon có thể được
+  // nhắc ở phần setup hoặc consequence chứ không xuất hiện ngay trong dòng Ch[n].
+  const arcSource = arc ? JSON.stringify(arc) : "";
+  const outlineSource = ol ? String(ol.content || "") : "";
+  const source = [arcGoal, arcSource, outlineSource, outlineLine, st && st.directive, st && st.nextChapterHint,
     priorChapters && priorChapters.length ? priorChapters[priorChapters.length - 1].text.slice(-1800) : ""].join(" ").toLowerCase();
   const allowed = [], known = [];
   const add = (arr, v) => { const s = String(v || "").replace(/\s+/g, " ").trim(); if(s && !arr.some(x => normalizeName(x) === normalizeName(s))) arr.push(s); };
