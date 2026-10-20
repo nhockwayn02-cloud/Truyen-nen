@@ -1591,3 +1591,10 @@ thay vì im lặng bỏ qua như trước.
 - Job viết thường (không draftOnly) cũng đi qua adaptive; tắt bằng `adaptiveScenePipeline:false` để quay lại writer cũ.
 - Test mới: `tests/v14_worker_draft.test.js`, `tests/e2e_bg.py` (mục 15–21).
 - **Chấm nhanh sau khi nháp** (ô tick mặc định bật): đúng MỘT lần Quality Review, không tự sửa, không hậu kỳ. Kết quả hiện dạng 🟢 ĐẠT / 🟡 CÓ CẢNH BÁO / 🔴 LỖI NẶNG kèm điểm và số lỗi; chi tiết nằm trong khung Quality. Review lỗi/hết giờ không làm fail nháp, chỉ báo "chưa chấm được".
+
+## [V14.0.7–V14.0.8] — Forbidden drift tôn trọng Brief/chương trước; contract gọn; chống scene viết lặp
+
+- V14.0.7: chủ đề bị cấm (vệ sĩ/khách sạn/váy cưới/Kim Chi) được phép nếu đã có trong Outline, Arc, Mệnh lệnh, Gợi ý hoặc đoạn kết chương trước. Thông báo lỗi nêu rõ cụm bị chạm và cách xử lý.
+- V14.0.8: **sửa lỗi V14.0.7** — `userBrief` (Mệnh lệnh/Gợi ý, tới 2.000 ký tự) bị đưa vào JSON contract của MỌI prompt plan/scene/top-up và khung "Kế hoạch". Nay contract đưa vào prompt/hiển thị dùng `promptChapterContract` (không có `userBrief`); `userBrief` chỉ dùng để validator đối chiếu.
+- Scene/top-up mở đầu lại cảnh đã viết: các đoạn gần trùng nguyên văn (≥ 70% trigram) bị bỏ, giữ phần mới (`dropRepeatedParagraphs`); scene chỉ còn < 80 từ thì bỏ qua và để top-up bù.
+- Telemetry trong cảnh báo chương nháp: "Adaptive: x/y scene, n lượt bù từ, [cắt k đoạn lặp,] t giây" (kèm "DỪNG SỚM" nếu hết giờ job) để biết vì sao chương thiếu từ.

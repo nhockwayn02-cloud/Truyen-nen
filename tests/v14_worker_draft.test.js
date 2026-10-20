@@ -7,6 +7,7 @@ const mockBlobs = { connectLambda() {}, getStore() { return { async get(k) { con
 const origLoad = Module._load;
 Module._load = function (req, ...a) { return req === "@netlify/blobs" ? mockBlobs : origLoad.call(this, req, ...a); };
 
+const countWordsT = t => t.trim().split(/\s+/).filter(Boolean).length;
 let _seed = 12345;
 const rnd = () => (_seed = (_seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const ON = "b c d g h k l m n t v x ch th nh kh ph tr gi qu".split(" "), RI = "a à á ạ e ê ề i í o ô ố ơ u ư ừ an ân ăn em ên in on ôn ơn un ang anh ênh inh ong ông ung ưng at ât ap ep ip op ôp ưc ac oc ai ay ôi".split(" ");
@@ -22,7 +23,7 @@ function prose(seed, nWords) {
   }
   return paras.join("\n\n");
 }
-let calls = [], planOverride = null, reviewBroken = false;
+let calls = [], planOverride = null, reviewBroken = false, restartScene2 = false, scene1Text = "";
 const GRAPH = (chars) => JSON.stringify({
   chapterGoal: "Lan bảo vệ hồ sơ trước khi khách đến", endingAnchor: "Lan khóa cửa văn phòng lúc bác sĩ gọi điện.",
   scenes: [1, 2, 3].map(n => ({ id: "S" + n, location: "Văn phòng", time: "Tối " + n, characters: chars, purpose: "tiến triển " + n, beats: ["beat " + n], mustChange: "Lan biết thêm điều " + n, handoff: "sang cảnh " + (n + 1), targetWords: 1700 }))
@@ -33,7 +34,12 @@ global.fetch = async (url, init) => {
   calls.push(kind);
   let content;
   if (kind === "plan") content = planOverride || GRAPH(["Lan"]);
-  else if (kind === "scene") content = prose(calls.filter(c => c === "scene").length, 1650);
+  else if (kind === "scene") {
+    const k = calls.filter(c => c === "scene").length;
+    content = prose(k, 1650);
+    if (k === 1) scene1Text = content;
+    if (k === 2 && restartScene2) content = scene1Text.split("\n\n").slice(0, 8).join("\n\n") + "\n\n" + content; // scene 2 mở đầu lại cảnh 1
+  }
   else if (kind === "review" && reviewBroken) content = "không phải JSON";
   else if (kind === "review") content = JSON.stringify({ score: 96, verdict: "PASS", dimensions: {}, hardFailures: [], warnings: [], suggestions: [], rewriteInstructions: [], canonWarnings: [] });
   else if (kind === "unified") content = JSON.stringify({ summary: "**Tóm tắt chương:** Lan bước đi giữa đêm.", characters: [], world: { locations: [], items: [] }, status: { changes: { characterChanges: [], conflicts: [] } }, memory: { events: [], foreshadowing: [], knowledge: [] }, continuityWarnings: [], nextChapterHint: "**Gợi ý ngắn Chương 2:** Lan tiếp tục." });
@@ -80,6 +86,18 @@ async function run(name, extra = {}, stateExtra = {}) {
   reviewBroken = false;
   assert.strictEqual(r.job.status, "completed", "review lỗi không được làm fail nháp: " + r.job.error);
   assert(r.job.resultChapter.quickCheck && r.job.resultChapter.quickCheck.ok === false && r.job.resultChapter.status === "DRAFTED", "phiếu phải báo chưa chấm được: " + JSON.stringify(r.job.resultChapter.quickCheck));
+
+  // 1c) Scene 2 viết lặp phần mở đầu của scene 1 -> bị cắt, có ghi chú + telemetry
+  restartScene2 = true;
+  r = await run("draft_dup", { draftOnly: true, quickCheck: false });
+  restartScene2 = false;
+  assert(r.job.resultChapter, "draft_dup phải xong: " + r.job.error);
+  const dupParas = r.job.resultChapter.text.split("\n\n").filter(x => countWordsT(x) > 15);
+  assert.strictEqual(new Set(dupParas).size, dupParas.length, "không được còn đoạn trùng nguyên văn");
+  assert(r.job.resultChapter.autoUpdateIssues.some(x => /đã cắt 1 đoạn viết lặp/.test(x)), "phải ghi telemetry cắt lặp: " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+  assert(r.job.resultChapter.autoUpdateIssues.some(x => /Adaptive: 3\/3 scene/.test(x)), "phải có telemetry Adaptive: " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+  // contract đưa vào prompt không chứa userBrief (chống tràn quy tắc chương vào mọi prompt)
+  assert(!/"userBrief"/.test(r.job.resultChapter.plan), "plan/contract hiển thị không được chứa userBrief");
 
   // 2) Plan lệch cast -> PLAN_REJECTED, không lùi về writer cũ
   planOverride = GRAPH(["Kim Chi Hoàng"]);

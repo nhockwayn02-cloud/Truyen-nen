@@ -124,7 +124,7 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
     'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
     'Không thêm biến cố lớn ngoài brief/canon. Không tự biến nhân vật phụ/nhân vật mới thành tuyến chính nếu Outline/Arc không giao việc đó. Không đổi nghề, tài nguyên, địa vị hoặc mục tiêu sinh tồn của nhân vật chính.',
-    o.chapterContract ? 'CHAPTER CONTRACT BẤT BIẾN — không được sửa các trường này:\n' + JSON.stringify(compactChapterContract(o.chapterContract)) : '',
+    o.chapterContract ? 'CHAPTER CONTRACT BẤT BIẾN — không được sửa các trường này:\n' + JSON.stringify(promptChapterContract(o.chapterContract)) : '',
     o.arcProgress ? 'ARC/OUTLINE LOCK — chương này bắt buộc đi đúng hướng sau, không được mở tuyến thay thế:\n' + String(o.arcProgress).replace(/\s+/g, ' ').slice(0, 2600) : '',
     o.allowedCast ? 'ALLOWED CAST — chỉ dùng các nhân vật/tên dưới đây; nhân vật khác chỉ được xuất hiện thoáng qua nếu chính Outline/Brief cho phép và không được thành tuyến chính:\n' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1800) : '',
     o.forbiddenDrift ? 'FORBIDDEN DRIFT — tuyệt đối không làm các hướng sau:\n' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 1200) : '',
@@ -206,6 +206,14 @@ function compactChapterContract(contract) {
   };
 }
 
+// V14.0.8: bản contract ĐƯA VÀO PROMPT/HIỂN THỊ — bỏ userBrief (chỉ để validator đối chiếu; Mệnh lệnh/Gợi ý đã có sẵn trong prompt,
+// nhét lại sẽ tốn token ở mọi scene và làm khung "Kế hoạch" tràn quy tắc chương).
+function promptChapterContract(contract) {
+  const c = compactChapterContract(contract);
+  delete c.userBrief;
+  return c;
+}
+
 function _contractNameSet(contract) {
   const c = compactChapterContract(contract);
   return new Set([].concat(c.allowedCharacters || [], c.canonicalCharacters || []).map(normalizeName).filter(Boolean));
@@ -277,7 +285,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
     o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
     o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
-    o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(compactChapterContract(o.chapterContract)) : '',
+    o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(promptChapterContract(o.chapterContract)) : '',
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
@@ -300,7 +308,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
     p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
     p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
-    p.chapterContract ? 'CONTRACT COMPACT — top-up chỉ mở rộng diễn biến đã hợp lệ, không mở tuyến mới:\n' + JSON.stringify(compactChapterContract(p.chapterContract)) : '',
+    p.chapterContract ? 'CONTRACT COMPACT — top-up chỉ mở rộng diễn biến đã hợp lệ, không mở tuyến mới:\n' + JSON.stringify(promptChapterContract(p.chapterContract)) : '',
     p.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(p.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     p.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(p.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
@@ -884,6 +892,15 @@ function dedupeRepeatedScene(text) {
   return src.length < raw.length ? src : raw;
 }
 // Với lượt viết tiếp: bỏ các đoạn mở đầu lặp lại nội dung đã có. Trả "" nếu toàn bộ là lặp.
+// V14.0.8: bỏ RIÊNG các đoạn của phần mới mà gần như trùng nguyên văn với văn bản đã có (model mở đầu lại cùng một cảnh),
+// GIỮ các đoạn mới còn lại — khác dropRestartedContinuation (cắt toàn bộ từ chỗ lặp đầu tiên trở đi).
+function dropRepeatedParagraphs(baseText, newText) {
+  const baseG = _grams(_normWords(String(baseText || "")), 3);
+  const paras = String(newText || "").split(/\n\s*\n+|\n/).map(p => p.trim()).filter(Boolean);
+  const kept = paras.filter(p => { const w = _normWords(p); return w.length < 15 || _sim(_grams(w, 3), baseG) < 0.7; });
+  return kept.join("\n\n");
+}
+
 function dropRestartedContinuation(baseText, contText) {
   const base = String(baseText || ""); let cont = String(contText || "").trim();
   if (!cont) return cont;
@@ -2113,7 +2130,7 @@ const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt t�
      deps.timeLeft()? -> ms còn lại (worker nền), deps.minSceneMs?/deps.minTopUpMs? ngưỡng dừng sớm.
    Trả: {rejected, reason} | {text, plan, underTarget, usedNsfw, timedOut?} | null (lỗi API ở scene). */
 async function runAdaptiveChapterPipeline(o, deps) {
-  const st = deps.state, callAI = deps.callAI;
+  const st = deps.state, callAI = deps.callAI, t0 = Date.now();
   const limits = adaptiveChapterWordLimits(st);
   const timeLeft = typeof deps.timeLeft === 'function' ? deps.timeLeft : () => Infinity;
   const minSceneMs = deps.minSceneMs || 70000, minTopUpMs = deps.minTopUpMs || 70000;
@@ -2157,6 +2174,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   });
 
   const pieces = [], sceneStates = [];
+  let dupDropped = 0;
   let usedNsfw = !!o.usingNsfw, lastRoute = { model: o.model, nsfw: !!o.usingNsfw }, timedOut = false;
   let previousTail = o.priorChapters && o.priorChapters.length
     ? String(o.priorChapters[o.priorChapters.length - 1].text || '').slice(-900)
@@ -2191,6 +2209,8 @@ async function runAdaptiveChapterPipeline(o, deps) {
       });
       let text = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
       if (detectNonVietnamese(text)) text = stripForeign(text);
+      // V14.0.8: scene viết LẠI đoạn đã có (model mở đầu lại cùng một cảnh) -> cắt phần lặp, giống đường viết tiếp của writer cũ.
+      if (pieces.length) { const d = dropRepeatedParagraphs(pieces.join('\n\n'), text); if (d.length < text.length) { dupDropped++; text = d.trim(); if (countWords(text) < 80) continue; } }
       const sceneCheck = validateSceneTextAgainstContract(text, chapterContract);
       if (!sceneCheck.ok) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + ': ' + sceneCheck.errors.join(' | ') };
       if (countWords(text) < 80) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + ': scene quá ngắn' };
@@ -2229,6 +2249,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       });
       let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
       if (detectNonVietnamese(extra)) extra = stripForeign(extra);
+      { const d = dropRepeatedParagraphs(text, extra); if (d.length < extra.length) { dupDropped++; extra = d.trim(); } }
       if (countWords(extra) < 80) break;
       const extraCheck = validateSceneTextAgainstContract(extra, chapterContract);
       if (!extraCheck.ok) return { rejected: true, reason: 'TOPUP_REJECTED: ' + extraCheck.errors.join(' | ') };
@@ -2244,7 +2265,8 @@ async function runAdaptiveChapterPipeline(o, deps) {
     }
   }
   const underTarget = wc < limits.minAccept;
-  return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(compactChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut };
+  const stats = { scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
+  return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(promptChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut, stats };
 }
 // <<SHARED-CORE:END>>
 // V12.3: hard cap để mục tiêu 5.000 từ không biến thành 8.000+ từ.
@@ -3550,6 +3572,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
   }
   const wordCount = countWords(text);
   if (res.underTarget || wordCount < 4500) issues.push("Thiếu từ: " + wordCount + "/4500" + (res.timedOut ? " (hết thời gian job)" : ""));
+  if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene, " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
   const title = String(state.chapterTitle || state.currentChapterTitle || ("Chương " + chapterNumber)).trim() || ("Chương " + chapterNumber);
   const _sc = normalizeStoryControl(state);
   const control = { focus: normalizeChapterMatureFocus(state.chapterMatureFocus), maxMainEvents: _sc.maxMainEvents, maxNamedCharacters: _sc.maxNamedCharacters, noRetcon: _sc.noRetcon };
