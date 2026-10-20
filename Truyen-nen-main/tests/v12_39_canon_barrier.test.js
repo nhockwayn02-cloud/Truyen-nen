@@ -1,0 +1,11 @@
+const fs=require('fs'),assert=require('assert'),path=require('path');
+const core=fs.readFileSync(path.join(__dirname,'..','shared/core.js'),'utf8');
+const index=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+assert(core.includes('đánh mã [R1], [R2]'));
+assert(core.includes('Mã [S1], [S2]'));
+assert(core.includes('THỨ TỰ ƯU TIÊN'));
+assert(core.includes('chỉ coi là bắt buộc nếu chính dòng đó ghi rõ REQUIRED'));
+assert(index.includes('id="qualityAcceptSoftToggle"'));
+assert(index.includes('qualityAcceptSoft: false'));
+assert(index.includes('state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked'));
+console.log('PASS V12.39 Canon Barrier + Required Beat Contract');
