@@ -6,7 +6,7 @@
 - [x] Mỗi scene và top-up nhận cùng Contract; scene lỗi không được ghép tiếp vào chương.
 - [x] Quality Gate ưu tiên Contract/Arc/beat/continuity trước score văn phong thông qua contract plan được lưu cùng chương.
 - [x] Chỉ Sync khi Contract barrier, required beat, opening continuity, ending anchor và độ dài đều đạt qua pipeline hiện hành.
-- [ ] Worker không dùng writer cũ âm thầm khi Contract bị từ chối.
+- [x] Worker không dùng writer cũ âm thầm khi Contract bị từ chối (V14.0.6).
 - [x] Regression test cho plan rejection, allowed cast, missing beat, scene contract và safe failure.
 
 ## P0 — Độ dài và liên kết chương
@@ -23,7 +23,7 @@
 - [ ] Telemetry chi tiết theo step/scene/input/output/retry.
 
 ## P2 — Nền và kiểm chứng
-- [ ] Worker nền parity đầy đủ với adaptive scene pipeline (hiện đã đồng bộ helper và vẫn fallback pipeline cũ).
+- [x] Worker nền parity với adaptive scene pipeline (V14.0.6: dùng chung runAdaptiveChapterPipeline; có chế độ viết nháp nền).
 - [x] Regression test Scene Graph/Scene Contract/word limits.
 - [ ] Cập nhật E2E theo hợp đồng V13.
 - [ ] Chạy full test và kiểm tra sync shared core.

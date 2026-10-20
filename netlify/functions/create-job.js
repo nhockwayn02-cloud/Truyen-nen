@@ -71,6 +71,8 @@ exports.handler = async (event) => {
       model:body.model || "deepseek/deepseek-v3.2",
       modelNsfw:body.modelNsfw || "aion-labs/aion-2.0",
       forceNsfw:!!body.forceNsfw,
+      draftOnly: body.mode !== "postprocess" && !!body.draftOnly,
+      quickCheck: body.quickCheck !== false,
       hintStyle:String(body.hintStyle||"normal").slice(0,20),
       hintFormat:String(body.hintFormat||"detail").slice(0,20),
       apiKeyEncrypted,

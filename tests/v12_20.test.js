@@ -42,7 +42,7 @@ t("acceptWordFix: nhận câu sửa đúng, từ chối câu còn từ lỗi / b
 
 const words = (n, tag) => Array.from({ length: n }, (_, i) => `${tag}${i % 7}`).join(" ");
 const para = (n) => { const out = []; for (let i = 0; out.join(" ").split(/\s+/).length < n; i++) out.push(`Buổi ${i} cô đi qua con phố số ${i * 7} và nghe tiếng gió thổi ${i % 5} lần.`); return out.join(" "); };
-function job(extra) { return { apiEndpoint: "x", apiKey: "k", model: "m", storyState: Object.assign({ chapters: [], characters: [], directive: "", nextChapterHint: "", minChapterWords: 500, autoContinueMax: 4, chapterMatureFocus: "none" }, extra || {}) }; }
+function job(extra) { return { apiEndpoint: "x", apiKey: "k", model: "m", storyState: Object.assign({ adaptiveScenePipeline: false, chapters: [], characters: [], directive: "", nextChapterHint: "", minChapterWords: 500, autoContinueMax: 4, chapterMatureFocus: "none" }, extra || {}) }; }
 
 (async () => {
   // Có gợi ý: văn bản ngắn hơn mục tiêu nhưng KHÔNG được gọi "Viết TIẾP"

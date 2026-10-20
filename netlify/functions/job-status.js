@@ -44,6 +44,7 @@ exports.handler = async (event) => {
       error:job.error||null,
       resultChapter:job.resultChapter||null,
       qualityGateFailed:!!job.qualityGateFailed,
+      draftOnly:!!job.draftOnly,
       postProcessStatus:job.postProcessStatus||null,
       postProcessError:job.postProcessError||null,
       postProcessFailed:job.postProcessFailed||[],

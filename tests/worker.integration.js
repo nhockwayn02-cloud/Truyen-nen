@@ -45,7 +45,7 @@ const worker = require(path.join(__dirname, "../netlify/functions/write-chapter-
   const token = "tok"; const jobId = "job1";
   db.set(jobId, JSON.stringify({ jobId, createdAt: Date.now(), status: "queued", schemaVersion: 9, workerTokenHash: crypto.createHash("sha256").update(token).digest("hex"),
     apiKeyEncrypted: { encrypted: false, value: "k" }, apiEndpoint: "http://mock/chat/completions", model: "m", modelNsfw: "",
-    storyState: { chapters: [], characters: [], locations: [], items: [], threads: [], minChapterWords: 500, mature: false, nsfwMode: "never", mainCharProfile: { name: "Lan" } } }));
+    storyState: { chapters: [], characters: [], locations: [], items: [], threads: [], minChapterWords: 500, adaptiveScenePipeline: false, mature: false, nsfwMode: "never", mainCharProfile: { name: "Lan" } } }));
   const t0 = Date.now();
   const res = await worker.handler({ httpMethod: "POST", body: JSON.stringify({ jobId, workerToken: token }), headers: {} });
   const secs = (Date.now() - t0) / 1000;

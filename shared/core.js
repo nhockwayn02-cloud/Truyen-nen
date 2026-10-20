@@ -166,11 +166,23 @@ function validateAdaptiveScenePlan(plan, contract) {
       if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài Canon Cast: ' + String(name));
     });
   });
+  // V14.0.6: so khớp THEO CỤM CHỦ ĐỀ nguyên vẹn (vệ sĩ, khách sạn, váy cưới...) thay vì từng âm tiết rời
+  // ("vệ", "sĩ", "khách"... trùng "bảo vệ", "bác sĩ", "khách" thông thường nên chương nào cũng bị từ chối).
+  // Chủ đề nào Outline/Arc/requiredBeats của chương ĐÃ ghi rõ thì được phép xuất hiện trong plan.
   const allPlan = JSON.stringify(p).toLowerCase();
+  const allowedSource = [c.chapterOutline, c.arcGoal, c.mustChange].concat(c.requiredBeats || []).join(' ').toLowerCase();
+  const DRIFT_TOPICS = [
+    { rule: /vệ sĩ/i, plan: /vệ sĩ/ },
+    { rule: /khách sạn/i, plan: /khách sạn/ },
+    { rule: /váy cưới/i, plan: /váy cưới|shop váy|tiệm váy|cửa hàng váy/ },
+    { rule: /kim chi/i, plan: /kim chi/ }
+  ];
   (c.forbiddenDrift || []).forEach(rule => {
-    const words = String(rule).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => /vệ|sĩ|khách|sạn|shop|váy|cưới|kim|chi/.test(w));
-    const hits = words.filter(w => allPlan.includes(w));
-    if (hits.length >= 2) errors.push('Plan chạm forbidden drift: ' + String(rule).slice(0, 180));
+    DRIFT_TOPICS.forEach(t => {
+      if (t.rule.test(String(rule)) && t.plan.test(allPlan) && !t.plan.test(allowedSource)) {
+        errors.push('Plan chạm forbidden drift (' + (allPlan.match(t.plan) || [''])[0] + '): ' + String(rule).slice(0, 180));
+      }
+    });
   });
   return { ok: errors.length === 0, errors: errors.slice(0, 20), contract: c };
 }
@@ -2023,4 +2035,148 @@ function mergeCharacterIntoState(state, sourceId, targetId) {
     c.relationships = c.relationships.filter(r => { const k = normalizeName(r && r.withName); if (!k || k === normalizeName(c.name) || seenR.has(k)) return false; seenR.add(k); return true; });
   });
   return { ok: true, from: src.name, into: targetName };
+}
+
+const SCENE_PLAN_SYSTEM_PROMPT = "Lập kế hoạch scene cho tiểu thuyết dài kỳ tiếng Việt. Trả đúng JSON được yêu cầu, không viết văn xuôi, không thêm biến cố lớn ngoài brief/canon.";
+const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè.";
+
+/* V14.0.6: VÒNG ĐIỀU PHỐI ADAPTIVE SCENE DÙNG CHUNG client + worker nền.
+   Mọi thứ phụ thuộc môi trường (gọi AI, state, định tuyến model, đồng hồ) được truyền qua `deps`:
+     deps.state, deps.callAI(prompt, opts) -> {text}, deps.buildContract(st, n, prior), deps.requiredBeats(st, n),
+     deps.style(nsfw) -> string, deps.route(scene, o, tail) -> {model, nsfw}, deps.onNsfw(scene, route)?,
+     deps.timeLeft()? -> ms còn lại (worker nền), deps.minSceneMs?/deps.minTopUpMs? ngưỡng dừng sớm.
+   Trả: {rejected, reason} | {text, plan, underTarget, usedNsfw, timedOut?} | null (lỗi API ở scene). */
+async function runAdaptiveChapterPipeline(o, deps) {
+  const st = deps.state, callAI = deps.callAI;
+  const limits = adaptiveChapterWordLimits(st);
+  const timeLeft = typeof deps.timeLeft === 'function' ? deps.timeLeft : () => Infinity;
+  const minSceneMs = deps.minSceneMs || 70000, minTopUpMs = deps.minTopUpMs || 70000;
+  const recent = buildRecentBlocks(o.priorChapters || []).recentFullText;
+  const chapterNumber = (o.priorChapters || []).length + 1;
+  const chapterContract = deps.buildContract(st, chapterNumber, o.priorChapters || []);
+  const requiredBeats = deps.requiredBeats(st, chapterNumber);
+  const planPrompt = buildAdaptiveScenePlanPrompt({
+    state: st, context: o.context, recent,
+    directive: st.directive, hint: st.nextChapterHint, requiredBeats,
+    arcProgress: arcProgressPrompt(st, chapterNumber),
+    allowedCast: chapterContract.allowedCharacters.join(', '),
+    forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract
+  });
+  let graph = null, planError = '';
+  for (let planAttempt = 1; planAttempt <= 2 && !graph; planAttempt++) {
+    try {
+      const correction = planAttempt > 1 ? "\nPLAN BỊ TỪ CHỐI. Sửa đúng lỗi Contract sau, không mở tuyến mới:\n" + planError : "";
+      const planRes = await callAI(planPrompt + correction, { maxTokens: 1900, temperature: 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
+      const rawPlan = String(planRes && planRes.text || '');
+      const candidate = normalizeAdaptiveScenePlan(rawPlan, st);
+      if (!candidate) {
+        planError = 'Không parse được JSON Scene Graph; trả duy nhất JSON object, không markdown/lời dẫn.';
+      } else {
+        const checked = validateAdaptiveScenePlan(candidate, chapterContract);
+        if (checked.ok) graph = candidate; else planError = checked.errors.join(' | ');
+      }
+    } catch (e) { planError = e && e.message || 'plan failed'; }
+  }
+  if (!graph) return { rejected: true, reason: 'PLAN_REJECTED: ' + (planError || 'Scene Graph không hợp lệ') };
+
+  // Rebalance ngân sách mềm về khoảng 5.000 từ, không áp vai trò cố định cho scene.
+  const rawSum = graph.scenes.reduce((n, x) => n + Math.max(1, Number(x.targetWords) || 1), 0);
+  let remaining = limits.target;
+  graph.scenes.forEach((scene, i) => {
+    if (i === graph.scenes.length - 1) scene.targetWords = Math.max(350, remaining);
+    else {
+      scene.targetWords = Math.max(350, Math.round((scene.targetWords / rawSum) * limits.target / 50) * 50);
+      remaining -= scene.targetWords;
+    }
+  });
+
+  const pieces = [], sceneStates = [];
+  let usedNsfw = !!o.usingNsfw, lastRoute = { model: o.model, nsfw: !!o.usingNsfw }, timedOut = false;
+  let previousTail = o.priorChapters && o.priorChapters.length
+    ? String(o.priorChapters[o.priorChapters.length - 1].text || '').slice(-900)
+    : '';
+  for (let i = 0; i < graph.scenes.length; i++) {
+    const scene = graph.scenes[i];
+    if (countWords(pieces.join('\n\n')) >= limits.maxAccept) break;
+    if (pieces.length && timeLeft() < minSceneMs) { timedOut = true; break; }
+    const route = deps.route(scene, o, previousTail);
+    lastRoute = route;
+    if (route.nsfw && !usedNsfw) { usedNsfw = true; if (deps.onNsfw) { try { deps.onNsfw(scene, route); } catch (_) {} } }
+    const prompt = buildAdaptiveSceneWritePrompt({
+      state: st, scene, chapterGoal: graph.chapterGoal,
+      endingAnchor: graph.endingAnchor, previousTail,
+      isOpeningScene: i === 0 && !!(o.priorChapters && o.priorChapters.length),
+      stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
+      requiredBeats,
+      allowedCast: chapterContract.allowedCharacters.join(', '),
+      forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract,
+      isFinalScene: i === graph.scenes.length - 1,
+      style: deps.style(route.nsfw)
+    });
+    try {
+      const r = await callAI(prompt, {
+        maxTokens: Math.min(3600, Math.max(1100, Math.ceil(scene.targetWords * 1.9))),
+        temperature: route.nsfw ? 0.78 : 0.72,
+        modelOverride: route.model,
+        systemPrompt: SCENE_SYSTEM_PROMPT,
+        frequency_penalty: 0.22,
+        presence_penalty: 0.18,
+        streaming: false
+      });
+      let text = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      if (detectNonVietnamese(text)) text = stripForeign(text);
+      const sceneCheck = validateSceneTextAgainstContract(text, chapterContract);
+      if (!sceneCheck.ok) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + ': ' + sceneCheck.errors.join(' | ') };
+      if (countWords(text) < 80) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + ': scene quá ngắn' };
+      pieces.push(text);
+      previousTail = text.slice(-1200);
+      sceneStates.push({
+        sceneId: scene.id, location: scene.location, time: scene.time,
+        characters: scene.characters, mustChange: scene.mustChange,
+        handoff: scene.handoff
+      });
+    } catch (e) {
+      if (deps.warn) deps.warn('[AdaptiveScene] scene failed', scene.id, e && e.message);
+      return null;
+    }
+  }
+  let text = pieces.join('\n\n').trim();
+  let wc = countWords(text), topUpAttempts = 0;
+  // V13.2: Adaptive Scene không được kết thúc dưới minAccept. Top-up chỉ gửi đuôi + state delta,
+  // không gửi lại toàn bộ chương; chỉ kích hoạt khi các scene ban đầu bị model trả thiếu.
+  while (wc < limits.minAccept && topUpAttempts < 6) {
+    if (timeLeft() < minTopUpMs) { timedOut = true; break; }
+    const needWords = Math.min(1800, limits.minAccept - wc);
+    const topUpPrompt = buildAdaptiveSceneTopUpPrompt({
+      state: st, currentWords: wc, needWords, chapterGoal: graph.chapterGoal,
+      endingAnchor: graph.endingAnchor, previousTail: text.slice(-2400),
+      stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
+      requiredBeats, allowedCast: chapterContract.allowedCharacters.join(', '),
+      forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract, style: deps.style(lastRoute.nsfw)
+    });
+    topUpAttempts++;
+    try {
+      const r = await callAI(topUpPrompt, {
+        maxTokens: Math.min(4200, Math.max(1800, Math.ceil(needWords * 2.1) + 450)),
+        temperature: lastRoute.nsfw ? 0.76 : 0.70, modelOverride: lastRoute.model,
+        frequency_penalty: 0.22, presence_penalty: 0.18, streaming: false
+      });
+      let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      if (detectNonVietnamese(extra)) extra = stripForeign(extra);
+      if (countWords(extra) < 80) break;
+      const extraCheck = validateSceneTextAgainstContract(extra, chapterContract);
+      if (!extraCheck.ok) return { rejected: true, reason: 'TOPUP_REJECTED: ' + extraCheck.errors.join(' | ') };
+      const before = wc;
+      text = text ? text + '\n\n' + extra : extra;
+      wc = countWords(text);
+      if (wc <= before) break;
+      previousTail = text.slice(-1200);
+      sceneStates.push({ sceneId: 'TOPUP' + topUpAttempts, handoff: 'Đã bổ sung ' + (wc - before) + ' từ; tiếp tục nếu còn thiếu.' });
+    } catch (e) {
+      if (deps.warn) deps.warn('[AdaptiveScene] top-up failed', e && e.message);
+      break;
+    }
+  }
+  const underTarget = wc < limits.minAccept;
+  return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(compactChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut };
 }

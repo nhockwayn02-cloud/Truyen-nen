@@ -147,3 +147,12 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
 });
 
 console.log(`\n${pass}/17 PASS`);
+
+test('V14.0.6 forbidden drift theo cụm chủ đề, không chặn nhầm "bảo vệ"/"bác sĩ"/"khách"', () => {
+  const contract = { allowedCharacters:['Bùi Lạc'], chapterOutline:'Lạc bảo vệ hồ sơ trước khách đến thăm', forbiddenDrift:['Không mở tuyến vệ sĩ, khách sạn, shop váy cưới hoặc tuyến xã hội khác nếu Outline không ghi rõ.'] };
+  const mk = extra => T.normalizeAdaptiveScenePlan({ chapterGoal:'bảo vệ hồ sơ trước khách ' + extra, endingAnchor:'bác sĩ gọi điện', scenes:[{id:'S1', characters:['Bùi Lạc'], mustChange:'m', handoff:'h'}] }, {});
+  assert(T.validateAdaptiveScenePlan(mk(''), contract).ok);
+  assert(!T.validateAdaptiveScenePlan(mk('tại khách sạn'), contract).ok);
+  const withOutline = Object.assign({}, contract, { chapterOutline:'Lạc thuê vệ sĩ ở khách sạn' });
+  assert(T.validateAdaptiveScenePlan(mk('tại khách sạn'), withOutline).ok);
+});

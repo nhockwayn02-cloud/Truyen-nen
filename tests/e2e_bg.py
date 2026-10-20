@@ -25,6 +25,12 @@ def job_status(route):
     seen["status_calls"] += 1
     if seen["status_calls"] == 1:  # lần poll đầu: job còn đang chạy
         route.fulfill(status=200, content_type="application/json", body=json.dumps({"status": "running", "progress": "Đang viết chương..."})); return
+    if mode["status"] == "draft":  # nháp nền: chương ở DRAFTED, chưa hậu kỳ
+        c1 = {"title": "Chương 1", "text": "Gió thổi qua con phố vắng. " * 30, "wordCount": 150, "summary": "x"}
+        c2 = {"title": "Chương 2", "text": "Mưa rơi trên mái ngói cũ. " * 30, "wordCount": 150, "status": "SYNCED", "sync": {"status": "SYNCED"}}
+        c3 = {"title": "Chương 3", "text": "Nắng lên trên mái ngói cũ. " * 30, "wordCount": 150, "status": "DRAFTED", "postProcess": {"status": "PENDING_REVIEW"}, "quickCheck": {"ok": True, "verdict": "SOFT_FAIL", "score": 78, "hard": 0, "warn": 3}}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({"status": "completed", "jobId": "job_abc_123456", "baseChapterCount": 2,
+            "draftOnly": True, "resultChapter": c3, "storyState": {"chapters": [c1, c2, c3], "characters": [], "locations": [], "items": [], "threads": []}})); return
     if mode["status"] == "gatefail":  # job xong nhưng trượt Quality Gate: chương ở REVISION_REQUIRED, chưa Sync
         c1 = {"title": "Chương 1", "text": "Gió thổi qua con phố vắng. " * 30, "wordCount": 150, "summary": "x"}
         c2 = {"title": "Chương 2", "text": "Mưa rơi trên mái ngói cũ. " * 30, "wordCount": 150, "status": "REVISION_REQUIRED",
@@ -84,7 +90,26 @@ with sync_playwright() as p:
     check("12. Chương trượt Gate được giữ ở REVISION_REQUIRED (không bị bỏ)", st["n"] == 2 and st["s"] == "REVISION_REQUIRED" and st["v"] == "HARD_FAIL", str(st))
     check("13. canonVersion của server được hợp nhất vào client", st["cv"] == 7, str(st["cv"]))
     check("14. Chương trượt Gate không được đánh dấu đã Sync", page.evaluate("()=>{const c=__xta.state.chapters[1]; return !c.sync || c.sync.status!=='SYNCED';}"))
-    check("15. Không lỗi JS", not errs, "; ".join(errs)[:200])
+    # 4) Nháp nền: bị chặn khi chương trước chưa Sync; khi hợp lệ gửi mode=write+draftOnly, chương về DRAFTED, và chặn nháp tiếp theo
+    seen["create_body"] = None
+    page.click("#bgDraftBtn"); page.wait_for_timeout(400)
+    check("15. Chương trước REVISION_REQUIRED -> chặn viết nháp, không gửi job", seen["create_body"] is None and "chưa hoàn tất" in page.inner_text("#statusLine"), str(seen["create_body"])[:60])
+    page.evaluate("()=>{const c=__xta.state.chapters[1]; c.status='SYNCED'; c.sync={status:'SYNCED'};}")
+    mode["status"] = "draft"; seen["status_calls"] = 1; seen["acks"] = 0
+    page.click("#bgDraftBtn"); page.wait_for_timeout(500)
+    cb = seen["create_body"] or {}
+    check("16. Nháp nền gửi mode=write + draftOnly + chapterNumber=3", cb.get("mode") == "write" and cb.get("draftOnly") is True and cb.get("chapterNumber") == 3, json.dumps({k: cb.get(k) for k in ("mode", "draftOnly", "chapterNumber")}))
+    check("17. Nháp nền bật adaptiveScenePipeline + quickCheck mặc định bật", cb.get("storyState", {}).get("adaptiveScenePipeline") is True and cb.get("quickCheck") is True)
+    for _ in range(80):
+        page.wait_for_timeout(300)
+        if seen["acks"] >= 1: break
+    st = page.evaluate("()=>({n:__xta.state.chapters.length, s:(__xta.state.chapters[2]||{}).status, cv:(__xta.state.chapters[2]||{}).sync})")
+    check("18. Chương nháp được hợp nhất ở trạng thái DRAFTED (chưa Sync)", st["n"] == 3 and st["s"] == "DRAFTED", str(st))
+    check("19. Thông báo nói rõ CHƯA hậu kỳ/Canon + phiếu chấm nhanh 🟡 78/100", "CHƯA hậu kỳ" in page.inner_text("#statusLine") and "🟡" in page.inner_text("#statusLine") and "78/100" in page.inner_text("#statusLine"), page.inner_text("#statusLine")[:120])
+    seen["create_body"] = None
+    page.click("#bgDraftBtn"); page.wait_for_timeout(400)
+    check("20. Còn nháp chưa hậu kỳ -> chặn nháp chương kế (giữ continuity)", seen["create_body"] is None and "chưa hoàn tất" in page.inner_text("#statusLine"))
+    check("21. Không lỗi JS", not errs, "; ".join(errs)[:200])
     b.close()
 srv.shutdown()
 bad = results.count(False); print(f"\n{len(results)-bad}/{len(results)} PASS"); sys.exit(1 if bad else 0)

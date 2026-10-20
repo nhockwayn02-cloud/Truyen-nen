@@ -28,7 +28,7 @@ async function run(name, { state = {}, forceNsfw = false, modelNsfw = "nsfw-mode
   const token = "tok", jobId = "job_" + name;
   db.set(jobId, JSON.stringify({ jobId, createdAt: Date.now(), status: "queued", schemaVersion: 9, workerTokenHash: crypto.createHash("sha256").update(token).digest("hex"),
     apiKeyEncrypted: { encrypted: false, value: "k" }, apiEndpoint: "http://mock/chat/completions", model: "normal-model", modelNsfw, forceNsfw,
-    storyState: Object.assign({ chapters: [], characters: [], locations: [], items: [], threads: [], minChapterWords: 500, mature: true, nsfwMode: "auto", chapterMatureFocus: "primary", explicitLevel: "explicit", mainCharProfile: { name: "Lan", age: "26" } }, state) }));
+    storyState: Object.assign({ chapters: [], characters: [], locations: [], items: [], threads: [], minChapterWords: 500, adaptiveScenePipeline: false, mature: true, nsfwMode: "auto", chapterMatureFocus: "primary", explicitLevel: "explicit", mainCharProfile: { name: "Lan", age: "26" } }, state) }));
   const res = await worker.handler({ httpMethod: "POST", body: JSON.stringify({ jobId, workerToken: token }), headers: {} });
   const job = JSON.parse(db.get(jobId));
   assert.strictEqual(res.statusCode, 200, name + ": handler " + res.statusCode + " " + res.body);

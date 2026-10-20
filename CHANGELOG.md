@@ -1581,3 +1581,13 @@ thay vì im lặng bỏ qua như trước.
 - Pre-flight từ khóa tính thêm `nextChapterHint`.
 - Mức 18+ người dùng chọn (`explicitLevel`) nay thực sự tới prompt scene (trước đây chỉ có tên mức). Mức `wild` dùng chỉ dẫn của mức `strong`.
 - E2E #36 kiểm tra định tuyến theo scene.
+
+## [V14.0.6] — Viết nháp nền + sửa PLAN_REJECTED nhầm
+
+- **Sửa lỗi "V14 từ chối kế hoạch… vệ sĩ, khách sạn, shop váy cưới":** validator forbidden-drift trước đây tách luật thành từng âm tiết (`vệ`, `sĩ`, `khách`…) và chặn plan khi khớp ≥ 2 âm tiết, nên "bảo vệ", "bác sĩ", "khách" làm chương nào cũng bị từ chối. Nay so khớp theo cụm chủ đề nguyên vẹn (vệ sĩ / khách sạn / váy cưới / Kim Chi) và cho phép khi Outline/Arc/Required Beat của chương đã ghi rõ.
+- **Viết nháp nền (nút ☁ Viết nháp nền):** worker chạy ĐÚNG pipeline "Tạo Chương Hoàn Chỉnh" (`runAdaptiveChapterPipeline` trong `shared/core.js`, dùng chung client + worker): Chapter Contract → Scene Graph → từng scene → top-up. Lưu chương ở trạng thái "Bản nháp"; KHÔNG chạy Quality Gate/hậu kỳ. Người dùng đọc, ổn thì bấm ☁ Chạy hậu kỳ server (hoặc 🔍 Duyệt lại).
+- Chương nháp chưa hậu kỳ chặn viết chương kế tiếp (nháp hoặc thường) để không mất continuity.
+- Worker không còn lặng lẽ lùi về writer cũ: plan bị từ chối → job lỗi `PLAN_REJECTED`; lỗi API ở scene → `SCENE_FAILED`. Worker dùng `DEADLINE` để dừng top-up khi hết giờ.
+- Job viết thường (không draftOnly) cũng đi qua adaptive; tắt bằng `adaptiveScenePipeline:false` để quay lại writer cũ.
+- Test mới: `tests/v14_worker_draft.test.js`, `tests/e2e_bg.py` (mục 15–21).
+- **Chấm nhanh sau khi nháp** (ô tick mặc định bật): đúng MỘT lần Quality Review, không tự sửa, không hậu kỳ. Kết quả hiện dạng 🟢 ĐẠT / 🟡 CÓ CẢNH BÁO / 🔴 LỖI NẶNG kèm điểm và số lỗi; chi tiết nằm trong khung Quality. Review lỗi/hết giờ không làm fail nháp, chỉ báo "chưa chấm được".
