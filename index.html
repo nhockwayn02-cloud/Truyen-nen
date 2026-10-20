@@ -376,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.0</span></div>
-<div class="brand-sub">v14.0.4 · Contract-First · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
+<div class="brand-sub">v14.0.5 · Contract-First · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
@@ -4127,6 +4127,7 @@ function shouldForceNsfwByKeyword(plan, tail){
   if(!state.modelNsfw) return false;
   const sources = [
     state.directive || "",
+    state.nextChapterHint || "",
     plan || "",
     (tail || "").slice(-1500),
     (state.chapters[state.currentChapterIndex] && state.chapters[state.currentChapterIndex].title) || ""
@@ -8185,7 +8186,9 @@ function compactSceneStyleLock(usingNsfw){
   if(state.pronounRules) parts.push("xưng_hô=" + String(state.pronounRules).replace(/\s+/g, " ").slice(0, 180));
   if(usingNsfw || state.mature){
     parts.unshift("RÀO_CHẮN_TUỔI_BẮT_BUỘC=" + ageGuardPrompt(state).replace(/\s+/g, " ").replace(/^RÀO CHẮN TUỔI \(bắt buộc\):\s*/, "").slice(0, 420));
-    parts.push("adult_level=" + String(state.explicitLevel || "sensual").slice(0, 20));
+    const lvl = String(state.explicitLevel || "sensual");
+    parts.push("adult_level=" + lvl.slice(0, 20));
+    parts.push("mức_18+=" + String(EXPLICIT_PROMPTS[lvl === "wild" ? "strong" : lvl] || "").replace(/\s+/g, " ").slice(0, 330));
   }
   const vocab = buildVocabularyBlock();
   if(vocab) parts.push("từ_khóa=" + vocab.replace(/\s+/g, " ").slice(0, 260));
@@ -8244,6 +8247,20 @@ function adaptiveForbiddenDrift(st){
     'Không chuyển sang tuyến bảo vệ/vệ sĩ, khách sạn, shop váy cưới hoặc tuyến xã hội khác nếu Outline chương không ghi rõ.'
   ].filter(Boolean).join(' ');
 }
+// V14.0.5: định tuyến model theo TỪNG scene. Trước đây model NSFW chỉ được chọn một lần cho cả chương
+// dựa trên đoạn cuối chương trước + mệnh lệnh, nên cảnh nóng nằm trong Outline/Scene Graph của chương mới
+// vẫn bị viết bằng model chính. Nay mỗi scene tự chọn model theo beat/purpose của chính nó.
+function adaptiveSceneRoute(scene, o, tail){
+  const base = { model: o.model, nsfw: !!o.usingNsfw };
+  if(base.nsfw) return base;
+  const mode = state.nsfwMode || 'auto';
+  if(!state.mature || !matureFocusAllowsRouting() || !state.modelNsfw || mode === 'never') return base;
+  if(mode === 'always' || mode === 'mature_only') return { model: state.modelNsfw, nsfw: true };
+  const sc = scene || {};
+  // tail: đoạn cuối scene trước — scene nóng kéo dài sang scene sau thì không được tụt về model chính giữa chừng.
+  const text = [sc.purpose, (sc.beats || []).join(' '), sc.mustChange, sc.handoff, String(tail || '').slice(-800)].join('\n');
+  return textHasNsfwKeyword(text) ? { model: state.modelNsfw, nsfw: true } : base;
+}
 async function generateAdaptiveChapterText(o){
   const st = state;
   const limits = adaptiveChapterWordLimits(st);
@@ -8287,12 +8304,16 @@ async function generateAdaptiveChapterText(o){
   });
 
   const pieces = [], sceneStates = [];
+  let usedNsfw = !!o.usingNsfw, lastRoute = { model: o.model, nsfw: !!o.usingNsfw };
   let previousTail = o.priorChapters && o.priorChapters.length
     ? String(o.priorChapters[o.priorChapters.length - 1].text || '').slice(-900)
     : '';
   for(let i = 0; i < graph.scenes.length; i++){
     const scene = graph.scenes[i];
     if(countWords(pieces.join('\n\n')) >= limits.maxAccept) break;
+    const route = adaptiveSceneRoute(scene, o, previousTail);
+    lastRoute = route;
+    if(route.nsfw && !usedNsfw){ usedNsfw = true; try{ setStatus('🔥 Scene ' + scene.id + ' có nội dung 18+ → ' + shortModelName(route.model), true); }catch(_){} }
       const prompt = buildAdaptiveSceneWritePrompt({
         state: st, scene, chapterGoal: graph.chapterGoal,
         endingAnchor: graph.endingAnchor, previousTail,
@@ -8302,13 +8323,13 @@ async function generateAdaptiveChapterText(o){
       allowedCast: chapterContract.allowedCharacters.join(', '),
       forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract,
       isFinalScene: i === graph.scenes.length - 1,
-      style: compactSceneStyleLock(o.usingNsfw)
+      style: compactSceneStyleLock(route.nsfw)
     });
     try{
       const r = await callAI(prompt, {
         maxTokens: Math.min(3600, Math.max(1100, Math.ceil(scene.targetWords * 1.9))),
-        temperature: o.usingNsfw ? 0.78 : 0.72,
-        modelOverride: o.model,
+        temperature: route.nsfw ? 0.78 : 0.72,
+        modelOverride: route.model,
         systemPrompt: SCENE_SYSTEM_PROMPT,
         frequency_penalty: 0.22,
         presence_penalty: 0.18,
@@ -8344,13 +8365,13 @@ async function generateAdaptiveChapterText(o){
       endingAnchor: graph.endingAnchor, previousTail: text.slice(-2400),
       stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
       requiredBeats, allowedCast: chapterContract.allowedCharacters.join(', '),
-      forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract, style: compactSceneStyleLock(o.usingNsfw)
+      forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract, style: compactSceneStyleLock(lastRoute.nsfw)
     });
     topUpAttempts++;
     try{
       const r = await callAI(topUpPrompt, {
         maxTokens: Math.min(4200, Math.max(1800, Math.ceil(needWords * 2.1) + 450)),
-        temperature: o.usingNsfw ? 0.76 : 0.70, modelOverride:o.model,
+        temperature: lastRoute.nsfw ? 0.76 : 0.70, modelOverride:lastRoute.model,
         frequency_penalty:0.22, presence_penalty:0.18, streaming:false
       });
       let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
@@ -8370,7 +8391,7 @@ async function generateAdaptiveChapterText(o){
     }
   }
   const underTarget = wc < limits.minAccept;
-  return {text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(compactChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats, topUpAttempts})), underTarget};
+  return {text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(compactChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, {requiredBeats, topUpAttempts})), underTarget, usedNsfw};
 }
 
 // V13.4: hàng rào cuối cho mọi nhánh tạo chương. Nếu Scene Graph lỗi/không parse được,
@@ -8547,6 +8568,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       if(adaptive && adaptive.text){
         rawText = adaptive.text;
         plan = adaptive.plan;
+        if(adaptive.usedNsfw && !usingNsfw){ usingNsfw = true; modeTag = "🔥 [NSFW] "; }
         if(adaptive.underTarget) setStatus("⚠ Scene Graph tạo chương dưới 4.500 từ; giữ bản nháp để người dùng quyết định.", true);
       }
     }

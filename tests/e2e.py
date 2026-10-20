@@ -103,10 +103,11 @@ with sync_playwright() as p:
         if "Lập Scene Graph" in prompt:
             calls["json"] += 1; calls["plan"] = calls.get("plan", 0) + 1
             plan = {"chapterGoal":"Nhân vật chính rời phố cũ trong đêm mưa","endingAnchor":"Gió vẫn thổi qua con phố vắng.",
-                    "scenes":[{"id":"S%d"%i,"purpose":"Diễn biến %d"%i,"beats":["Gió thổi qua phố"],"characters":[],"location":"Phố cũ","time":"Đêm","targetWords":1700,"mustChange":"Tâm trạng đổi","handoff":"Tiếp tục đi"} for i in (1,2,3)]}
+                    "scenes":[{"id":"S%d"%i,"purpose":"Diễn biến %d"%i,"beats":(["Cảnh sex đầu tiên giữa hai người trưởng thành"] if (calls.get("sex_plan") and i == 2) else ["Gió thổi qua phố"]),"characters":[],"location":"Phố cũ","time":"Đêm","targetWords":1700,"mustChange":"Tâm trạng đổi","handoff":"Tiếp tục đi"} for i in (1,2,3)]}
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":json.dumps(plan, ensure_ascii=False)},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "VIẾT SCENE TIẾP NỐI" in prompt or "TOP-UP" in prompt.upper() or "còn thiếu khoảng" in prompt:
             calls["json"] += 1; calls["scene"] = calls.get("scene", 0) + 1
+            calls.setdefault("scene_models", []).append(body.get("model"))
             # Câu khác nhau từng chút để bộ lọc lặp câu của app không xóa mất văn bản.
             calls["seq"] = calls.get("seq", 0) + 1
             text = "\n\n".join("Gió thổi qua con phố vắng số %d, nhân vật chính bước đi chậm rãi dưới cơn mưa thứ %d và nghĩ về chuyện cũ." % (calls["seq"]*1000+i, i) for i in range(150))
@@ -267,6 +268,15 @@ with sync_playwright() as p:
     names = page.evaluate("()=>__xta.state.characters.map(c=>c.name)")
     check("34. ↶ Hoàn tác khôi phục mục vừa gộp", "Bùi Lạc" in names or "nhân vật chính" in names, str(names))
     page.evaluate("()=>document.querySelector('.modal-overlay').remove()")
+    # ---- V14.0.5: định tuyến model 18+ theo TỪNG scene ----
+    calls["sex_plan"] = True; calls["scene_models"] = []; gate["mode"] = "pass"
+    page.evaluate("()=>{const s=__xta.state; s.apiEndpoint=document.getElementById('apiEndpoint').value||s.apiEndpoint; s.apiKey='test-key'; s.model='main/test'; s.modelNsfw='nsfw/test'; s.nsfwMode='auto'; s.mature=true; s.chapterMatureFocus='secondary'; s.autoContinueEnabled=false; s.spellCheckEnabled=false; s.nextChapterHint=''; s.directive='';}")
+    page.evaluate("()=>document.getElementById('writeChapterBtn').click()")
+    page.wait_for_timeout(800); wait_idle(90)
+    models = [m for m in calls.get("scene_models", []) if m]
+    check("36. Scene có beat 18+ dùng model NSFW, scene thường dùng model chính", "nsfw/test" in models and "main/test" in models, str(models))
+    page.evaluate("()=>{const s=__xta.state; s.mature=false;}")
+    calls["sex_plan"] = False
     check("35. Không lỗi JS trong cả phiên", not errs, "; ".join(errs)[:200])
 
     b.close()

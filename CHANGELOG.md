@@ -1573,3 +1573,11 @@ thay vì im lặng bỏ qua như trước.
 - Prompt hệ thống/scene bổ sung quy tắc chống sáo ngữ lặp, lời thoại đúng giọng, nhịp truyện và yêu cầu có đồng thuận/động lực rõ cho cảnh người lớn.
 - Sửa E2E: mock API theo pipeline Scene Graph (plan → scene → top-up → vá cục bộ); nhãn phiên bản kiểm tra v13/v14. 34/34 PASS.
 - Thêm `tests/v14_age_guard_scene.test.js` và `DEPLOY.md`.
+
+## [V14.0.5] — Định tuyến model 18+ theo từng scene
+
+- Sửa lỗi: model NSFW chỉ được chọn một lần cho cả chương (dựa vào đoạn cuối chương trước + mệnh lệnh), nên cảnh sex nằm trong Scene Graph/Outline của chương mới vẫn bị viết bằng model chính. Nay mỗi scene tự chọn model theo beat/purpose/mustChange/handoff của nó và đoạn cuối scene trước (cảnh nóng kéo dài không bị tụt về model chính giữa chừng). Top-up dùng model của scene cuối.
+- Chương có scene 18+ được đánh dấu `isNsfw` để hậu kỳ (tóm tắt chế độ người lớn) chạy đúng.
+- Pre-flight từ khóa tính thêm `nextChapterHint`.
+- Mức 18+ người dùng chọn (`explicitLevel`) nay thực sự tới prompt scene (trước đây chỉ có tên mức). Mức `wild` dùng chỉ dẫn của mức `strong`.
+- E2E #36 kiểm tra định tuyến theo scene.
