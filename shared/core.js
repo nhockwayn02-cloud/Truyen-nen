@@ -207,7 +207,7 @@ function buildAdaptiveSceneWritePrompt(o) {
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
-    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 900) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
     'Chỉ trả văn xuôi scene.'
   ].filter(Boolean).join('\n\n');
@@ -228,7 +228,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
     p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
     p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
-    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 800) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
     'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
   ].filter(Boolean).join('\n\n');
 }

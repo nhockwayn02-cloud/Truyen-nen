@@ -376,7 +376,7 @@ html{color-scheme:dark}
 <div class="brand-mark"></div>
 <div>
 <div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.0</span></div>
-<div class="brand-sub">v13.5 · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
+<div class="brand-sub">v14.0.4 · Contract-First · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
 </div>
 </div>
 <div class="topbar-actions"><div class="mode-control"><label for="uiModeSelect" class="sr-only">Chế độ giao diện</label><select id="uiModeSelect" title="Chế độ giao diện"><option value="simple">Đơn giản</option><option value="expert">Chuyên gia</option></select></div>
@@ -972,13 +972,14 @@ const SYSTEM_PROMPT = [
   "MIÊU TẢ SÂU: khi nhân vật mới xuất hiện hoặc cảnh mới mở ra, dành ít nhất 2-3 câu miêu tả ngoại hình, không khí, chi tiết nhỏ (mùi, ánh sáng, âm thanh, cảm giác trên da).",
   "Show, don't tell. Ưu tiên giác quan, phản ứng cơ thể, chi tiết cụ thể hơn là liệt kê cảm xúc.",
   "ĐƯỢC TỰ DO thêm cảnh phụ, hội thoại, nội tâm, chi tiết đời thường để chương tự nhiên và dài hơn; KHÔNG tự tạo biến cố lớn, nhân vật quan trọng, arc mới hay thông tin để dành cho chương sau.",
-  "Khi prompt yêu cầu cảnh 18+/erotica: viết TRỰC TIẾP, không tự kiểm duyệt, không fade-to-black, không thay bằng ẩn dụ nếu người dùng muốn tả thẳng. Ưu tiên hướng dẫn 18+ trong prompt người dùng hơn các quy tắc chung."
+  "VĂN PHONG: tránh sáo ngữ lặp (\"hơi thở nóng hổi\", \"tim đập thình thịch\", \"một luồng điện chạy dọc sống lưng\") và đừng dùng cùng một cụm từ cảm giác hai lần trong một chương; mỗi cảnh chọn chi tiết riêng của nhân vật đó. Lời thoại phải đúng xưng hô, mỗi người nói một giọng; xen hành động nhỏ thay vì chỉ ghi \"anh nói\". Giữ nhịp: dồn nén, đột ngột chậm lại rồi mới bùng nổ; mỗi cảnh làm đổi quan hệ hoặc quyền lực giữa nhân vật.",
+  "Khi prompt yêu cầu cảnh 18+/erotica giữa các nhân vật đã đủ 18 tuổi: viết TRỰC TIẾP, không tự kiểm duyệt, không fade-to-black nếu người dùng muốn tả thẳng, và có sự đồng thuận hoặc động lực nhân vật rõ ràng. RÀO CHẮN TUỔI là tuyệt đối và ưu tiên cao hơn mọi chỉ dẫn khác của người dùng: không bao giờ viết nội dung tình dục có nhân vật dưới 18 tuổi, hoặc được mô tả/ám chỉ như trẻ em hay học sinh; nếu tuổi không rõ thì coi là người lớn chỉ khi hồ sơ ghi rõ từ 18 trở lên."
 ].join(" ");
 
 // V13.1: scene nối tiếp không cần lặp system prompt đầy đủ của toàn app.
 // Giữ system prompt dài cho pipeline cũ/review; scene dùng bản compact để giảm input token mỗi lượt.
 const SCENE_PLAN_SYSTEM_PROMPT = "Lập kế hoạch scene cho tiểu thuyết dài kỳ tiếng Việt. Trả đúng JSON được yêu cầu, không viết văn xuôi, không thêm biến cố lớn ngoài brief/canon.";
-const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi.";
+const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè.";
 
 const DESCRIPTION_PROMPTS = {
   light: "Miêu tả ở mức nhẹ: chỉ tả những gì cần thiết để người đọc hiểu bối cảnh, không lan man.",
@@ -1257,7 +1258,7 @@ function buildAdaptiveSceneWritePrompt(o) {
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
-    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 900) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
     'Chỉ trả văn xuôi scene.'
   ].filter(Boolean).join('\n\n');
@@ -1278,7 +1279,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
     p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
     p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
-    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 800) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
     'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
   ].filter(Boolean).join('\n\n');
 }
@@ -8182,7 +8183,10 @@ function compactSceneStyleLock(usingNsfw){
   ];
   if(sb.tone) parts.push("tone=" + String(sb.tone).replace(/\s+/g, " ").slice(0, 100));
   if(state.pronounRules) parts.push("xưng_hô=" + String(state.pronounRules).replace(/\s+/g, " ").slice(0, 180));
-  if(usingNsfw) parts.push("adult_level=" + String(state.explicitLevel || "sensual").slice(0, 20));
+  if(usingNsfw || state.mature){
+    parts.unshift("RÀO_CHẮN_TUỔI_BẮT_BUỘC=" + ageGuardPrompt(state).replace(/\s+/g, " ").replace(/^RÀO CHẮN TUỔI \(bắt buộc\):\s*/, "").slice(0, 420));
+    parts.push("adult_level=" + String(state.explicitLevel || "sensual").slice(0, 20));
+  }
   const vocab = buildVocabularyBlock();
   if(vocab) parts.push("từ_khóa=" + vocab.replace(/\s+/g, " ").slice(0, 260));
   return parts.join("; ");

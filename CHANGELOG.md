@@ -1566,3 +1566,10 @@ thay vì im lặng bỏ qua như trước.
 - Every continuation reuses the exact routed model selected for the chapter; it does not fall back to the primary model.
 - Mature continuation prompt explicitly continues the same scene/momentum instead of ending early.
 - Normal writing behavior remains unchanged.
+
+## [V14.0.4] — Age guard trong pipeline cảnh, prompt văn phong, sửa E2E
+
+- **Bảo mật nội dung:** rào chắn tuổi 18+ trước đây chỉ có ở bước lập kế hoạch; nay được đặt ĐẦU Style Lock của mọi lượt viết scene và top-up. System prompt không còn cho chỉ dẫn 18+ của người dùng đè lên rào chắn tuổi.
+- Prompt hệ thống/scene bổ sung quy tắc chống sáo ngữ lặp, lời thoại đúng giọng, nhịp truyện và yêu cầu có đồng thuận/động lực rõ cho cảnh người lớn.
+- Sửa E2E: mock API theo pipeline Scene Graph (plan → scene → top-up → vá cục bộ); nhãn phiên bản kiểm tra v13/v14. 34/34 PASS.
+- Thêm `tests/v14_age_guard_scene.test.js` và `DEPLOY.md`.

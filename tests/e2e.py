@@ -29,7 +29,7 @@ with sync_playwright() as p:
     page.goto(URL); page.wait_for_timeout(1200)
 
     check("1. Trang tải, không lỗi JS", not errs, "; ".join(errs)[:200])
-    check("2. Nhãn phiên bản v12", "v12" in page.inner_text(".brand-sub"))
+    check("2. Nhãn phiên bản v13+/v14", any(v in page.inner_text(".brand-sub") for v in ("v13", "v14", "V14")))
 
     # IndexedDB có bản ghi truyện
     def idb_count():
@@ -99,6 +99,23 @@ with sync_playwright() as p:
         try: body = json.loads(req.post_data or "{}")
         except Exception: body = {}
         prompt = json.dumps(body.get("messages", []), ensure_ascii=False)
+        # V13/V14: pipeline Scene Graph — mock trả plan hợp lệ, scene đủ dài, rồi top-up nếu cần.
+        if "Lập Scene Graph" in prompt:
+            calls["json"] += 1; calls["plan"] = calls.get("plan", 0) + 1
+            plan = {"chapterGoal":"Nhân vật chính rời phố cũ trong đêm mưa","endingAnchor":"Gió vẫn thổi qua con phố vắng.",
+                    "scenes":[{"id":"S%d"%i,"purpose":"Diễn biến %d"%i,"beats":["Gió thổi qua phố"],"characters":[],"location":"Phố cũ","time":"Đêm","targetWords":1700,"mustChange":"Tâm trạng đổi","handoff":"Tiếp tục đi"} for i in (1,2,3)]}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":json.dumps(plan, ensure_ascii=False)},"finish_reason":"stop"}]}, ensure_ascii=False)); return
+        if "VIẾT SCENE TIẾP NỐI" in prompt or "TOP-UP" in prompt.upper() or "còn thiếu khoảng" in prompt:
+            calls["json"] += 1; calls["scene"] = calls.get("scene", 0) + 1
+            # Câu khác nhau từng chút để bộ lọc lặp câu của app không xóa mất văn bản.
+            calls["seq"] = calls.get("seq", 0) + 1
+            text = "\n\n".join("Gió thổi qua con phố vắng số %d, nhân vật chính bước đi chậm rãi dưới cơn mưa thứ %d và nghĩ về chuyện cũ." % (calls["seq"]*1000+i, i) for i in range(150))
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":text},"finish_reason":"stop"}]}, ensure_ascii=False)); return
+        if "VÁ CỤC BỘ BẢN THẢO" in prompt:
+            # Chương V13+ dài ~5.000 từ nên không thể viết lại cả chương: AI chỉ trả danh sách vá.
+            calls["json"] += 1; calls["patch"] = calls.get("patch", 0) + 1
+            patch = {"patches":[{"op":"insert_before_end","text":"Anh dừng lại ở góc phố, nhìn con đường cũ rồi mới bước tiếp về phía trước."}]}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":json.dumps(patch, ensure_ascii=False)},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "ĐOẠN VĂN =====" in prompt:
             calls["json"] += 1
             src = json.loads(prompt)[-1]["content"].split("===== ĐOẠN VĂN =====")[-1].strip()
@@ -150,7 +167,7 @@ with sync_playwright() as p:
         page.wait_for_timeout(500)
         if page.evaluate("()=>__xta.state.chapters.length") > before: break
     after = page.evaluate("()=>__xta.state.chapters.length")
-    check("14. Viết chương với API giả -> có chương mới", after == before + 1, f"{before}->{after}, gọi stream={calls['stream']} json={calls['json']}")
+    check("14. Viết chương với API giả -> có chương mới", after == before + 1, f"{before}->{after}, gọi stream={calls['stream']} json={calls['json']} plan={calls.get('plan',0)} scene={calls.get('scene',0)}")
     if after > before:
         ln = page.evaluate("()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return (c.text||c.content||'').length}")
         check("15. Nội dung chương không rỗng", ln > 100, str(ln))
