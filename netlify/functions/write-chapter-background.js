@@ -123,7 +123,10 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Có thể gom nhiều beat vào một scene hoặc tách một beat thành nhiều scene nếu nhịp truyện cần.',
     'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
     'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
-    'Không thêm biến cố lớn ngoài brief/canon. Không viết văn xuôi.',
+    'Không thêm biến cố lớn ngoài brief/canon. Không tự biến nhân vật phụ/nhân vật mới thành tuyến chính nếu Outline/Arc không giao việc đó. Không đổi nghề, tài nguyên, địa vị hoặc mục tiêu sinh tồn của nhân vật chính.',
+    o.arcProgress ? 'ARC/OUTLINE LOCK — chương này bắt buộc đi đúng hướng sau, không được mở tuyến thay thế:\n' + String(o.arcProgress).replace(/\s+/g, ' ').slice(0, 2600) : '',
+    o.allowedCast ? 'ALLOWED CAST — chỉ dùng các nhân vật/tên dưới đây; nhân vật khác chỉ được xuất hiện thoáng qua nếu chính Outline/Brief cho phép và không được thành tuyến chính:\n' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1800) : '',
+    o.forbiddenDrift ? 'FORBIDDEN DRIFT — tuyệt đối không làm các hướng sau:\n' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 1200) : '',
     'Trả duy nhất JSON object hợp lệ theo schema: {"chapterGoal":"","endingAnchor":"","scenes":[{"id":"S1","purpose":"","beats":[""],"characters":[""],"location":"","time":"","targetWords":900,"mustChange":"","handoff":""}]}',
     o.requiredBeats ? 'REQUIRED BEAT CHECKLIST — PHẢI PHÂN BỔ VÀO SCENE, KHÔNG ĐƯỢC BỎ SÓT:\n' + String(o.requiredBeats).slice(0, 1800) : '',
     'Bối cảnh/canon:\n' + String(o.context || '').slice(0, 18000),
@@ -163,6 +166,8 @@ function buildAdaptiveSceneWritePrompt(o) {
     'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
     o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
     o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
     o.previousTail ? (o.isOpeningScene
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
@@ -183,6 +188,8 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     'Đây chưa phải điểm kết: nếu đoạn cuối hiện tại có vẻ đã khép, coi đó là chuyển nhịp và tiếp tục hợp lý; chỉ dừng sau khi tạo thêm diễn biến, phản ứng, thông tin, quyết định hoặc hậu quả có thật.',
     p.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(p.chapterGoal).replace(/\s+/g, ' ').slice(0, 500) : '',
     p.requiredBeats ? 'REQUIRED BEATS CÒN PHẢI ĐẢM BẢO:\n' + String(p.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    p.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(p.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    p.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(p.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
     p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
     p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
@@ -1232,7 +1239,7 @@ function buildSegmentRepairPrompt(p) {
   return [
     "SỬA THEO VÙNG BẢN THẢO CHƯƠNG " + p.chapterNumber + " THEO QUALITY REVIEW.",
     "Không viết lại cả chương. Chọn đúng MỘT vùng nhỏ nhất chứa lỗi được nêu (thường 1 cảnh hoặc 2–8 đoạn), rồi viết lại chỉ vùng đó.",
-    "Giữ nguyên mọi sự kiện, nhân vật, POV, xưng hô, thời gian, điểm kết và thông tin canon. Không thêm biến cố lớn, không mở arc mới.",
+    "Nếu lỗi là tuyến phụ/nhân vật mới làm lệch Arc, được phép thay toàn bộ vùng đó bằng một đoạn cầu nối hoặc cảnh đúng Outline; không cố giữ tuyến sai. Không thêm nhân vật/tuyến mới.",
     p.storyControl || "", p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 5000, false) : "",
@@ -1244,7 +1251,7 @@ function buildSegmentRepairPrompt(p) {
     "QUY TẮC MỐC:",
     "- start và end phải chép đúng từng chữ từ BẢN THẢO, không dùng mã [R], mô tả vị trí hoặc câu tự chế.",
     "- start phải đứng trước end; vùng thay thế không quá khoảng 30% chương.",
-    "- replacement phải là văn xuôi tiếng Việt thuần, nối mượt với phần trước/sau; không ghi chú, không tiêu đề.",
+    "- replacement phải là văn xuôi tiếng Việt thuần, nối mượt với phần trước/sau; không ghi chú, không tiêu đề; với tuyến drift phải chuyển về đúng Arc/Outline.",
     "- Với cảnh bị dài, replacement có thể ngắn hơn bản cũ nhưng vẫn phải giữ nguyên nguyên nhân–kết quả và điểm kết.",
     "BẢN THẢO HIỆN TẠI:\n" + (p.draft || "")
   ].filter(Boolean).join("\n\n");

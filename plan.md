@@ -28,3 +28,4 @@ Tạo chương tiểu thuyết tiếng Việt dài khoảng 4.500–5.500 từ, 
 - V13.0: đợt đầu giới hạn từ + helper Scene Graph + client scene writer + regression.
 - V13.1: system prompt compact riêng cho Scene Graph/scene writer; contract/state/tail được rút gọn, loại bỏ `lastTail` trùng và chỉ gửi ending anchor ở scene cuối.
 - V13.2: Adaptive Scene Top-up và Hard Fail bắt buộc cho chương dưới 4.500 từ.
+- V13.6: gom rào chắn Arc/Outline, allowed cast và forbidden drift vào Scene Graph, từng scene và top-up; không để nhân vật mới tự mở tuyến chính ngoài Arc.

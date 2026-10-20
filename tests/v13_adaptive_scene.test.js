@@ -50,6 +50,19 @@ test('scene đầu chương khóa nối địa điểm với đoạn kết trư�
   assert(/địa điểm, thời điểm và người/.test(prompt));
 });
 
+test('Scene Graph khóa Arc, allowed cast và chống tuyến drift', () => {
+  const prompt = T.buildAdaptiveScenePlanPrompt({
+    state: { minChapterWords: 5000 }, context: 'Arc 1: trả thù trong công ty',
+    arcProgress: 'Arc 1 — trả thù trong công ty Vĩnh Phát; chương này phải tiếp tục khai thác Trần Mỹ Duyên',
+    allowedCast: 'Bùi Lạc, Trần Mỹ Duyên, Lâm Tịnh Nhã',
+    forbiddenDrift: 'Không chuyển sang tuyến vệ sĩ/Kim Chi/khách sạn nếu Outline không ghi rõ.'
+  });
+  assert(/ARC\/OUTLINE LOCK/.test(prompt));
+  assert(/ALLOWED CAST/.test(prompt));
+  assert(/FORBIDDEN DRIFT/.test(prompt));
+  assert(/Không tự biến nhân vật phụ/.test(prompt));
+});
+
 test('state delta không chứa lastTail để tránh gửi đuôi scene hai lần', () => {
   const delta = T.compactSceneStateDelta({ sceneId: 'S1', location: 'phòng', lastTail: 'lặp rất dài', handoff: 'tiếp' });
   assert.strictEqual(delta.lastTail, undefined);
@@ -104,4 +117,4 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
-console.log(`\n${pass}/12 PASS`);
+console.log(`\n${pass}/13 PASS`);

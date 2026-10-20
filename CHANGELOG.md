@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V13.6] — Arc Lock và chống Plot Drift
+
+- Scene Graph nhận Arc/Outline lock, allowed cast và danh sách hướng drift bị cấm; các scene và top-up đều giữ cùng ràng buộc.
+- Không cho AI tự biến nhân vật phụ/nhân vật mới thành tuyến chính hoặc tự đổi nghề, tài nguyên, địa vị và mục tiêu sinh tồn của nhân vật chính.
+- Segment Repair được hướng dẫn thay toàn bộ vùng tuyến phụ sai bằng đoạn cầu nối đúng Outline thay vì cố giữ tuyến drift.
+- Thêm regression cho Arc lock, allowed cast và forbidden drift; toàn bộ client/worker parity đã PASS.
+
 ## [V13.5] — Hard Minimum không phụ thuộc cờ cũ
 
 - Hard minimum 4.500 từ nay luôn được áp dụng, kể cả Story Record cũ đang lưu `adaptiveScenePipeline=false`.
