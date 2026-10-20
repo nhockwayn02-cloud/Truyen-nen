@@ -36,9 +36,11 @@ test('V14 Contract Validator từ chối nhân vật ngoài cast và thiếu mus
   assert(result.errors.some(x => /Kim Chi/.test(x)));
 });
 
-test('V14 scene validator chặn known character ngoài Contract', () => {
-  const result = T.validateSceneTextAgainstContract('Kim Chi bước vào khách sạn.', { allowedCharacters:['Bùi Lạc'], knownCharacters:['Kim Chi'] });
-  assert(!result.ok && result.errors.some(x => /Kim Chi/.test(x)));
+test('V14 Canon Cast cho phép nhân vật hợp lệ ngoài Active Cast', () => {
+  const contract = { allowedCharacters:['Bùi Lạc'], canonicalCharacters:['Bùi Lạc','Trần Mỹ Duyên'] };
+  const plan = T.normalizeAdaptiveScenePlan({ chapterGoal:'g', endingAnchor:'e', scenes:[{id:'S1', characters:['Trần Mỹ Duyên'], mustChange:'m', handoff:'h'}] }, {});
+  assert(T.validateAdaptiveScenePlan(plan, contract).ok);
+  assert(T.validateSceneTextAgainstContract('Trần Mỹ Duyên bước vào phòng. Bùi Lạc đặt tập hồ sơ lên bàn và chờ cô đọc hết những dòng ghi chú về cuộc họp tối nay.', contract).ok);
 });
 
 test('V14 parser cứu Scene Graph trong markdown/lời dẫn/phần thừa', () => {

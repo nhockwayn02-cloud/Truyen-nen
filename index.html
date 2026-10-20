@@ -1182,7 +1182,8 @@ function compactChapterContract(contract) {
     arcGoal: String(c.arcGoal || '').replace(/\s+/g, ' ').slice(0, 700),
     chapterOutline: String(c.chapterOutline || '').replace(/\s+/g, ' ').slice(0, 1000),
     requiredBeats: Array.isArray(c.requiredBeats) ? c.requiredBeats.map(x => String(x).replace(/\s+/g, ' ').slice(0, 400)).filter(Boolean).slice(0, 8) : [],
-    allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 12) : [],
+    allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 24) : [],
+    canonicalCharacters: Array.isArray(c.canonicalCharacters) ? c.canonicalCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : (Array.isArray(c.knownCharacters) ? c.knownCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : []),
     forbiddenDrift: Array.isArray(c.forbiddenDrift) ? c.forbiddenDrift.map(x => String(x).replace(/\s+/g, ' ').slice(0, 300)).filter(Boolean).slice(0, 8) : [],
     openingContinuity: String(c.openingContinuity || '').replace(/\s+/g, ' ').slice(-1200),
     mustChange: String(c.mustChange || '').replace(/\s+/g, ' ').slice(0, 600),
@@ -1192,7 +1193,8 @@ function compactChapterContract(contract) {
 }
 
 function _contractNameSet(contract) {
-  return new Set((compactChapterContract(contract).allowedCharacters || []).map(normalizeName).filter(Boolean));
+  const c = compactChapterContract(contract);
+  return new Set([].concat(c.allowedCharacters || [], c.canonicalCharacters || []).map(normalizeName).filter(Boolean));
 }
 
 function _looksLikeNamedCharacter(value) {
@@ -1211,7 +1213,7 @@ function validateAdaptiveScenePlan(plan, contract) {
     if (!String(s.handoff || '').trim()) errors.push((s.id || 'scene') + ' thiếu handoff.');
     (s.characters || []).forEach(name => {
       const n = normalizeName(name);
-      if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài allowed cast: ' + String(name));
+      if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài Canon Cast: ' + String(name));
     });
   });
   const allPlan = JSON.stringify(p).toLowerCase();
@@ -8198,13 +8200,13 @@ function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
     priorChapters && priorChapters.length ? priorChapters[priorChapters.length - 1].text.slice(-1800) : ""].join(" ").toLowerCase();
   const allowed = [], known = [];
   const add = (arr, v) => { const s = String(v || "").replace(/\s+/g, " ").trim(); if(s && !arr.some(x => normalizeName(x) === normalizeName(s))) arr.push(s); };
-  if(st && st.mainCharProfile) add(allowed, st.mainCharProfile.name);
+  if(st && st.mainCharProfile){ add(allowed, st.mainCharProfile.name); add(known, st.mainCharProfile.name); }
   ((st && st.characters) || []).forEach(c => { const name = c && (c.name || c.fullName); if(!name) return; add(known, name); if(source.includes(String(name).toLowerCase())) add(allowed, name); });
   const required = [];
   if(outlineLine) required.push("[OUTLINE Ch" + n + "] " + outlineLine);
   if(arcGoal) required.push("[ARC] " + arcGoal);
   return { chapterNumber:n, arcGoal, chapterOutline:outlineLine, requiredBeats:required,
-    allowedCharacters:allowed, knownCharacters:known,
+    allowedCharacters:allowed, canonicalCharacters:known, knownCharacters:known,
     forbiddenDrift:["Không đổi mục tiêu Arc/Outline của chương.","Không tự biến nhân vật ngoài allowed cast thành tuyến chính.","Không đổi nghề, tài nguyên, địa vị hoặc lớp vỏ sinh tồn của nhân vật chính.","Không mở tuyến vệ sĩ, khách sạn, shop váy cưới hoặc tuyến xã hội khác nếu Outline không ghi rõ."],
     openingContinuity:priorChapters && priorChapters.length ? priorChapters[priorChapters.length-1].text.slice(-1500) : "",
     mustChange:outlineLine || arcGoal || "Chương phải tạo một bước tiến không thể đảo ngược.", minWords:4500, maxWords:5500 };

@@ -132,7 +132,8 @@ function compactChapterContract(contract) {
     arcGoal: String(c.arcGoal || '').replace(/\s+/g, ' ').slice(0, 700),
     chapterOutline: String(c.chapterOutline || '').replace(/\s+/g, ' ').slice(0, 1000),
     requiredBeats: Array.isArray(c.requiredBeats) ? c.requiredBeats.map(x => String(x).replace(/\s+/g, ' ').slice(0, 400)).filter(Boolean).slice(0, 8) : [],
-    allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 12) : [],
+    allowedCharacters: Array.isArray(c.allowedCharacters) ? c.allowedCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 24) : [],
+    canonicalCharacters: Array.isArray(c.canonicalCharacters) ? c.canonicalCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : (Array.isArray(c.knownCharacters) ? c.knownCharacters.map(x => String(x).trim().slice(0, 100)).filter(Boolean).slice(0, 60) : []),
     forbiddenDrift: Array.isArray(c.forbiddenDrift) ? c.forbiddenDrift.map(x => String(x).replace(/\s+/g, ' ').slice(0, 300)).filter(Boolean).slice(0, 8) : [],
     openingContinuity: String(c.openingContinuity || '').replace(/\s+/g, ' ').slice(-1200),
     mustChange: String(c.mustChange || '').replace(/\s+/g, ' ').slice(0, 600),
@@ -142,7 +143,8 @@ function compactChapterContract(contract) {
 }
 
 function _contractNameSet(contract) {
-  return new Set((compactChapterContract(contract).allowedCharacters || []).map(normalizeName).filter(Boolean));
+  const c = compactChapterContract(contract);
+  return new Set([].concat(c.allowedCharacters || [], c.canonicalCharacters || []).map(normalizeName).filter(Boolean));
 }
 
 function _looksLikeNamedCharacter(value) {
@@ -161,7 +163,7 @@ function validateAdaptiveScenePlan(plan, contract) {
     if (!String(s.handoff || '').trim()) errors.push((s.id || 'scene') + ' thiếu handoff.');
     (s.characters || []).forEach(name => {
       const n = normalizeName(name);
-      if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài allowed cast: ' + String(name));
+      if (_looksLikeNamedCharacter(name) && allowed.size && !allowed.has(n)) errors.push('Nhân vật ngoài Canon Cast: ' + String(name));
     });
   });
   const allPlan = JSON.stringify(p).toLowerCase();

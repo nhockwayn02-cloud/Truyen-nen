@@ -19,6 +19,12 @@
 - Tránh loại nhầm nhân vật canon hợp lệ như nhân vật được khai báo ở phần setup/consequence của Arc.
 - Nhân vật không có trong Story Bible/Outline vẫn bị chặn khi tự xuất hiện trong scene.
 
+## [V14.0.3] — Canon Cast / Active Cast Separation
+
+- Tách `canonicalCharacters` (toàn bộ nhân vật đã có trong Story Bible) khỏi `allowedCharacters` (nhân vật đang hoạt động trong Arc/chương).
+- Nhân vật canon như Trần Mỹ Duyên hoặc Lâm Tịnh Nhã không còn bị từ chối chỉ vì không nằm trong 12/24 nhân vật Active Cast được ưu tiên.
+- Nhân vật không tồn tại trong Canon vẫn bị validator chặn; bổ sung regression cho cả hai trường hợp.
+
 ## [V13.6] — Arc Lock và chống Plot Drift
 
 - Scene Graph nhận Arc/Outline lock, allowed cast và danh sách hướng drift bị cấm; các scene và top-up đều giữ cùng ràng buộc.
