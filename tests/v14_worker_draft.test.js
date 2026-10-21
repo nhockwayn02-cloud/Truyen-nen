@@ -25,9 +25,9 @@ function prose(seed, nWords) {
 }
 let shortScenes = false, topUpCalls = 0, planSeq = null;
 let calls = [], planOverride = null, reviewBroken = false, restartScene2 = false, scene1Text = "";
-const GRAPH = (chars) => JSON.stringify({
+const GRAPH = (chars, mention) => JSON.stringify({
   chapterGoal: "Lan bảo vệ hồ sơ trước khi khách đến", endingAnchor: "Lan khóa cửa văn phòng lúc bác sĩ gọi điện.",
-  scenes: [1, 2, 3].map(n => ({ id: "S" + n, location: "Văn phòng", time: "Tối " + n, characters: chars, purpose: "tiến triển " + n, beats: ["beat " + n], mustChange: "Lan biết thêm điều " + n, handoff: "sang cảnh " + (n + 1), targetWords: 1700 }))
+  scenes: [1, 2, 3].map(n => ({ id: "S" + n, location: "Văn phòng", time: "Tối " + n, characters: chars, purpose: "tiến triển " + n, beats: ["beat " + n + (mention ? " " + mention : "")], mustChange: "Lan biết thêm điều " + n, handoff: "sang cảnh " + (n + 1), targetWords: 1700 }))
 });
 global.fetch = async (url, init) => {
   const body = JSON.parse(init.body); const sys = (body.messages.find(m => m.role === "system") || {}).content || ""; const prompt = JSON.stringify(body.messages);
@@ -121,8 +121,28 @@ async function run(name, extra = {}, stateExtra = {}) {
   assert.strictEqual(r.job.status, "failed");
   assert(/PLAN_REJECTED: Không parse được JSON/.test(r.job.error) && /Tôi từ chối yêu cầu B/.test(r.job.error), "lỗi phải kèm trích đoạn model trả: " + r.job.error);
 
+  // 1e) Cast: tên một phần/alias hợp lệ qua ngay; vai phụ thoáng qua ngoài Story Bible bị gỡ (job vẫn chạy); vai gắn vào tình tiết thì bị từ chối
+  planOverride = GRAPH(["Lan", "Mỹ Duyên"]);
+  r = await run("cast_partial", { draftOnly: true, quickCheck: false }, { characters: [{ name: "Trần Mỹ Duyên" }] });
+  assert.strictEqual(r.job.status, "completed", "tên một phần phải hợp lệ: " + r.job.error);
+  assert.strictEqual(calls.filter(c => c === "plan").length, 1, "không cần thử lại plan");
+  planOverride = GRAPH(["Lan", "Trần Văn Hải"]);
+  r = await run("cast_incidental", { draftOnly: true, quickCheck: false }, { characters: [{ name: "Trần Mỹ Duyên" }] });
+  planOverride = null;
+  assert.strictEqual(r.job.status, "completed", "vai thoáng qua phải được gỡ thay vì fail: " + r.job.error);
+  assert(r.job.resultChapter.autoUpdateIssues.some(x => /đã gỡ vai ngoài Story Bible: Trần Văn Hải/.test(x)), JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+
+  // 1f) Nhân vật có tên trong chương trước (chưa vào Character Database) + tình tiết mang tên đó -> hợp lệ ngay, được thêm vào cast scene
+  planOverride = GRAPH(["Lan", "Trần Văn Hải"], "Trần Văn Hải gõ cửa");
+  r = await run("cast_prior", { draftOnly: true, quickCheck: false }, { characters: [{ name: "Trần Mỹ Duyên" }], chapters: [{ title: "Chương 1", text: "Trần Văn Hải bước vào quán lúc chiều muộn và nhìn Lan thật lâu. " + prose(9, 600), wordCount: 600, status: "SYNCED" }] });
+  planOverride = null;
+  assert.strictEqual(r.job.status, "completed", "nhân vật có trong chương trước phải hợp lệ: " + r.job.error);
+  assert.strictEqual(calls.filter(c => c === "plan").length, 1, "không phải thử lại plan");
+  assert(/Trần Văn Hải/.test(r.job.resultChapter.plan.split("ADAPTIVE SCENE GRAPH")[0]), "contract phải liệt kê nhân vật vào allowedCharacters");
+  assert(r.job.resultChapter.autoUpdateIssues.some(x => /chưa có trong Character Database: Trần Văn Hải/.test(x)), JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+
   // 2) Plan lệch cast -> PLAN_REJECTED, không lùi về writer cũ
-  planOverride = GRAPH(["Kim Chi Hoàng"]);
+  planOverride = GRAPH(["Kim Chi Hoàng"], "Kim Chi Hoàng chặn cửa");
   r = await run("reject", { draftOnly: true }, { characters: [{ name: "Lan" }] });
   planOverride = null;
   assert.strictEqual(r.job.status, "failed", "plan lệch phải làm job fail, đang là " + r.job.status);

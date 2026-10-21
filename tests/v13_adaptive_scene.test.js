@@ -192,3 +192,19 @@ test('V14.0.9 parser Scene Graph chịu <think>, lời dẫn có dấu {, và JS
   assert(c && c.chapterGoal === 'g' && c.scenes.length >= 1, 'JSON bị cắt phải được cứu: ' + JSON.stringify(c));
   assert(T.normalizeAdaptiveScenePlan('Xin lỗi, tôi không thể giúp việc này.', {}) === null, 'văn bản từ chối -> null');
 });
+
+test('V14.0.11 Canon Cast: tên một phần hợp lệ, lỗi gộp một dòng kèm tên', () => {
+  const contract = { allowedCharacters:['Bùi Lạc'], canonicalCharacters:['Bùi Lạc','Trần Mỹ Duyên'] };
+  const mk = chars => T.normalizeAdaptiveScenePlan({ chapterGoal:'g', endingAnchor:'e', scenes:[{id:'S1', characters:chars, mustChange:'m', handoff:'h'},{id:'S2', characters:chars, mustChange:'m', handoff:'h'}] }, {});
+  assert(T.validateAdaptiveScenePlan(mk(['Mỹ Duyên']), contract).ok, 'Mỹ Duyên ⊂ Trần Mỹ Duyên');
+  const r = T.validateAdaptiveScenePlan(mk(['Trần Văn Hải']), contract);
+  assert(!r.ok && r.errors.length === 1 && /Canon Cast: Trần Văn Hải \(/.test(r.errors[0]) && r.outsiders.length === 1, JSON.stringify(r.errors));
+});
+
+test('V14.0.12 nhân vật có tên trong Outline/chương trước nhưng chưa vào Character Database vẫn hợp lệ', () => {
+  const base = { allowedCharacters:['Bùi Lạc'], canonicalCharacters:['Bùi Lạc'] };
+  const plan = T.normalizeAdaptiveScenePlan({ chapterGoal:'g', endingAnchor:'e', scenes:[{id:'S1', characters:['Trần Văn Hải'], mustChange:'m', handoff:'h'}] }, {});
+  assert(!T.validateAdaptiveScenePlan(plan, base).ok, 'không có nguồn -> bị chặn');
+  assert(T.validateAdaptiveScenePlan(plan, Object.assign({}, base, { nameSource:'Chương 5: Bùi Lạc gặp trần văn hải ở quán' })).ok, 'có trong Outline/chương trước -> hợp lệ');
+  assert(T.validateAdaptiveScenePlan(plan, Object.assign({}, base, { nameSource:'... anh Văn Hải đã tới ...' })).ok, 'dạng rút gọn Văn Hải');
+});

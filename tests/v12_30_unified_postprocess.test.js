@@ -70,6 +70,7 @@ function validOutput() {
     assert.strictEqual(minh.appearance,undefined,'không điền ngoại hình bịa khi không có fieldEvidence');
     assert.strictEqual(minh.secret,undefined,'không điền bí mật suy đoán khi không có fieldEvidence');
     assert(!state.characters.some(c=>c.name==='An'),'không được tạo nhân vật mới tier major dù có evidence');
+    assert(r.tasks.NV.notes.some(x=>/NV bỏ qua: .*An \(AI xếp hạng "major"/.test(x)),'phải ghi rõ nhân vật nào bị bỏ qua và vì sao: '+JSON.stringify(r.tasks.NV.notes));
     assert.strictEqual(state.characters.filter(c=>c.name==='Minh').length,1,'không tạo trùng nhân vật');
     assert.strictEqual(state.locations.filter(x=>x.name==='Phố cũ').length,1,'không nhân đôi địa điểm');
     assert(!state.locations.some(x=>x.name==='Thành phố ma'),'không thêm địa điểm không xuất hiện trong chương dù quote unrelated là thật');

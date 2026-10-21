@@ -1611,3 +1611,18 @@ thay vì im lặng bỏ qua như trước.
 - Parser Scene Graph chịu được: khối `<think>…</think>`, lời dẫn chứa dấu `{`, JSON bị cắt giữa chừng (tự đóng ngoặc/chuỗi rồi để validator báo thiếu trường).
 - Lần plan đầu 2.600 token, lần thử lại 3.600 token (trước đây 1.900 → dễ bị cắt với model dài dòng); worker gọi plan qua `callExtract` (rỗng/bị cắt → tự gọi lại với ngân sách gấp đôi).
 - Thông báo lỗi nay kèm số ký tự, `finish_reason` và 140 ký tự đầu model trả về (vd model từ chối/để trống) để biết nguyên nhân thật.
+
+## [V14.0.11] — "Nhân vật ngoài Canon Cast" bớt chặn nhầm
+
+- So khớp tên theo từng tiếng: "Mỹ Duyên" hợp lệ nếu cast có "Trần Mỹ Duyên" (và ngược lại); alias của nhân vật/nhân vật chính được tính vào Canon Cast.
+- Lỗi gộp thành MỘT dòng kèm tên và hướng xử lý: `Nhân vật ngoài Canon Cast: A, B (nếu là nhân vật thật thì thêm vào Story Bible/Outline…)` (trước đây lặp theo từng scene và dễ bị cắt mất tên).
+- Sau 2 lượt plan, nếu lỗi DUY NHẤT là tên ngoài Canon Cast và tên đó chỉ nằm ở danh sách `characters` (không xuất hiện trong beats/purpose/mustChange/handoff/goal) thì gỡ tên khỏi plan và chạy tiếp (ghi chú "đã gỡ vai ngoài Story Bible"). Tên gắn vào tình tiết vẫn bị từ chối.
+
+## [V14.0.12] — Canon Cast đối chiếu cả Outline + chương trước
+
+- Validator Canon Cast nhận tên nhân vật nếu tên đó xuất hiện trong Outline/Arc, Mệnh lệnh/Gợi ý hoặc 6.000 ký tự cuối của 2 chương gần nhất (`nameSource`, không đưa vào prompt) — kể cả khi Character Database chưa được hậu kỳ cập nhật.
+- Nhân vật như vậy được thêm vào `allowedCharacters` của contract cho các scene sau, nên prompt scene không còn cấm đúng người mà Outline yêu cầu; chương ghi chú "nhân vật có trong Outline/chương trước nhưng chưa có trong Character Database: …".
+
+## [V14.0.13] — Hậu kỳ nhân vật: nói rõ vì sao bỏ qua
+
+- Ghi chú hậu kỳ nay liệt kê TÊN và LÝ DO khi một nhân vật không được thêm vào Character Database (evidence không khớp chương / tên không xuất hiện nguyên văn / thiếu chapterEvent / AI xếp hạng main-major nên không tự tạo). Trước đây chỉ có số "bỏ qua".
