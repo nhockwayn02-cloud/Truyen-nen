@@ -1605,3 +1605,9 @@ thay vì im lặng bỏ qua như trước.
 - Thêm `safeDedupeRepeatedScene`: nếu cắt mất > 20% số từ thì giữ nguyên; dùng cho chương Adaptive ở client và worker. Đoạn lặp lẻ được xử lý ở từng scene bằng `dropRepeatedParagraphs` (ngưỡng đoạn ≥ 8 từ).
 - Vòng bù từ: đếm từ SAU khi dọn (`deps.clean`), nhắm 4.500 + đệm ≤ 200 từ (bước khép câu cuối/khóa độ dài có thể bớt vài chục từ), tối đa 8 lượt; lượt hỏng (quá ngắn/lặp/không tăng) không làm dừng ngay, chỉ dừng sau 2 lượt hỏng liên tiếp.
 - Telemetry: "Adaptive: x/y scene (a từ thô → b sau dọn), n lượt bù từ…".
+
+## [V14.0.10] — PLAN_REJECTED "Không parse được JSON Scene Graph"
+
+- Parser Scene Graph chịu được: khối `<think>…</think>`, lời dẫn chứa dấu `{`, JSON bị cắt giữa chừng (tự đóng ngoặc/chuỗi rồi để validator báo thiếu trường).
+- Lần plan đầu 2.600 token, lần thử lại 3.600 token (trước đây 1.900 → dễ bị cắt với model dài dòng); worker gọi plan qua `callExtract` (rỗng/bị cắt → tự gọi lại với ngân sách gấp đôi).
+- Thông báo lỗi nay kèm số ký tự, `finish_reason` và 140 ký tự đầu model trả về (vd model từ chối/để trống) để biết nguyên nhân thật.

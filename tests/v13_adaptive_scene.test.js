@@ -180,3 +180,15 @@ test('V14.0.9 safeDedupeRepeatedScene không cắt cụt chương ghép scene kh
   const fixed = T.dropRepeatedParagraphs(s1, s1.split('\n\n').slice(0, 3).join('\n\n') + '\n\n' + s2);
   assert(T.countWords(fixed) >= T.countWords(s2) - 5 && T.countWords(fixed) <= T.countWords(s2) + 5, 'chỉ bỏ các đoạn lặp, giữ phần mới');
 });
+
+test('V14.0.9 parser Scene Graph chịu <think>, lời dẫn có dấu {, và JSON bị cắt giữa chừng', () => {
+  const full = '{"chapterGoal":"g","endingAnchor":"e","scenes":[{"id":"S1","mustChange":"m","handoff":"h"},{"id":"S2","mustChange":"m2","handoff":"h2"}]}';
+  const a = T.normalizeAdaptiveScenePlan('<think>để tôi nghĩ {a} thử</think>\n' + full, {});
+  assert(a && a.scenes.length === 2, 'think');
+  const b = T.normalizeAdaptiveScenePlan('Đây là kế hoạch {theo yêu cầu}: ' + full, {});
+  assert(b && b.chapterGoal === 'g', 'lời dẫn chứa {');
+  const cut = '{"chapterGoal":"g","endingAnchor":"e","scenes":[{"id":"S1","mustChange":"m","handoff":"h"},{"id":"S2","mustChange":"đang viết dở';
+  const c = T.normalizeAdaptiveScenePlan(cut, {});
+  assert(c && c.chapterGoal === 'g' && c.scenes.length >= 1, 'JSON bị cắt phải được cứu: ' + JSON.stringify(c));
+  assert(T.normalizeAdaptiveScenePlan('Xin lỗi, tôi không thể giúp việc này.', {}) === null, 'văn bản từ chối -> null');
+});

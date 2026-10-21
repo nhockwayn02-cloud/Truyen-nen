@@ -139,31 +139,51 @@ function buildAdaptiveScenePlanPrompt(o) {
 
 // V14.0.1: model đôi khi bọc JSON trong markdown hoặc thêm một câu dẫn.
 // Chỉ lấy object cân bằng đầu tiên; không coi phản hồi hợp lệ là plan rỗng.
+function _repairTruncatedJson(s) {
+  // Model bị cắt giữa chừng: đóng chuỗi/mảng/object còn mở rồi thử parse (chỉ dùng khi không còn cách khác).
+  const stack = []; let quoted = false, escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) { if (escaped) escaped = false; else if (ch === '\\') escaped = true; else if (ch === '"') quoted = false; continue; }
+    if (ch === '"') quoted = true; else if (ch === '{' || ch === '[') stack.push(ch); else if (ch === '}' || ch === ']') stack.pop();
+  }
+  let out = s;
+  if (quoted) out += '"';
+  out = out.replace(/[,:\s]+$/, '').replace(/,\s*"[^"]*"\s*$/, '');
+  while (stack.length) out += stack.pop() === '{' ? '}' : ']';
+  try { return JSON.parse(out); } catch (_) { return null; }
+}
+
 function parseAdaptiveScenePlanResponse(raw) {
   if (raw && typeof raw === 'object') return raw;
-  let s = String(raw || '').trim();
+  let s = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').replace(/<think(?:ing)?>[\s\S]*$/i, '').trim();
   if (!s) return null;
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   try { return JSON.parse(s); } catch (_) {}
-  const start = s.indexOf('{');
-  if (start < 0) return null;
-  let depth = 0, quoted = false, escaped = false;
-  for (let i = start; i < s.length; i++) {
-    const ch = s[i];
-    if (quoted) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === '"') quoted = false;
-      continue;
-    }
-    if (ch === '"') { quoted = true; continue; }
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) {
-        try { return JSON.parse(s.slice(start, i + 1)); } catch (_) { return null; }
+  // Thử từng dấu '{' làm điểm bắt đầu (lời dẫn có thể chứa '{' trước JSON thật).
+  let tried = 0, pos = s.indexOf('{');
+  while (pos >= 0 && tried < 6) {
+    tried++;
+    let depth = 0, quoted = false, escaped = false, end = -1;
+    for (let i = pos; i < s.length; i++) {
+      const ch = s[i];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') quoted = false;
+        continue;
       }
+      if (ch === '"') { quoted = true; continue; }
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
     }
+    if (end >= 0) {
+      try { const o = JSON.parse(s.slice(pos, end + 1)); if (o && typeof o === 'object' && (o.scenes || o.chapterGoal)) return o; } catch (_) {}
+    } else {
+      const fixed = _repairTruncatedJson(s.slice(pos));
+      if (fixed && typeof fixed === 'object' && (fixed.scenes || fixed.chapterGoal)) return fixed;
+    }
+    pos = s.indexOf('{', pos + 1);
   }
   return null;
 }
@@ -2158,11 +2178,13 @@ async function runAdaptiveChapterPipeline(o, deps) {
   for (let planAttempt = 1; planAttempt <= 2 && !graph; planAttempt++) {
     try {
       const correction = planAttempt > 1 ? "\nPLAN BỊ TỪ CHỐI. Sửa đúng lỗi Contract sau, không mở tuyến mới:\n" + planError : "";
-      const planRes = await callAI(planPrompt + correction, { maxTokens: 1900, temperature: 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
+      const planRes = await callAI(planPrompt + correction, { maxTokens: planAttempt > 1 ? 3600 : 2600, temperature: planAttempt > 1 ? 0.15 : 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
       const rawPlan = String(planRes && planRes.text || '');
       const candidate = normalizeAdaptiveScenePlan(rawPlan, st);
       if (!candidate) {
-        planError = 'Không parse được JSON Scene Graph; trả duy nhất JSON object, không markdown/lời dẫn.';
+        const snippet = rawPlan.replace(/\s+/g, ' ').trim().slice(0, 140);
+        planError = 'Không parse được JSON Scene Graph; trả duy nhất JSON object, không markdown/lời dẫn.'
+          + (rawPlan.trim() ? ' [model trả ' + rawPlan.length + ' ký tự' + (planRes && planRes.finishReason ? ', finish=' + planRes.finishReason : '') + ': "' + snippet + '"]' : ' [model trả RỖNG' + (planRes && planRes.finishReason ? ', finish=' + planRes.finishReason : '') + ']');
       } else {
         const checked = validateAdaptiveScenePlan(candidate, chapterContract);
         if (checked.ok) graph = candidate; else planError = checked.errors.join(' | ');
@@ -3541,7 +3563,8 @@ async function generateAdaptiveWorkerChapter(job, c) {
   const routingNsfwModel = String(job.modelNsfw || state.modelNsfw || "").trim();
   const callAI = async (prompt, opts) => {
     const planCall = opts.systemPrompt === SCENE_PLAN_SYSTEM_PROMPT;
-    const r = await callWithRetry({
+    // Plan: callExtract — rỗng/bị cắt (finish=length) thì tự gọi lại với ngân sách token gấp đôi.
+    const r = await (planCall ? callExtract : callWithRetry)({
       endpoint: job.apiEndpoint, apiKey: job.apiKey, model: opts.modelOverride || model,
       messages: [{ role: "system", content: opts.systemPrompt || SYSTEM_PROMPT }, { role: "user", content: prompt }],
       maxTokens: opts.maxTokens || 3000, temperature: opts.temperature,

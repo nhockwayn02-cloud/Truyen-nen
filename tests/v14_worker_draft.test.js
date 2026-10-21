@@ -23,7 +23,7 @@ function prose(seed, nWords) {
   }
   return paras.join("\n\n");
 }
-let shortScenes = false, topUpCalls = 0;
+let shortScenes = false, topUpCalls = 0, planSeq = null;
 let calls = [], planOverride = null, reviewBroken = false, restartScene2 = false, scene1Text = "";
 const GRAPH = (chars) => JSON.stringify({
   chapterGoal: "Lan bảo vệ hồ sơ trước khi khách đến", endingAnchor: "Lan khóa cửa văn phòng lúc bác sĩ gọi điện.",
@@ -34,7 +34,7 @@ global.fetch = async (url, init) => {
   const kind = prompt.includes("VIẾT BỔ SUNG TIẾP NỐI") ? "topup" : /Lập kế hoạch scene/.test(sys) ? "plan" : /scene nối tiếp/.test(sys) ? "scene" : prompt.includes("HẬU KỲ TỔNG HỢP CHO CHƯƠNG") ? "unified" : prompt.includes("QUALITY AUDITOR") ? "review" : "other";
   calls.push(kind);
   let content;
-  if (kind === "plan") content = planOverride || GRAPH(["Lan"]);
+  if (kind === "plan") content = (planSeq && planSeq.length) ? planSeq.shift() : (planOverride || GRAPH(["Lan"]));
   else if (kind === "topup") { topUpCalls++; content = (topUpCalls === 1 && shortScenes) ? "Quá ngắn." : prose(50 + topUpCalls, 700); }
   else if (kind === "scene") {
     const k = calls.filter(c => c === "scene").length;
@@ -109,6 +109,17 @@ async function run(name, extra = {}, stateExtra = {}) {
   assert(r.job.resultChapter.autoUpdateIssues.some(x => /Adaptive: 3\/3 scene/.test(x)), "phải có telemetry Adaptive: " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));
   // contract đưa vào prompt không chứa userBrief (chống tràn quy tắc chương vào mọi prompt)
   assert(!/"userBrief"/.test(r.job.resultChapter.plan), "plan/contract hiển thị không được chứa userBrief");
+
+  // 1d) Model trả văn bản rác ở lần plan đầu -> lần 2 đúng JSON thì vẫn chạy; rác cả hai lần -> lỗi có trích đoạn để chẩn đoán
+  planSeq = ["Xin lỗi, tôi không thể viết kế hoạch này."];
+  r = await run("plan_retry", { draftOnly: true, quickCheck: false });
+  assert.strictEqual(r.job.status, "completed", "plan lần 2 hợp lệ phải chạy tiếp: " + r.job.error);
+  assert.strictEqual(calls.filter(c => c === "plan").length, 2);
+  planSeq = ["Tôi từ chối yêu cầu A.", "Tôi từ chối yêu cầu B."];
+  r = await run("plan_garbage", { draftOnly: true, quickCheck: false });
+  planSeq = null;
+  assert.strictEqual(r.job.status, "failed");
+  assert(/PLAN_REJECTED: Không parse được JSON/.test(r.job.error) && /Tôi từ chối yêu cầu B/.test(r.job.error), "lỗi phải kèm trích đoạn model trả: " + r.job.error);
 
   // 2) Plan lệch cast -> PLAN_REJECTED, không lùi về writer cũ
   planOverride = GRAPH(["Kim Chi Hoàng"]);
