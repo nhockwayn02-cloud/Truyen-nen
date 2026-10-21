@@ -3,7 +3,7 @@ const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
 const box = { console, state: {} };
 vm.createContext(box);
-vm.runInContext(src + '\n;this.__t={chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,parseAdaptiveScenePlanResponse,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
+vm.runInContext(src + '\n;this.__t={safeDedupeRepeatedScene,dropRepeatedParagraphs,countWords,chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,parseAdaptiveScenePlanResponse,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);
 const T = box.__t;
 let pass = 0;
 function test(name, fn){ fn(); console.log('PASS ' + name); pass++; }
@@ -165,4 +165,18 @@ test('V14.0.6 forbidden drift cho phép chủ đề có trong Gợi ý/Mệnh l�
   assert(T.validateAdaptiveScenePlan(plan, Object.assign({}, base, { openingContinuity:'Cửa phòng khách sạn khép lại sau lưng Lạc.' })).ok);
   const r = T.validateAdaptiveScenePlan(plan, base);
   assert(/Outline\/Brief\/Gợi ý/.test(r.errors[0]), r.errors[0]);
+});
+
+test('V14.0.9 safeDedupeRepeatedScene không cắt cụt chương ghép scene khi chỉ có vài đoạn lặp lẻ', () => {
+  let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const ON = 'b c d g h k l m n t v x ch th nh kh ph tr gi qu'.split(' '), RI = 'a à á ạ e ê ề i í o ô ố ơ u ư ừ an ân ăn em ên in on ôn ơn un ang anh ênh inh ong ông ung ưng at ât ap ep ip op ôp ưc ac oc ai ay ôi'.split(' ');
+  const w = () => ON[Math.floor(rnd() * ON.length)] + RI[Math.floor(rnd() * RI.length)];
+  const prose = n => { const ps = []; let c = 0; while (c < n) { const k = 10 + Math.floor(rnd() * 12), a = []; for (let i = 0; i < k; i++) a.push(w()); ps.push(a.join(' ') + '.'); c += k; } return ps.join('\n\n'); };
+  const s1 = prose(1650), s2 = prose(1650), s3 = prose(1650);
+  const withDup = s1 + '\n\n' + s1.split('\n\n').slice(0, 3).join('\n\n') + '\n\n' + s2 + '\n\n' + s3;
+  const before = T.countWords(withDup);
+  const safe = T.safeDedupeRepeatedScene(withDup);
+  assert(T.countWords(safe) >= before * 0.8, 'safe dedupe không được mất > 20% từ: ' + before + ' -> ' + T.countWords(safe));
+  const fixed = T.dropRepeatedParagraphs(s1, s1.split('\n\n').slice(0, 3).join('\n\n') + '\n\n' + s2);
+  assert(T.countWords(fixed) >= T.countWords(s2) - 5 && T.countWords(fixed) <= T.countWords(s2) + 5, 'chỉ bỏ các đoạn lặp, giữ phần mới');
 });

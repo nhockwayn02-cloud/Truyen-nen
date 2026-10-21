@@ -23,6 +23,7 @@ function prose(seed, nWords) {
   }
   return paras.join("\n\n");
 }
+let shortScenes = false, topUpCalls = 0;
 let calls = [], planOverride = null, reviewBroken = false, restartScene2 = false, scene1Text = "";
 const GRAPH = (chars) => JSON.stringify({
   chapterGoal: "Lan bảo vệ hồ sơ trước khi khách đến", endingAnchor: "Lan khóa cửa văn phòng lúc bác sĩ gọi điện.",
@@ -30,13 +31,14 @@ const GRAPH = (chars) => JSON.stringify({
 });
 global.fetch = async (url, init) => {
   const body = JSON.parse(init.body); const sys = (body.messages.find(m => m.role === "system") || {}).content || ""; const prompt = JSON.stringify(body.messages);
-  const kind = /Lập kế hoạch scene/.test(sys) ? "plan" : /scene nối tiếp/.test(sys) ? "scene" : prompt.includes("HẬU KỲ TỔNG HỢP CHO CHƯƠNG") ? "unified" : prompt.includes("QUALITY AUDITOR") ? "review" : "other";
+  const kind = prompt.includes("VIẾT BỔ SUNG TIẾP NỐI") ? "topup" : /Lập kế hoạch scene/.test(sys) ? "plan" : /scene nối tiếp/.test(sys) ? "scene" : prompt.includes("HẬU KỲ TỔNG HỢP CHO CHƯƠNG") ? "unified" : prompt.includes("QUALITY AUDITOR") ? "review" : "other";
   calls.push(kind);
   let content;
   if (kind === "plan") content = planOverride || GRAPH(["Lan"]);
+  else if (kind === "topup") { topUpCalls++; content = (topUpCalls === 1 && shortScenes) ? "Quá ngắn." : prose(50 + topUpCalls, 700); }
   else if (kind === "scene") {
     const k = calls.filter(c => c === "scene").length;
-    content = prose(k, 1650);
+    content = prose(k, shortScenes ? 1000 : 1650);
     if (k === 1) scene1Text = content;
     if (k === 2 && restartScene2) content = scene1Text.split("\n\n").slice(0, 8).join("\n\n") + "\n\n" + content; // scene 2 mở đầu lại cảnh 1
   }
@@ -87,11 +89,20 @@ async function run(name, extra = {}, stateExtra = {}) {
   assert.strictEqual(r.job.status, "completed", "review lỗi không được làm fail nháp: " + r.job.error);
   assert(r.job.resultChapter.quickCheck && r.job.resultChapter.quickCheck.ok === false && r.job.resultChapter.status === "DRAFTED", "phiếu phải báo chưa chấm được: " + JSON.stringify(r.job.resultChapter.quickCheck));
 
+  // 1b2) Model viết scene ngắn (~3.000 từ) + lượt bù đầu hỏng (quá ngắn): vẫn phải bù tới >= 4.500 từ, không dừng ở ~4.100
+  shortScenes = true; topUpCalls = 0;
+  r = await run("draft_short", { draftOnly: true, quickCheck: false });
+  shortScenes = false;
+  assert(r.job.resultChapter, "draft_short phải xong: " + r.job.error);
+  assert(r.job.resultChapter.wordCount >= 4500, "chương phải bù đủ >= 4.500 từ, đang là " + r.job.resultChapter.wordCount + " " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+  assert(topUpCalls >= 3, "phải bù nhiều lượt (1 hỏng + >=2 tốt): " + topUpCalls);
+  assert(!r.job.resultChapter.autoUpdateIssues.some(x => /Thiếu từ/.test(x)), "không được báo thiếu từ: " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));
+
   // 1c) Scene 2 viết lặp phần mở đầu của scene 1 -> bị cắt, có ghi chú + telemetry
   restartScene2 = true;
   r = await run("draft_dup", { draftOnly: true, quickCheck: false });
   restartScene2 = false;
-  assert(r.job.resultChapter, "draft_dup phải xong: " + r.job.error);
+  assert(r.job.resultChapter, "draft_dup phải xong: " + r.job.error); if (process.env.DBG) console.log("DUP", r.job.resultChapter.wordCount, JSON.stringify(r.job.resultChapter.autoUpdateIssues));
   const dupParas = r.job.resultChapter.text.split("\n\n").filter(x => countWordsT(x) > 15);
   assert.strictEqual(new Set(dupParas).size, dupParas.length, "không được còn đoạn trùng nguyên văn");
   assert(r.job.resultChapter.autoUpdateIssues.some(x => /đã cắt 1 đoạn viết lặp/.test(x)), "phải ghi telemetry cắt lặp: " + JSON.stringify(r.job.resultChapter.autoUpdateIssues));

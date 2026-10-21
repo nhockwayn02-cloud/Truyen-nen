@@ -897,8 +897,17 @@ function dedupeRepeatedScene(text) {
 function dropRepeatedParagraphs(baseText, newText) {
   const baseG = _grams(_normWords(String(baseText || "")), 3);
   const paras = String(newText || "").split(/\n\s*\n+|\n/).map(p => p.trim()).filter(Boolean);
-  const kept = paras.filter(p => { const w = _normWords(p); return w.length < 15 || _sim(_grams(w, 3), baseG) < 0.7; });
+  const kept = paras.filter(p => { const w = _normWords(p); return w.length < 8 || _sim(_grams(w, 3), baseG) < 0.7; });
   return kept.join("\n\n");
+}
+
+// V14.0.9: dedupeRepeatedScene được viết cho trường hợp model xuất LẠI cả chương (cắt từ chỗ lặp trở đi, mất tới ~50%).
+// Với chương Adaptive do code tự ghép scene, chỉ vài đoạn lặp lẻ cũng có thể khiến nó cắt cụt 3.000+ từ ("tụt" xuống ~4.100/3.400 từ).
+// Bản an toàn: nếu cắt mất > 20% số từ thì GIỮ NGUYÊN (đoạn lặp lẻ đã được dropRepeatedParagraphs xử lý ở từng scene).
+function safeDedupeRepeatedScene(text, minKeep) {
+  const src = String(text || ""), d = dedupeRepeatedScene(src);
+  if (d.length >= src.length) return src;
+  return countWords(d) >= countWords(src) * (minKeep || 0.8) ? d : src;
 }
 
 function dropRestartedContinuation(baseText, contText) {
@@ -2226,13 +2235,20 @@ async function runAdaptiveChapterPipeline(o, deps) {
       return null;
     }
   }
-  let text = pieces.join('\n\n').trim();
-  let wc = countWords(text), topUpAttempts = 0;
+  const clean = typeof deps.clean === 'function' ? deps.clean : (t => t);
+  let text = clean(pieces.join('\n\n').trim()).trim();
+  let wc = countWords(text), topUpAttempts = 0, topUpFails = 0;
+  const wordsAfterScenes = wc, wordsBeforeClean = countWords(pieces.join(' '));
   // V13.2: Adaptive Scene không được kết thúc dưới minAccept. Top-up chỉ gửi đuôi + state delta,
   // không gửi lại toàn bộ chương; chỉ kích hoạt khi các scene ban đầu bị model trả thiếu.
-  while (wc < limits.minAccept && topUpAttempts < 6) {
+  // V14.0.9: (1) đếm từ SAU khi dọn (cắt lặp/rò tiếng Anh) để không "đủ 4.500" rồi tụt xuống 4.100 ở bước dọn cuối;
+  // (2) nhắm minAccept + đệm (bước khép câu cuối/khóa độ dài có thể bớt vài chục từ); (3) lượt bù hỏng (quá ngắn/lặp/không tăng)
+  // không làm dừng ngay — chỉ dừng sau 2 lượt hỏng LIÊN TIẾP; tối đa 8 lượt.
+  const buffer = Math.min(200, Math.max(0, limits.maxAccept - limits.minAccept - 100));
+  const goal = limits.minAccept + buffer;
+  while (wc < goal && topUpAttempts < 8 && topUpFails < 2) {
     if (timeLeft() < minTopUpMs) { timedOut = true; break; }
-    const needWords = Math.min(1800, limits.minAccept - wc);
+    const needWords = Math.min(1800, goal - wc);
     const topUpPrompt = buildAdaptiveSceneTopUpPrompt({
       state: st, currentWords: wc, needWords, chapterGoal: graph.chapterGoal,
       endingAnchor: graph.endingAnchor, previousTail: text.slice(-2400),
@@ -2250,22 +2266,23 @@ async function runAdaptiveChapterPipeline(o, deps) {
       let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
       if (detectNonVietnamese(extra)) extra = stripForeign(extra);
       { const d = dropRepeatedParagraphs(text, extra); if (d.length < extra.length) { dupDropped++; extra = d.trim(); } }
-      if (countWords(extra) < 80) break;
+      if (countWords(extra) < 80) { topUpFails++; continue; }
       const extraCheck = validateSceneTextAgainstContract(extra, chapterContract);
       if (!extraCheck.ok) return { rejected: true, reason: 'TOPUP_REJECTED: ' + extraCheck.errors.join(' | ') };
       const before = wc;
-      text = text ? text + '\n\n' + extra : extra;
-      wc = countWords(text);
-      if (wc <= before) break;
+      const merged = clean((text ? text + '\n\n' + extra : extra).trim()).trim();
+      const mergedWc = countWords(merged);
+      if (mergedWc <= before) { topUpFails++; continue; }
+      text = merged; wc = mergedWc; topUpFails = 0;
       previousTail = text.slice(-1200);
       sceneStates.push({ sceneId: 'TOPUP' + topUpAttempts, handoff: 'Đã bổ sung ' + (wc - before) + ' từ; tiếp tục nếu còn thiếu.' });
     } catch (e) {
       if (deps.warn) deps.warn('[AdaptiveScene] top-up failed', e && e.message);
-      break;
+      topUpFails++;
     }
   }
   const underTarget = wc < limits.minAccept;
-  const stats = { scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
+  const stats = { scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
   return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(promptChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut, stats };
 }
 // <<SHARED-CORE:END>>
@@ -3552,6 +3569,8 @@ async function generateAdaptiveWorkerChapter(job, c) {
       requiredBeats: adaptiveRequiredBeatBlock,
       style: compactSceneStyleLock,
       timeLeft: left, minSceneMs: 80000, minTopUpMs: 80000,
+      // Dọn văn bản NGAY trong vòng bù từ để số từ đếm là số từ thật sau khi cắt lặp/rò tiếng Anh.
+      clean: (t) => { let x = formatParagraphs(stripForeign(stripThinkingOutput(String(t || "")))); x = safeDedupeRepeatedScene(x); x = removeEnglishLeaksDetailed(x).text; return x; },
       onNsfw: () => {}, warn: (...a) => console.warn(...a)
     }
   );
@@ -3559,7 +3578,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
   if (res.rejected) throw new Error(res.reason);
   const issues = [];
   let text = formatParagraphs(stripForeign(stripThinkingOutput(String(res.text || ""))));
-  { const dd = dedupeRepeatedScene(text); if (dd.length < text.length) { text = dd; issues.push("Đã cắt phần chương bị viết lặp lại từ đầu"); } }
+  { const dd = safeDedupeRepeatedScene(text); if (dd.length < text.length) { text = dd; issues.push("Đã cắt phần chương bị viết lặp lại từ đầu"); } }
   { const _el = removeEnglishLeaksDetailed(text); if (_el.removed.length) { text = _el.text; issues.push("Đã xóa " + _el.removed.length + " câu/đoạn tiếng Anh lẫn vào truyện"); } }
   const cap = trimToWordLimit(text, maxWords);
   text = cap.text;
@@ -3572,7 +3591,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
   }
   const wordCount = countWords(text);
   if (res.underTarget || wordCount < 4500) issues.push("Thiếu từ: " + wordCount + "/4500" + (res.timedOut ? " (hết thời gian job)" : ""));
-  if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene, " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
+  if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene (" + res.stats.wordsBeforeClean + " từ thô → " + res.stats.wordsAfterScenes + " sau dọn), " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
   const title = String(state.chapterTitle || state.currentChapterTitle || ("Chương " + chapterNumber)).trim() || ("Chương " + chapterNumber);
   const _sc = normalizeStoryControl(state);
   const control = { focus: normalizeChapterMatureFocus(state.chapterMatureFocus), maxMainEvents: _sc.maxMainEvents, maxNamedCharacters: _sc.maxNamedCharacters, noRetcon: _sc.noRetcon };

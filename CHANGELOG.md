@@ -1598,3 +1598,10 @@ thay vì im lặng bỏ qua như trước.
 - V14.0.8: **sửa lỗi V14.0.7** — `userBrief` (Mệnh lệnh/Gợi ý, tới 2.000 ký tự) bị đưa vào JSON contract của MỌI prompt plan/scene/top-up và khung "Kế hoạch". Nay contract đưa vào prompt/hiển thị dùng `promptChapterContract` (không có `userBrief`); `userBrief` chỉ dùng để validator đối chiếu.
 - Scene/top-up mở đầu lại cảnh đã viết: các đoạn gần trùng nguyên văn (≥ 70% trigram) bị bỏ, giữ phần mới (`dropRepeatedParagraphs`); scene chỉ còn < 80 từ thì bỏ qua và để top-up bù.
 - Telemetry trong cảnh báo chương nháp: "Adaptive: x/y scene, n lượt bù từ, [cắt k đoạn lặp,] t giây" (kèm "DỪNG SỚM" nếu hết giờ job) để biết vì sao chương thiếu từ.
+
+## [V14.0.9] — Chương Adaptive không còn tụt xuống ~4.100 từ
+
+- **Nguyên nhân:** `dedupeRepeatedScene` (viết cho trường hợp model xuất lại cả chương, cắt từ chỗ lặp trở đi) bị áp lên chương do code tự ghép scene. Chỉ cần vài đoạn lặp lẻ là nó cắt cụt hàng nghìn từ SAU khi bước bù từ đã coi chương "đủ 4.500" (tái hiện: 5.034 từ thô → 1.660 từ).
+- Thêm `safeDedupeRepeatedScene`: nếu cắt mất > 20% số từ thì giữ nguyên; dùng cho chương Adaptive ở client và worker. Đoạn lặp lẻ được xử lý ở từng scene bằng `dropRepeatedParagraphs` (ngưỡng đoạn ≥ 8 từ).
+- Vòng bù từ: đếm từ SAU khi dọn (`deps.clean`), nhắm 4.500 + đệm ≤ 200 từ (bước khép câu cuối/khóa độ dài có thể bớt vài chục từ), tối đa 8 lượt; lượt hỏng (quá ngắn/lặp/không tăng) không làm dừng ngay, chỉ dừng sau 2 lượt hỏng liên tiếp.
+- Telemetry: "Adaptive: x/y scene (a từ thô → b sau dọn), n lượt bù từ…".
