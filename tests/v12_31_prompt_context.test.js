@@ -11,7 +11,7 @@ const snippet = source.slice(start, end);
 
 function makeState(overrides = {}) {
   return Object.assign({
-    advancedRules: '', antagonist: '', directive: '', nextChapterHint: '', autoNextChapterHint: '',
+    advancedRules: '', antagonist: '', directive: '', nextChapterHint: '', nextChapterHintMeta: { targetChapter: 0, version: 0, status: 'unverified' }, autoNextChapterHint: '',
     mainCharProfile: null, mainPlot: '', genre: '', worldSetting: '', worldRules: '', worldDescription: '',
     pronounRules: '', storyBibleLocked: false, styleBible: {}, chapters: [], lastStatusChapter: 0,
     storyClock: '', arcs: [], outlinePlans: [], scenes: [], includeScenesInPrompt: false, consentLog: [],
@@ -37,6 +37,7 @@ function makeContext(state) {
     EXPLICIT_PROMPTS: { sensual: 'sensual description' },
     ageGuardPrompt: () => '',
     storyControlPromptClient: () => 'story control',
+    normalizeStoryControl: (st) => ({ maxNamedCharacters: Math.max(1, Math.min(6, Number(st && st.storyControl && st.storyControl.maxNamedCharacters) || 4)) }),
     characterLockPromptClient: () => '',
     storySoFarPrompt: () => '',
     openLoopsPrompt: () => '',
@@ -44,10 +45,18 @@ function makeContext(state) {
     arcProgressPrompt: () => '',
     appearanceAnchorPrompt: () => '',
     progressRulesPrompt: () => '',
-    buildLengthPlan: () => ''
+    buildLengthPlan: () => '',
+    vietnameseNovelWritingPrompt: () => 'CHẤT LƯỢNG VĂN XUÔI TIẾNG VIỆT: Giữ POV và tách người nói thành đoạn riêng.'
   };
   vm.createContext(ctx);
   vm.runInContext(snippet, ctx);
+  ctx.chapterHintVerification = (state, targetChapter) => {
+    const text = String(state && state.nextChapterHint || '').trim();
+    const meta = state && state.nextChapterHintMeta;
+    if (!text || !meta || typeof meta !== 'object') return { text: '', verified: false, reason: 'missing_metadata' };
+    const ok = Number(meta.targetChapter) === Number(targetChapter) && ['active', 'confirmed'].includes(String(meta.status || '').toLowerCase()) && meta.invalidated !== true && meta.superseded !== true;
+    return ok ? { text, verified: true, version: Number(meta.version) || 1 } : { text: '', verified: false, reason: 'target_mismatch' };
+  };
   return ctx;
 }
 
@@ -97,15 +106,15 @@ function makeContext(state) {
       { title: 'Ba', summary: 'Nhân vật tới thành phố.' }
     ],
     currentStatus: 'Địa điểm: bến cảng', lastStatusChapter: 1,
-    directive: 'Chỉ đạo chương ba.', nextChapterHint: 'Gợi ý chương ba.',
+    directive: 'Chỉ đạo chương bốn.', nextChapterHint: 'Gợi ý chương bốn.', nextChapterHintMeta: { targetChapter: 4, version: 1, status: 'active' },
     autoNextChapterHint: 'Gợi ý cũ của chương không rõ.'
   });
   const ctx = makeContext(state);
   const normal = ctx.buildContextBlock();
   assert(normal.includes('CHƯA CẬP NHẬT ĐẾN CHƯƠNG MỚI NHẤT'), 'stale status is labeled');
   assert(normal.includes('không được coi là hiện trạng tuyệt đối'), 'stale status instruction is present');
-  assert(normal.includes('Chỉ đạo chương ba.'), 'current directive is included by default');
-  assert(normal.includes('Gợi ý chương ba.'), 'current hint is included by default');
+  assert(normal.includes('Chỉ đạo chương bốn.'), 'current directive is included by default');
+  assert(normal.includes('Gợi ý chương bốn.'), 'verified current hint is included by default');
   assert(!normal.includes('Gợi ý cũ của chương không rõ'), 'unverifiable legacy auto-hint is excluded');
 
   const writeContext = ctx.buildContextBlock({ includeChapterInstructions: false });
@@ -134,14 +143,14 @@ function makeContext(state) {
   assert.strictEqual((mainPromptSource.match(/GỢI Ý NGƯỜI DÙNG — PHẢI BÁM ĐẦY ĐỦ/g) || []).length, 1, 'hint block is authored once');
   assert(!mainPromptSource.includes('state.autoNextChapterHint ?'), 'legacy auto-hint is not injected');
 
-  const state = makeState({ directive: 'CHỈ ĐẠO CHƯƠNG 3 duy nhất XYZ.', nextChapterHint: 'GỢI Ý CHƯƠNG 3 duy nhất QRS.', autoNextChapterHint: 'GỢI Ý CŨ MÃ CHƯƠNG KHÔNG RÕ.' });
+  const state = makeState({ directive: 'CHỈ ĐẠO CHƯƠNG 3 duy nhất XYZ.', nextChapterHint: 'GỢI Ý CHƯƠNG 3 duy nhất QRS.', nextChapterHintMeta: { targetChapter: 3, version: 1, status: 'active' }, autoNextChapterHint: 'GỢI Ý CŨ MÃ CHƯƠNG KHÔNG RÕ.' });
   const ctx = makeContext(state);
   vm.runInContext(mainPromptSource, ctx);
   const context = ctx.buildContextBlock({ includeChapterInstructions: false });
   const prompt = ctx.buildMainWritePrompt({
     chapterNumber: 3, isRegen: false, regenIndex: 0, regenMode: 'full', descPrompt: '', explicitPrompt: '',
     vocabBlock: '', usingNsfw: false, context, lastChapterEnding: '', recentFullText: '', olderSummaries: '',
-    plan: '', priorCount: 2, proseOnly: false
+    plan: '', priorCount: 2, proseOnly: false, hintVerified: true
   });
   assert.strictEqual(prompt.split('CHỈ ĐẠO CHƯƠNG 3 duy nhất XYZ.').length - 1, 1, 'actual prompt contains directive once');
   assert.strictEqual(prompt.split('GỢI Ý CHƯƠNG 3 duy nhất QRS.').length - 1, 1, 'actual prompt contains current hint once');

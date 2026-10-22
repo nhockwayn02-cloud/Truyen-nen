@@ -28,6 +28,7 @@ t("buildMainWritePrompt (proseOnly) có đủ quy tắc của viết thường v
   const p = T.buildMainWritePrompt({ chapterNumber: 3, isRegen: false, regenIndex: 0, regenMode: "full", descPrompt: T.DESCRIPTION_PROMPTS.balanced, explicitPrompt: "", vocabBlock: "", usingNsfw: false,
     context: T.buildContextBlock(), lastChapterEnding: "…", recentFullText: rb.recentFullText, olderSummaries: rb.olderSummaries, plan: "", priorCount: 2, proseOnly: true });
   assert(/BỐ CỤC/.test(p) && /CHỐNG LẶP/.test(p) && /ĐỘ DÀI & TỰ DO SÁNG TÁC/.test(p) && /QUY TẮC BÁM BRIEF/.test(p) && /KẾ HOẠCH ĐỘ DÀI/.test(p));
+  assert(/CHẤT LƯỢNG VĂN XUÔI TIẾNG VIỆT/.test(p) && /Giữ POV/.test(p) && /Tách người nói thành đoạn riêng/.test(p), "prompt phải khóa văn Việt nguyên bản, POV và bố cục thoại");
   assert(!/TIÊU ĐỀ: <tên chương>/.test(p) && /CHỈ văn xuôi/.test(p));
 });
 console.log(pass + "/" + (pass + fail) + " PASS"); process.exit(fail ? 1 : 0);

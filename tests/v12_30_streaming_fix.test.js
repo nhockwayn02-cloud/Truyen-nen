@@ -19,7 +19,7 @@ function contextWithFetch(fetchImpl) {
     setTimeout, clearTimeout, sleep: async () => {},
     estimateTokens: s => String(s || '').length, trackCost: () => {}, refreshStatBar: () => {},
     priceForModel: () => ({ in: 0, out: 0 }),
-    _callLog: [], _callLabel: () => 'test', _chapterStartAt: 0,
+    _callLog: [], _callLabel: () => 'test', _chapterStartAt: 0, classifyStep: () => 'other', modelForStep: (s, st, fb) => fb,
     userStopRequested: false, globalAbort: null, lastPromptSent: '', lastResponseRaw: '',
     console
   };

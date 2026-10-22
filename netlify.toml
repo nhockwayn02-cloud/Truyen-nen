@@ -9,12 +9,8 @@
 # Background Functions vẫn được Netlify nhận diện theo hậu tố -background.
 # Không cần cấu hình timeout trong file này; giới hạn thực tế phụ thuộc gói Netlify.
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Worker-Token, X-App-Passcode"
+# V14.0.20 post-audit: bỏ header CORS "*" ở mức toàn site. File tĩnh cùng origin không cần CORS, còn các function
+# tự trả header CORS theo biến ALLOWED_ORIGIN (create-job, job-status, security-status, write-chapter-background).
 
 # V12.32.14: publish = "." phát cả repo như file tĩnh. Chặn các đường dẫn không phải của app (tests, mã worker, tài liệu, cấu hình).
 # force = true để redirect đè lên cả file có thật. Hàm Netlify chạy ở /.netlify/functions/* nên không bị ảnh hưởng.
@@ -93,6 +89,36 @@
 
 [[redirects]]
   from = "/DEPLOY.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/TODO.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/plan.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/PROMPT_OPTIMIZER_AUDIT.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/VALIDATION_V1233.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.pre-p0-p1-p2-backup.txt"
   to = "/404.html"
   status = 404
   force = true

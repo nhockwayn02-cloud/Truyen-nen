@@ -7,8 +7,8 @@
 
 ## 1. Đưa code lên GitHub
 1. Tạo repo mới (nên để **Private**, vì truyện 18+).
-2. Upload toàn bộ nội dung đã giải nén vào gốc repo (kể cả thư mục ẩn `.github`).
-3. Workflow `.github/workflows/unzip.yml` tự giải nén mọi file `.zip` ở gốc repo. Nó chỉ cần nếu bạn upload zip qua iPhone.
+2. Upload toàn bộ nội dung đã giải nén vào gốc repo.
+3. Gói zip này **không kèm** thư mục `.github`. Nếu repo của bạn đã có workflow `.github/workflows/unzip.yml` (tự giải nén file `.zip` ở gốc repo, chỉ cần khi upload zip qua iPhone) thì cứ giữ nguyên, đừng xóa. Nếu chưa có, hãy giải nén zip trên máy rồi upload nội dung bên trong.
 
 ## 2. Nối Netlify
 1. Netlify → Add new site → Import from Git → chọn repo.

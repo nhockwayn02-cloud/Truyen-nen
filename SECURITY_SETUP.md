@@ -1,4 +1,4 @@
-# Cấu hình bảo mật trên Netlify (V12.33)
+# Cấu hình bảo mật trên Netlify (hiện hành từ V14.0.20; kế thừa V12.33)
 
 Vào **Site configuration → Environment variables** rồi thêm các biến sau, sau đó **Deploy lại**.
 

@@ -26,9 +26,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(500)
     r=page.evaluate("""()=>{const s=__xta.state;return {ch:s.chapters.length,chars:s.characters.map(c=>[c.name,c.firstAppearance,c.lastAppearance,(c.relationships||[]).length]),
        locs:s.locations.map(l=>[l.name,l.firstAppearance,l.lastAppearance]),items:s.items.map(i=>i.name),
-       snapChars:s.chapters[1].stateSnapshot.characters.map(c=>c.name),snapLocs:s.chapters[1].stateSnapshot.locations.map(l=>l.name)}}""")
+       futureSnapshot:s.chapters[1].stateSnapshot,futureSnapshotInvalidated:!!s.chapters[1].snapshotInvalidated}}""")
     ok = (r["ch"]==2 and [c[0] for c in r["chars"]]==["A","D","M"] and [l[0] for l in r["locs"]]==["Phố","Quán"] and r["items"]==[]
-          and r["snapChars"]==["A","D","M"] and r["snapLocs"]==["Phố","Quán"] and r["chars"][1][3]==0 and not errs)
+          and r["futureSnapshot"] is None and r["futureSnapshotInvalidated"] and r["chars"][1][3]==0 and not errs)
     print(("PASS " if ok else "FAIL ")+"Xóa chương giữa: xóa kèm NV/địa điểm/vật phẩm chỉ có ở chương đó, giữ mục dùng lại, đánh lại số, dọn snapshot", json.dumps(r,ensure_ascii=False)[:200])
     b.close()
     raise SystemExit(0 if ok else 1)

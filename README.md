@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V14.0.13 Contract-First Complete Chapter Pipeline.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V14.0.20 Vietnamese Novel Writing + Contract-First Complete Chapter Pipeline.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -33,6 +33,10 @@ V12.46.1 sửa luồng **AI tự sửa**: cảnh báo Canon/continuity/Beat có 
 
 V12.47 đổi luồng chính thành **Tạo Chương Hoàn Chỉnh**. Khi bật công tắc mặc định, app tự chạy Semantic Prose Check → Quality Gate → sửa cục bộ/Targeted Segment Repair → chấm lại; chỉ chương vượt Gate mới được Sync vào Canon. Công tắc này được lưu theo truyện và có thể tắt trong phần Công Cụ Sáng Tác.
 
+V14.0.16 bổ sung **kiểm tra từng scene** (lỗi nặng → viết lại đúng scene đó, không ghép scene sai vào chương; rà AI từng scene là tùy chọn) và **tự sửa sau chấm nhanh** cho bản nháp nền (sửa → chấm lại → giữ bản tốt hơn; vẫn chưa hậu kỳ/Canon).
+
+V14.0.17–V14.0.20 bổ sung provenance cho gợi ý chương sau, lọc chapter/memory theo accepted canon, bảo vệ Character Database khỏi cập nhật từ chương draft, và một Vietnamese-native prose contract dùng chung cho viết thường, worker nền và adaptive scene (POV, xưng hô, thoại, nhịp câu và bố cục đoạn đọc trên điện thoại).
+
 V12.47.1 đồng bộ parity với Background Worker: worker cũng ép xử lý cảnh báo Canon/continuity/Beat khi chế độ tự sửa được bật, thay vì chỉ làm vậy ở client.
 
 V13.2 bổ sung **Adaptive Scene Top-up**: nếu các scene ban đầu ngắn hơn 4.500 từ, app viết bổ sung tối đa 3 lượt bằng đoạn đuôi và state delta compact; Quality Gate coi chương dưới 4.500 từ là Hard Fail.
@@ -55,6 +59,25 @@ V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, ha
 | `lib/security.js` | Mã truy cập, mã hóa API key, chặn endpoint nội bộ. |
 | `tests/` | Test đơn vị/tích hợp (Node) và E2E trình duyệt (Playwright, tùy chọn). |
 | `docs/` | `ARCHITECTURE.md` (Memory Engine, lớp dữ liệu, backup, iPhone — README cũ) và `PROMPT_V12.22.md`. |
+
+## Kiến trúc hiện hành V14.0.20
+
+```text
+index.html / client
+  ├─ Chapter Contract → Scene Graph → scene tuần tự → Adaptive Top-up
+  ├─ Scene/Quality/Canon barriers → Draft hoặc Sync Canon
+  └─ create-job → job-status → merge an toàn trên thiết bị
+
+shared/core.js
+  └─ nguồn dùng chung cho prompt, validator, Quality Gate, memory và Canon
+
+write-chapter-background.js
+  ├─ dùng cùng runAdaptiveChapterPipeline với client
+  ├─ hỗ trợ draft mode, quick-fix và Quality Gate
+  └─ accepted-only postprocess → Character/World/Memory → Canon Sync
+```
+
+**Chapter Contract** khóa Arc/Outline, required beats, allowed cast, forbidden drift, opening continuity, ending anchor, must-change và ngân sách từ. Scene Graph được validate trước khi viết; plan không hợp lệ trả `PLAN_REJECTED` thay vì fallback âm thầm. Các chapter draft, failed hoặc revision-required không được trở thành accepted canon; memory gần đây ưu tiên chapter đã accepted/synced. `docs/ARCHITECTURE.md` là tài liệu lịch sử V9–V12, không phải đặc tả hiện hành.
 
 ## Triển khai (GitHub + Netlify)
 1. Đưa repo lên GitHub, nối với Netlify (hoặc kéo thả thư mục). `netlify.toml` đã cấu hình sẵn.

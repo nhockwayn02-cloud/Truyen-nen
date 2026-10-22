@@ -14,8 +14,13 @@ for(const [file,key] of [['index.html','index.html'],['netlify/functions/write-c
 }
 // 3) netlify.toml chặn đường dẫn nội bộ + có 404.html
 const toml=rd('netlify.toml'), blocks=toml.split('[[redirects]]').slice(1);
-const need=['/tests/*','/netlify/*','/shared/*','/lib/*','/scripts/*','/docs/*','/README.md','/CHANGELOG.md','/SECURITY_SETUP.md','/package.json','/netlify.toml'];
+const need=['/tests/*','/netlify/*','/shared/*','/lib/*','/scripts/*','/docs/*','/README.md','/CHANGELOG.md','/SECURITY_SETUP.md','/package.json','/netlify.toml','/TODO.md','/plan.md','/PROMPT_OPTIMIZER_AUDIT.md','/VALIDATION_V1233.md','/.pre-p0-p1-p2-backup.txt'];
 need.forEach(p=>{ const b=blocks.find(x=>x.includes('from = "'+p+'"')); assert(b,'thiếu redirect chặn '+p); assert(/status\s*=\s*404/.test(b)&&/force\s*=\s*true/.test(b),p+': phải status 404 + force'); });
 assert(!/from\s*=\s*"\/(index\.html)?"/.test(toml)&&!/from\s*=\s*"\/\.netlify/.test(toml),'không được chặn trang chính / hàm Netlify');
 assert(fs.existsSync(path.join(root,'404.html')),'thiếu 404.html');
+// 4) CORS: không ghi cứng "*" ở toml; mọi function đọc ALLOWED_ORIGIN
+assert(!/Access-Control-Allow-Origin\s*=\s*"\*"/.test(toml),'netlify.toml không được đặt CORS * toàn site');
+for(const f of ['netlify/functions/write-chapter-background.js','netlify/functions/create-job.js','netlify/functions/job-status.js','netlify/functions/security-status.js']) assert(/"Access-Control-Allow-Origin"\s*:\s*(process\.env\.ALLOWED_ORIGIN|origin)/.test(rd(f)),f+': CORS phải theo ALLOWED_ORIGIN');
+// 5) DEPLOY.md không hứa file .github mà zip không có
+if(!fs.existsSync(path.join(root,'.github'))) assert(/không kèm/.test(rd('DEPLOY.md')),'DEPLOY.md phải nói rõ gói không kèm .github');
 console.log('PASS V12.32.14 repo hygiene');

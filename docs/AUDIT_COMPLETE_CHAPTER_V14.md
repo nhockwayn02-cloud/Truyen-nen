@@ -1,4 +1,6 @@
-# Audit luồng Tạo Chương Hoàn Chỉnh — V14
+# Audit lịch sử luồng Tạo Chương Hoàn Chỉnh — V14 trước V14.0.6
+
+> **Historical audit — không phải current specification.** Tài liệu này ghi nhận các rủi ro trước khi triển khai Chapter Contract/Scene Graph barrier. Nhiều đề xuất trong tài liệu đã được triển khai trong V14.0.x. Xem [`audit-report.md`](audit-report.md) và `CHANGELOG.md` để biết trạng thái V14.0.20.
 
 ## Kết luận ngắn
 

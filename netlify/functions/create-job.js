@@ -73,6 +73,9 @@ exports.handler = async (event) => {
       forceNsfw:!!body.forceNsfw,
       draftOnly: body.mode !== "postprocess" && !!body.draftOnly,
       quickCheck: body.quickCheck !== false,
+      // V14.0.16: tự sửa sau chấm nhanh (mặc định bật; chỉ có tác dụng khi quickCheck bật)
+      autoFixQuick: body.quickCheck !== false && body.autoFixQuick !== false,
+      quickFixRounds: Math.max(1, Math.min(2, Number(body.quickFixRounds) || 1)),
       hintStyle:String(body.hintStyle||"normal").slice(0,20),
       hintFormat:String(body.hintFormat||"detail").slice(0,20),
       apiKeyEncrypted,

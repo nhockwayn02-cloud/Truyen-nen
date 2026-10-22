@@ -19,7 +19,7 @@ const worker=require(path.join(__dirname,"../netlify/functions/write-chapter-bac
 (async()=>{
   const token="tok", jobId="soft1";
   const state={
-    storyId:"s1", chapters:[{id:"c1",title:"Chương 1",text:LONG,summary:"Tóm tắt cũ",wordCount:900,briefUsed:"",status:"DRAFTED",review:{},sync:{}}], currentChapterIndex:0,
+    storyId:"s1", chapters:[{id:"c1",title:"Chương 1",text:LONG,summary:"Tóm tắt cũ",wordCount:900,briefUsed:"",status:"APPROVED",review:{},sync:{}}], currentChapterIndex:0,
     characters:[{id:"c1",name:"Minh",tier:"major",role:"người gác cửa",occupation:"người gác cửa",coreLocked:true,coreIdentity:{role:"người gác cửa"},physicalState:"đứng ngoài cửa"}],
     locations:[],items:[],threads:[],scenes:[],timeline:[{id:"ev-old",chapter:0,summary:"Sự kiện cũ"}],foreshadowing:[{id:"fs-old",description:"Lời hứa cũ",status:"paid_off"}],knowledgeLedger:[{id:"kl-old",character:"Minh",fact:"Biết bí mật cũ"}],memoryEvents:[],
     currentStatus:"Status cũ",statusState:{schemaVersion:2,currentState:{situation:"Tình hình cũ"},characterStates:[]},lastStatusChapter:0,lastMemorySyncChapter:0,canonVersion:0,minChapterWords:500,qualityGateEnabled:false,

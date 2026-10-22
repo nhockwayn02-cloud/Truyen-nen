@@ -99,7 +99,7 @@ with sync_playwright() as p:
     page.click("#bgDraftBtn"); page.wait_for_timeout(500)
     cb = seen["create_body"] or {}
     check("16. Nháp nền gửi mode=write + draftOnly + chapterNumber=3", cb.get("mode") == "write" and cb.get("draftOnly") is True and cb.get("chapterNumber") == 3, json.dumps({k: cb.get(k) for k in ("mode", "draftOnly", "chapterNumber")}))
-    check("17. Nháp nền bật adaptiveScenePipeline + quickCheck mặc định bật", cb.get("storyState", {}).get("adaptiveScenePipeline") is True and cb.get("quickCheck") is True)
+    check("17. Nháp nền bật adaptiveScenePipeline + quickCheck + autoFixQuick mặc định bật", cb.get("storyState", {}).get("adaptiveScenePipeline") is True and cb.get("quickCheck") is True and cb.get("autoFixQuick") is True)
     for _ in range(80):
         page.wait_for_timeout(300)
         if seen["acks"] >= 1: break

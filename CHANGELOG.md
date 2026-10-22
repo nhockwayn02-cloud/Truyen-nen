@@ -1,5 +1,67 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.0.20] — Vietnamese Novel Writing
+
+- **Vietnamese-native prose contract:** added one shared prompt block for normal writing, background writing and adaptive scenes.
+- **Natural language:** instructs the model to avoid literal translation, preserve Vietnamese word order/collocations, vary sentence rhythm and avoid repeated sentence openings.
+- **Dialogue and POV:** locks point of view, tense, forms of address, social position, character knowledge and individual voice; requires purposeful dialogue and separate speaker paragraphs.
+- **Mobile readability:** requires short-to-medium paragraphs at action/voice/beat changes and bans AI metadata, scene labels, recap padding and explanatory notes from prose output.
+- **Regression coverage:** worker mirror tests now verify the shared Vietnamese prose, POV and dialogue-layout rules reach the background writing prompt.
+- **Documentation alignment:** current version metadata, README overview, deployment/security references, implementation plan and historical-document banners were aligned to V14.0.20.
+- **Verification:** installed Playwright/Chromium and brought all five E2E suites to PASS; the delete-chapter E2E now asserts V14.0.18 snapshot invalidation instead of reading a deliberately cleared future snapshot.
+- **Post-audit fixes:** `netlify.toml` now blocks `/TODO.md`, `/plan.md`, `/PROMPT_OPTIMIZER_AUDIT.md`, `/VALIDATION_V1233.md` and `/.pre-p0-p1-p2-backup.txt`; the site-wide `Access-Control-Allow-Origin: *` header was removed and the background worker now honours `ALLOWED_ORIGIN` like the other functions; `TODO.md` E2E status and the `DEPLOY.md` `.github` note were corrected; hygiene test extended to cover all of this.
+
+## [V14.0.19] — Character Canon Manager
+
+- **Accepted-only Character Database updates:** unified server postprocess and manual character rescans refuse to commit Character/Memory canon when the source chapter is explicitly draft, rejected, failed, running or revision-required.
+- **Canon Sync barrier:** a blocked draft postprocess cannot reach `applyCanonSync`; accepted chapters retain the existing soft-failure behavior when an extraction API fails.
+- **Identity protection retained:** stable name/aliases, core identity, role, occupation, position, relationships and locked profile fields remain protected by evidence/explicit-change rules; new major-character proposals stay demoted to supporting until user promotion.
+- **Regression coverage:** draft postprocess makes no API call and does not mutate Character Database; existing V14.0.14 evidence and merge tests remain passing.
+
+## [V14.0.18] — Chapter Memory / Accepted Canon Safety
+
+- **Accepted-canon precedence:** recent continuity, story history and adaptive scene planning prefer accepted/synced chapters over draft or soft-fail chapters; legacy chapters without a status remain compatible.
+- **Deletion invalidation:** deleting a chapter invalidates exact-target hints, remaps later hint/status/memory chapter references, and clears future snapshots derived from the deleted chapter so they cannot resurrect stale canon.
+- **Memory regression tests:** added coverage for draft exclusion, accepted-ending selection, exact dependency invalidation and chapter-number remapping.
+
+## [V14.0.17] — Canon-safe Prompt Optimizer
+
+- **Hint provenance:** `nextChapterHint` now carries target chapter, version, status, timestamp and source. Hints without valid metadata, wrong target chapter, or inactive status are excluded from the active prompt and reported as unverified.
+- **Canon/Conflict policy:** the planner now treats synced canon and locked profiles as immutable. A directive that requests a retcon must be marked `CONFLICT` and requires explicit confirmation instead of silently overriding canon.
+- **Dynamic character budget:** planner and main-write prompts use `storyControl.maxNamedCharacters` instead of a hard-coded limit of 4; client and worker remain aligned.
+- **Active-record filtering:** deleted/invalidated chapters are excluded from recent continuity, story history and adaptive scene generation.
+- **Tests:** updated prompt-context regression coverage for verified/unverified hints; all logic tests pass. E2E suites remain skipped when Playwright/Python are unavailable.
+
+## [V14.0.16] — Kiểm tra từng scene + tự sửa sau chấm nhanh
+
+- **🔎 Kiểm tra từng scene (client + worker dùng chung `runAdaptiveChapterPipeline`):** ngay sau khi viết xong MỘT scene, code kiểm tra (0 token): nhân vật ngoài allowed cast, scene quá ngắn (< 80 từ), lộ chỉ dẫn/tiêu đề ("Scene 2:", CONTRACT, STATE DELTA…). Lỗi nặng → viết lại ĐÚNG scene đó (tối đa 1 lần, kèm danh sách lỗi cần sửa, nhiệt độ thấp hơn), scene sai không bao giờ được ghép vào chương. Vẫn lỗi sau khi viết lại → `SCENE_REJECTED (sau 2 lượt viết)` như cũ (dừng an toàn). Hết thời gian job thì không viết lại.
+- **Cảnh báo mềm (không tốn lượt gọi AI, chỉ ghi vào telemetry của chương nháp):** scene < 50% hoặc > 220% ngân sách từ, kết giữa câu, `mustChange` có vẻ chưa thực hiện, không nhắc nhân vật nào trong kế hoạch, scene cuối chưa chạm điểm kết.
+- **🔬 Rà AI từng scene (tùy chọn, mặc định TẮT):** bật ở "Công cụ" → 1 lượt gọi ngắn/scene (chỉ gửi contract scene + văn bản scene) kiểm tra thay đổi bắt buộc, địa điểm/thời gian, tuyến mới. Lỗi chắc chắn → viết lại scene; HANDOFF chỉ là cảnh báo; lỗi gọi/parse → bỏ qua, không chặn.
+- **🛠 Tự sửa sau chấm nhanh (nháp nền, ô tick mặc định bật):** nếu chấm nhanh ra HARD_FAIL (hoặc SOFT_FAIL có cảnh báo Canon/continuity/Beat hành động được) thì sửa tối đa 1 vòng (vá cục bộ → sửa theo vùng → viết lại cả chương nếu vừa) rồi chấm lại. **Best Draft Guard:** bản sửa không tốt hơn (verdict/điểm/số lỗi nặng), không chấm lại được, hoặc làm chương dưới 4.500 từ → khôi phục bản cũ. SOFT_FAIL chỉ vì văn phong không bị ép sửa. Vẫn là Bản nháp: không Gate đầy đủ, không hậu kỳ, không ghi Canon. Phiếu hiện "🛠 Đã tự sửa 1 vòng: 55 → 91/100" hoặc "(bản sửa không tốt hơn nên giữ bản cũ)".
+- Hạ tầng: `reviewIsBetter` tách thành hàm dùng chung (Gate loop + tự sửa sau chấm nhanh); `create-job` nhận `autoFixQuick`, `quickFixRounds`; `sceneAiReview` thuộc Story Record.
+- Test mới: `v14_0_16_scene_check_quickfix.test.js` (13 nhóm), `v14_0_16_worker_quickfix.test.js` (6 kịch bản); E2E nháp nền kiểm tra payload `autoFixQuick`.
+
+## [V14.0.15] — Minh bạch hậu kỳ, gợi ý nhân vật, chi phí theo bước, sức khỏe truyện
+
+- **🧾 Hậu kỳ đã thay đổi gì:** worker ghi `canonDiff` cho mỗi chương (NV mới/cập nhật từng trường, địa điểm, vật phẩm, thread, mục bị bỏ + lý do). Panel dưới tiêu đề chương, có nút ↶ hoàn tác từng trường hoặc gỡ NV mới.
+- **📬 Gợi ý nhân vật:** tên riêng lặp lại chưa có hồ sơ hiện trong mục 0.3; thêm NV / địa điểm / bỏ qua bằng một chạm (không tốn token).
+- **📊 Chi phí theo bước + model riêng:** 💰 hiện token/USD theo Viết, Scene, Gate, Sửa, Hậu kỳ…; đặt model rẻ cho Hậu kỳ / Quality Gate / Kiểm tra / Gợi ý (server cũng dùng). Bước Viết luôn dùng model chính.
+- **🩺 Sức khỏe truyện:** NV vắng lâu, thread/foreshadowing tồn đọng, tiến độ Arc, xu hướng điểm chất lượng.
+- **🔎 Rà mâu thuẫn:** kiểm tra bằng code (người chết xuất hiện lại, người phối ngẫu lệch, trùng tên) + quét AI trên tóm tắt chương; nhắc quét lại mỗi 10 chương.
+- **Tách module:** CSS → `app/app.css`; tính năng mới → `app/features.js` (nối với `index.html` qua cầu `window.__XTA__` và hook). Logic thuần nằm ở `shared/core.js`.
+- Test mới: `v14_0_15_features.test.js`, `e2e_v14_0_15.py`.
+
+## [V14.0.14] — Sửa hậu kỳ không cập nhật 0.3. Character Database
+
+Nguyên nhân: bộ lọc "evidence" của hậu kỳ server loại bỏ gần như mọi dòng nhân vật.
+- Tên rút gọn trong chương ("Minh Anh") không còn bị coi là "không xuất hiện" so với hồ sơ ("Nguyễn Minh Anh"); AI trả `id` hoặc tên rút gọn đều được ánh xạ về đúng NV có sẵn, không tạo trùng.
+- NV mới bị AI xếp `major` không còn bị BỎ QUA: được thêm ở hạng `supporting` (không bao giờ tự thành major) và ghi chú để bạn nâng hạng tay.
+- NV mới thiếu `chapterEvent` được lấy từ evidence thay vì bị bỏ.
+- Ngưỡng bằng chứng theo trường hạ 0.55 → 0.35 (evidence vẫn phải là câu thật trong chương); báo số trường bị loại.
+- NV có sẵn xuất hiện trong chương luôn được ghi `lastAppearance` (thống kê "Vắng" đúng).
+- Prompt hậu kỳ yêu cầu rõ: NV mới có tên riêng phải có mặt, dùng đúng id.
+- Test mới `tests/v14_0_14_character_update.test.js`; cập nhật test V12.30 theo quy tắc mới.
+
 ## [V14.0.0] — Contract-First Complete Chapter Pipeline
 
 - Chapter Contract bất biến khóa Arc/Outline, Required Beat, Allowed Cast, Forbidden Drift, continuity mở chương và thay đổi bắt buộc.
@@ -170,7 +232,7 @@
 - P2: thêm progress strip cho luồng lập kế hoạch, viết và Quality Gate; cập nhật tài liệu kế hoạch/module.
 
 Gộp từ toàn bộ file `PATCH_NOTES_*.md` và `README_V*.md` cũ (mới nhất ở trên). Nội dung các bản được giữ nguyên, chỉ hạ cấp tiêu đề.
-Bản mới nhất: **V12.47.1** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
+Bản hiện hành: **V14.0.20** (xem mục đầu tiên). Hướng dẫn tổng quan: `README.md`; kiến trúc/Memory Engine/Backup lịch sử: `docs/ARCHITECTURE.md`; bảo mật: `SECURITY_SETUP.md`.
 
 
 ---

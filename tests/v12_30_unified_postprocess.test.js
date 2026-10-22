@@ -69,8 +69,8 @@ function validOutput() {
     assert.strictEqual(minh.physicalState,'đang cầm chìa khóa','vẫn cập nhật trạng thái diễn biến có bằng chứng');
     assert.strictEqual(minh.appearance,undefined,'không điền ngoại hình bịa khi không có fieldEvidence');
     assert.strictEqual(minh.secret,undefined,'không điền bí mật suy đoán khi không có fieldEvidence');
-    assert(!state.characters.some(c=>c.name==='An'),'không được tạo nhân vật mới tier major dù có evidence');
-    assert(r.tasks.NV.notes.some(x=>/NV bỏ qua: .*An \(AI xếp hạng "major"/.test(x)),'phải ghi rõ nhân vật nào bị bỏ qua và vì sao: '+JSON.stringify(r.tasks.NV.notes));
+    { const an=state.characters.find(c=>c.name==='An'); /* V14.0.14: NV mới có evidence vẫn được tạo nhưng KHÔNG bao giờ ở hạng major */ assert(an && an.tier!=='major' && an.tier!=='main','NV mới AI xếp major phải được thêm ở hạng thấp hơn (supporting), không được bỏ qua và không được là major'); }
+    assert(r.tasks.NV.notes.some(x=>/NV bỏ qua: .*An \(đã thêm với hạng supporting; AI đề xuất "major"/.test(x)),'phải ghi rõ nhân vật nào bị hạ hạng và vì sao: '+JSON.stringify(r.tasks.NV.notes));
     assert.strictEqual(state.characters.filter(c=>c.name==='Minh').length,1,'không tạo trùng nhân vật');
     assert.strictEqual(state.locations.filter(x=>x.name==='Phố cũ').length,1,'không nhân đôi địa điểm');
     assert(!state.locations.some(x=>x.name==='Thành phố ma'),'không thêm địa điểm không xuất hiện trong chương dù quote unrelated là thật');

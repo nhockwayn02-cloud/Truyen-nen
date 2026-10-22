@@ -1,4 +1,6 @@
-# Kiến trúc, Memory Engine, Backup (README cũ — lưu để tham khảo)
+# Kiến trúc, Memory Engine, Backup (TÀI LIỆU LỊCH SỬ — V9–V12.22)
+
+> **Historical reference only.** File này không phải current specification của V14.0.20. Xem `README.md`, `DEPLOY.md`, `SECURITY_SETUP.md`, `plan.md` và `CHANGELOG.md` cho hành vi hiện hành; các flow v9/v12 bên dưới chỉ dùng để truy vết lịch sử.
 
 > Tài liệu này là README cũ nguyên văn, tích lũy qua nhiều bản (v9 → V12.22). Một số mô tả đầu trang là lịch sử; phần "Memory Engine", "Các lớp dữ liệu",
 > "Background flow", "Giới hạn thực tế", "Cách dùng trên iPhone", "Backup" vẫn đúng. Tình trạng hiện tại: `README.md` và `CHANGELOG.md`.
