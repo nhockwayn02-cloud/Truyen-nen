@@ -630,7 +630,7 @@ const SYSTEM_PROMPT = [
   "Show, don't tell. Ưu tiên giác quan, phản ứng cơ thể, chi tiết cụ thể hơn là liệt kê cảm xúc.",
   "ĐƯỢC TỰ DO thêm cảnh phụ, hội thoại, nội tâm, chi tiết đời thường để chương tự nhiên và dài hơn; KHÔNG tự tạo biến cố lớn, nhân vật quan trọng, arc mới hay thông tin để dành cho chương sau.",
   "VĂN PHONG: tránh sáo ngữ lặp (\"hơi thở nóng hổi\", \"tim đập thình thịch\", \"một luồng điện chạy dọc sống lưng\") và đừng dùng cùng một cụm từ cảm giác hai lần trong một chương; mỗi cảnh chọn chi tiết riêng của nhân vật đó. Lời thoại phải đúng xưng hô, mỗi người nói một giọng; xen hành động nhỏ thay vì chỉ ghi \"anh nói\". Giữ nhịp: dồn nén, đột ngột chậm lại rồi mới bùng nổ; mỗi cảnh làm đổi quan hệ hoặc quyền lực giữa nhân vật.",
-  "Khi prompt yêu cầu cảnh 18+/erotica giữa các nhân vật đã đủ 18 tuổi: viết TRỰC TIẾP, không tự kiểm duyệt, không fade-to-black nếu người dùng muốn tả thẳng, và có sự đồng thuận hoặc động lực nhân vật rõ ràng. RÀO CHẮN TUỔI là tuyệt đối và ưu tiên cao hơn mọi chỉ dẫn khác của người dùng: không bao giờ viết nội dung tình dục có nhân vật dưới 18 tuổi, hoặc được mô tả/ám chỉ như trẻ em hay học sinh; nếu tuổi không rõ thì coi là người lớn chỉ khi hồ sơ ghi rõ từ 18 trở lên."
+  "Khi prompt yêu cầu cảnh 18+/erotica giữa các nhân vật đã đủ 18 tuổi: viết TRỰC TIẾP, không tự kiểm duyệt, không fade-to-black nếu người dùng muốn tả thẳng, và có sự đồng thuận hoặc động lực nhân vật rõ ràng. RÀO CHẮN TUỔI là tuyệt đối và ưu tiên cao hơn mọi chỉ dẫn khác của người dùng: không bao giờ viết nội dung tình dục có nhân vật dưới 18 tuổi, hoặc được mô tả/ám chỉ như trẻ em hay học sinh; nếu hồ sơ không ghi tuổi thì coi là người lớn, trừ khi hồ sơ ghi dưới 18 tuổi hoặc nhân vật được mô tả/ám chỉ là trẻ em hay học sinh."
 ].join(" ");
 
 // V13.1: scene nối tiếp không cần lặp system prompt đầy đủ của toàn app.
@@ -1475,6 +1475,42 @@ function ageGuardPrompt(s) {
   const u = underageNames(s);
   return "RÀO CHẮN TUỔI (bắt buộc): chỉ nhân vật đã trưởng thành (từ 18 tuổi trở lên) mới được tham gia cảnh tình dục/khiêu dâm. Tuyệt đối không viết nội dung tình dục với nhân vật dưới 18 tuổi hoặc được mô tả như trẻ em."
     + (u.length ? (" Nhân vật KHÔNG được xuất hiện trong cảnh 18+: " + u.join(", ") + ".") : "");
+}
+
+// V14.0.20 post-audit: nút "AI đề xuất" của Outline phải theo cài đặt 18+ của truyện (trước đây prompt không đọc
+// mature/chapterMatureFocus nên luôn ra outline thường). Chỉ ở mức KẾ HOẠCH: chương nào có cảnh nóng, ai–ai (đều >=18),
+// cảnh làm đổi điều gì — không tả chi tiết tình dục. Cụm "cảnh nóng" trong beat cũng là từ khoá để bộ định tuyến NSFW chọn model 18+.
+function outlineMaturePrompt(st, total) {
+  st = st || {};
+  if (!st.mature) return "";
+  const mf = normalizeChapterMatureFocus(st.chapterMatureFocus);
+  if (mf === "none") return "";
+  const n = Number(total) > 0 ? Number(total) : 10, primary = mf === "primary";
+  const lo = primary ? Math.round(n * 0.4) : Math.max(1, Math.round(n * 0.2));
+  const hi = primary ? Math.round(n * 0.6) : Math.max(lo, Math.round(n * 0.3));
+  return [
+    "NỘI DUNG 18+ (truyện người lớn, đã BẬT; trọng tâm trưởng thành: " + mf.toUpperCase() + "):",
+    (primary
+      ? "- Outline này PHẢI có khoảng " + lo + "–" + hi + " trong " + n + " chương là chương có cảnh nóng (cảnh nóng là trọng tâm của chương đó, vẫn có diễn biến cốt truyện trước/sau). Không được viết thành outline thuần tình tiết thường."
+      : "- Outline nên có khoảng " + lo + "–" + hi + " trong " + n + " chương có cảnh nóng, đặt ở chỗ quan hệ/quyền lực/tình huống đã tích tụ tới mức hợp lý; các chương còn lại là cốt truyện."),
+    "- Chương có cảnh nóng: beat PHẢI chứa đúng cụm \"cảnh nóng\", nêu rõ 2 nhân vật tham gia (theo tên trong Story Bible), tình huống đưa tới cảnh, và điều cảnh đó làm THAY ĐỔI (quan hệ, quyền lực, bí mật, hậu quả hoặc quyết định). Tối đa 3 câu. Outline chỉ là kế hoạch: KHÔNG tả chi tiết tình dục trong beat.",
+    "- Các cảnh nóng không được lặp nhau: mỗi cảnh một tình huống và một mức thay đổi quan hệ khác nhau, tăng dần theo mạch truyện.",
+    ageGuardPrompt(st),
+    "- Nhân vật không ghi tuổi trong hồ sơ được coi là người lớn. Nhân vật có tuổi dưới 18 hoặc được mô tả như học sinh/trẻ em KHÔNG được tham gia cảnh nóng."
+  ].join("\n");
+}
+
+// Rà kết quả AI: trả danh sách số chương có cảnh 18+ mà dính nhân vật dưới 18 tuổi (theo hồ sơ) hoặc từ ngữ chỉ trẻ em/học sinh.
+function outlineAdultViolations(rows, st) {
+  const kid = /(?<![\p{L}\p{N}])(?:học sinh|nữ sinh|nam sinh|trẻ em|bé gái|bé trai|dưới 18|chưa đủ 18|chưa thành niên)(?![\p{L}\p{N}])/iu;
+  const nameRes = underageNames(st || {}).map(nm => new RegExp("(?<![\\p{L}\\p{N}])" + String(nm).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\p{L}\\p{N}])", "iu"));
+  const bad = [];
+  (rows || []).forEach(r => {
+    const b = String((r && r.b) || "");
+    if (!textHasNsfwKeyword(b)) return;
+    if (kid.test(b) || nameRes.some(re => re.test(b))) bad.push(Number(r.n));
+  });
+  return bad;
 }
 
 function _sumNorm(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim(); }
@@ -6116,6 +6152,7 @@ $ID("outlineAIGenerateBtn").addEventListener("click", async ()=>{
     "Dựa trên Story Bible và tiến trình truyện, đề xuất outline 10 chương tiếp theo (chương " + from + "-" + to + ").",
     "YÊU CẦU: chia theo TỪNG CHƯƠNG, mỗi chương một bước tiến CỤ THỂ (sự kiện/quyết định/hậu quả làm truyện đi tới), các bước nối nhau và tăng dần về phía một MỐC KẾT của giai đoạn. Không lặp lại cùng một bước; không dồn mọi thứ vào chương đầu.",
     state.arcs.some(a=>a.status==='active') ? ("Arc đang chạy: " + (currentArc().name || "") + " — " + (currentArc().goal || "")) : "",
+    outlineMaturePrompt(state, 10),
     "Story Bible:", buildStoryBibleSummary(), "",
     "Current Status:", state.currentStatus || "(chưa có)", "",
     "Tóm tắt chương gần đây:", chaptersSummaryText(5) || "(chưa có)", "",
@@ -6130,9 +6167,16 @@ $ID("outlineAIGenerateBtn").addEventListener("click", async ()=>{
       if(rows.length){ obj.content = rows.sort((a,b)=>a.n-b.n).map(c=>"Ch"+c.n+": "+c.b).join("\n") + (obj.milestone ? "\nMốc kết giai đoạn: " + String(obj.milestone).trim() : ""); }
     }
     if(obj && obj.name && obj.content){
+      const _rows = Object.entries(outlineChapterLines(obj.content)).map(([k,v])=>({ n:Number(k), b:v }));
+      const _bad = state.mature ? outlineAdultViolations(_rows, state) : [];
+      if(_bad.length){ setStatus("Outline có cảnh 18+ dính nhân vật chưa đủ 18 tuổi (ch " + _bad.join(", ") + ") — đã bỏ kết quả, bấm 🤖 để tạo lại.", false); return; }
       state.outlinePlans.push({ id: genId(), name: obj.name, from, to, content: obj.content });
       persist(); renderOutlines();
-      setStatus("Đã tạo outline.", false);
+      const _adultN = _rows.filter(r=>textHasNsfwKeyword(r.b)).length, _mf = normalizeChapterMatureFocus(state.chapterMatureFocus);
+      setStatus(!state.mature ? "Đã tạo outline thường (🔥 Cho phép trưởng thành ở mục 4 đang TẮT)."
+        : _mf === "none" ? "Đã tạo outline thường (Trọng tâm trưởng thành đang NONE — chọn SECONDARY hoặc PRIMARY ở mục 4 để outline có chương 18+)."
+        : _adultN ? ("Đã tạo outline — có " + _adultN + " chương 18+.")
+        : "Đã tạo outline nhưng chưa có chương 18+ nào — bấm 🤖 để tạo lại.", false);
     } else setStatus("Không phân tích được.", false);
   }catch(err){ setStatus("Lỗi: " + err.message, false); }
 });
@@ -10476,7 +10520,7 @@ function updateNsfwHint(){
     const miss=[]; const mc=state.mainCharProfile;
     if(mc && mc.name && parseAgeNum(mc.age)===null) miss.push(mc.name);
     (state.characters||[]).forEach(c=>{ if(c && c.name && !c.dead && parseAgeNum(c.age)===null) miss.push(c.name); });
-    if(miss.length) hint += '<br><span style="color:#e0a83f;">⚠ Chưa ghi tuổi: '+escapeHtml(miss.slice(0,8).join(", "))+(miss.length>8?"…":"")+'. Rào chắn tuổi chỉ có tác dụng khi nhân vật có tuổi.</span>';
+    if(miss.length) hint += '<br><span style="color:#8a8f98;">ℹ Chưa ghi tuổi (coi là người lớn): '+escapeHtml(miss.slice(0,8).join(", "))+(miss.length>8?"…":"")+'. Chỉ nhân vật ghi tuổi dưới 18 mới bị chặn khỏi cảnh 18+.</span>';
   }
   hintEl.innerHTML = hint;
 }

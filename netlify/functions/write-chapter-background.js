@@ -834,6 +834,42 @@ function ageGuardPrompt(s) {
     + (u.length ? (" Nhân vật KHÔNG được xuất hiện trong cảnh 18+: " + u.join(", ") + ".") : "");
 }
 
+// V14.0.20 post-audit: nút "AI đề xuất" của Outline phải theo cài đặt 18+ của truyện (trước đây prompt không đọc
+// mature/chapterMatureFocus nên luôn ra outline thường). Chỉ ở mức KẾ HOẠCH: chương nào có cảnh nóng, ai–ai (đều >=18),
+// cảnh làm đổi điều gì — không tả chi tiết tình dục. Cụm "cảnh nóng" trong beat cũng là từ khoá để bộ định tuyến NSFW chọn model 18+.
+function outlineMaturePrompt(st, total) {
+  st = st || {};
+  if (!st.mature) return "";
+  const mf = normalizeChapterMatureFocus(st.chapterMatureFocus);
+  if (mf === "none") return "";
+  const n = Number(total) > 0 ? Number(total) : 10, primary = mf === "primary";
+  const lo = primary ? Math.round(n * 0.4) : Math.max(1, Math.round(n * 0.2));
+  const hi = primary ? Math.round(n * 0.6) : Math.max(lo, Math.round(n * 0.3));
+  return [
+    "NỘI DUNG 18+ (truyện người lớn, đã BẬT; trọng tâm trưởng thành: " + mf.toUpperCase() + "):",
+    (primary
+      ? "- Outline này PHẢI có khoảng " + lo + "–" + hi + " trong " + n + " chương là chương có cảnh nóng (cảnh nóng là trọng tâm của chương đó, vẫn có diễn biến cốt truyện trước/sau). Không được viết thành outline thuần tình tiết thường."
+      : "- Outline nên có khoảng " + lo + "–" + hi + " trong " + n + " chương có cảnh nóng, đặt ở chỗ quan hệ/quyền lực/tình huống đã tích tụ tới mức hợp lý; các chương còn lại là cốt truyện."),
+    "- Chương có cảnh nóng: beat PHẢI chứa đúng cụm \"cảnh nóng\", nêu rõ 2 nhân vật tham gia (theo tên trong Story Bible), tình huống đưa tới cảnh, và điều cảnh đó làm THAY ĐỔI (quan hệ, quyền lực, bí mật, hậu quả hoặc quyết định). Tối đa 3 câu. Outline chỉ là kế hoạch: KHÔNG tả chi tiết tình dục trong beat.",
+    "- Các cảnh nóng không được lặp nhau: mỗi cảnh một tình huống và một mức thay đổi quan hệ khác nhau, tăng dần theo mạch truyện.",
+    ageGuardPrompt(st),
+    "- Nhân vật không ghi tuổi trong hồ sơ được coi là người lớn. Nhân vật có tuổi dưới 18 hoặc được mô tả như học sinh/trẻ em KHÔNG được tham gia cảnh nóng."
+  ].join("\n");
+}
+
+// Rà kết quả AI: trả danh sách số chương có cảnh 18+ mà dính nhân vật dưới 18 tuổi (theo hồ sơ) hoặc từ ngữ chỉ trẻ em/học sinh.
+function outlineAdultViolations(rows, st) {
+  const kid = /(?<![\p{L}\p{N}])(?:học sinh|nữ sinh|nam sinh|trẻ em|bé gái|bé trai|dưới 18|chưa đủ 18|chưa thành niên)(?![\p{L}\p{N}])/iu;
+  const nameRes = underageNames(st || {}).map(nm => new RegExp("(?<![\\p{L}\\p{N}])" + String(nm).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\p{L}\\p{N}])", "iu"));
+  const bad = [];
+  (rows || []).forEach(r => {
+    const b = String((r && r.b) || "");
+    if (!textHasNsfwKeyword(b)) return;
+    if (kid.test(b) || nameRes.some(re => re.test(b))) bad.push(Number(r.n));
+  });
+  return bad;
+}
+
 function _sumNorm(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim(); }
 
 function summaryNameList(text, characters){
