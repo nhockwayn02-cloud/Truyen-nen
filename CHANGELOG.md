@@ -1,5 +1,17 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1 — Hệ thống tu luyện (tu tiên / huyền huyễn / võ hiệp)]
+
+- **Hồ sơ nhân vật:** thêm cảnh giới (kèm tiểu tầng đệ nhất → đệ cửu trọng), cảnh giới cao nhất từng đạt (tự cập nhật), linh căn/thể chất, tư chất, thuộc tính, công pháp chính, thần thông/chiêu thức, sức chiến đấu, bản mệnh pháp bảo, túi trữ vật, linh thạch, tuổi ngoại hình, thọ nguyên, sư môn/bối phận, đạo hiệu (`aliases`), cơ duyên, ân oán, bí mật thân thế, tâm ma, nghiệp lực. Dùng chung cho nhân vật chính và nhân vật phụ.
+- **Nhân vật chính ngang nhân vật phụ:** thêm chức vị, thế lực, điểm yếu, nỗi sợ, điều biết. Form lưu giữ các khóa không có trên form (không còn bị xóa khi lưu).
+- **Story Bible:** ô "Hệ Thống Tu Luyện" + thang đại cảnh giới (mặc định Luyện Khí → Trúc Cơ → Kết Đan → Nguyên Anh) + nút nạp mẫu. Khối canon này vào prompt viết chương (client và worker); cảnh giới cao hơn thang chỉ là lời đồn, không được đặt tên.
+- **Khóa đột phá:** đổi cảnh giới chỉ được ghi khi AI báo `explicitCoreChange` + `changeEvidence` trích từ chương; bác cảnh giới ngoài thang và nhảy từ 2 đại cảnh giới. Công pháp chính/pháp bảo/thọ nguyên đổi theo cùng cơ chế; thần thông, cơ duyên, ân oán cộng dồn. Áp dụng cho cả client (`mergeCharacterUpdate`) và worker (`mergeCharacter`); Character State Tracker lấy cảnh giới từ hồ sơ.
+- **Hồ sơ khóa:** cảnh giới, công pháp, thần thông, pháp bảo, sư môn, tuổi ngoại hình, thọ nguyên, tên khác vào `characterLockPrompt` kèm luật "không tự nâng/hạ cảnh giới, vượt một đại cảnh giới phải có bù đắp".
+- **Vật phẩm:** thêm loại, phẩm cấp, công dụng, đã nhận chủ; AI trích xuất điền khi còn trống.
+- **Nhãn theo thể loại:** thể loại tu tiên/huyền huyễn/võ hiệp đổi nhãn Nghề→Thân phận, Vị trí→Chức vị/bối phận, Phe→Tông môn/thế lực, Tuổi→Tuổi thực.
+- **Rào chắn tuổi:** `parseAgeNum` ưu tiên số đứng trước "tuổi"; rào chắn 18+ lấy số nhỏ nhất giữa tuổi và tuổi ngoại hình.
+- **Test:** `v14_1_cultivation.test.js`, `e2e_v14_1_cultivation.py`.
+
 ## [V14.0.20] — Vietnamese Novel Writing
 
 - **Vietnamese-native prose contract:** added one shared prompt block for normal writing, background writing and adaptive scenes.
@@ -10,6 +22,7 @@
 - **Documentation alignment:** current version metadata, README overview, deployment/security references, implementation plan and historical-document banners were aligned to V14.0.20.
 - **Verification:** installed Playwright/Chromium and brought all five E2E suites to PASS; the delete-chapter E2E now asserts V14.0.18 snapshot invalidation instead of reading a deliberately cleared future snapshot.
 - **Post-audit fixes:** `netlify.toml` now blocks `/TODO.md`, `/plan.md`, `/PROMPT_OPTIMIZER_AUDIT.md`, `/VALIDATION_V1233.md` and `/.pre-p0-p1-p2-backup.txt`; the site-wide `Access-Control-Allow-Origin: *` header was removed and the background worker now honours `ALLOWED_ORIGIN` like the other functions; `TODO.md` E2E status and the `DEPLOY.md` `.github` note were corrected; hygiene test extended to cover all of this.
+- **Character suggestions:** the "Gợi ý nhân vật chưa có trong Database" box listed technique and realm names (e.g. "Huyền Nguyên Quyết", "Luyện Khí") because it only looked for repeated capitalised phrases. In cultivation/xianxia stories (detected from the genre or from ≥4 cue words such as tu luyện, linh khí, cảnh giới) it now skips known realm names, technique/concept heads and 3+ word names ending in Quyết/Công/Pháp/Kinh/Thuật/… unless they start with a common surname. Other genres are unaffected. Added a "🎒 Vật phẩm/Công pháp" button to file such a suggestion as an item.
 - **Outline AI 18+:** the "🤖 AI đề xuất" button of 0.6 Chapter Outline ignored the story's mature settings, so it always proposed ordinary outlines. It now reads `mature` + `chapterMatureFocus` (SECONDARY ≈ 2–3 of 10 chapters, PRIMARY ≈ 4–6 of 10 carry a "cảnh nóng" beat that also triggers NSFW model routing), includes the age guard, rejects results where an adult beat involves an under-18 character, and reports in the status line when the outline is ordinary because 18+ is off or the focus is NONE. Outline text stays plan-level (no explicit detail). Age rule: a character with no age in the Character Database counts as an adult (also in the base system prompt); only an explicit age under 18, or a description as a child/student, blocks adult content (the 18+ hint under section 4 now says so instead of warning). New `shared/core.js` helpers `outlineMaturePrompt` / `outlineAdultViolations` + test `v14_0_20_outline_mature.test.js`.
 
 ## [V14.0.19] — Character Canon Manager

@@ -5,7 +5,7 @@
   "use strict";
   const X = window.__XTA__, HOOKS = window.__XTA_HOOKS__;
   if (!X || !HOOKS) { console.warn("[features] thiếu cầu nối __XTA__ — bỏ qua tính năng V14.0.15"); return; }
-  const { state, persist, escapeHtml, setStatus, showAlert, callAI, renderCharacters, renderLocations, newCharacter, genId } = X;
+  const { state, persist, escapeHtml, setStatus, showAlert, callAI, renderCharacters, renderLocations, newCharacter, newItem, renderItems, genId } = X;
   const { computeCanonDiff, undoCanonDiffItem, suggestCharacterCandidates, storyHealthReport, deterministicConsistencyCheck, buildConsistencyPrompt, parseConsistencyResponse, STEP_LABELS } = X.core;
   const esc = (s) => escapeHtml(s);
   const safe = (fn) => { try { return fn(); } catch (e) { console.warn("[features]", e && e.message); } };
@@ -80,8 +80,8 @@
   }
   function computeSuggestions() {
     const chs = state.chapters || [], last = chs[chs.length - 1];
-    const key = chs.length + ":" + (last ? String(last.text || "").length : 0) + ":" + (state.characters || []).length + ":" + (state.locations || []).length + ":" + (state.ignoredNameSuggestions || []).length;
-    if (key !== _sugKey) { _sugKey = key; _sugCache = suggestCharacterCandidates(chs, knownNamesForSuggest(), { minCount: 3, max: 10 }); }
+    const key = chs.length + ":" + (last ? String(last.text || "").length : 0) + ":" + (state.characters || []).length + ":" + (state.locations || []).length + ":" + (state.items || []).length + ":" + (state.ignoredNameSuggestions || []).length + ":" + String(state.genre || "");
+    if (key !== _sugKey) { _sugKey = key; _sugCache = suggestCharacterCandidates(chs, knownNamesForSuggest(), { minCount: 3, max: 10, genre: state.genre }); }
     return _sugCache;
   }
   function renderSuggestions() {
@@ -94,7 +94,7 @@
       + '<div class="hint" style="margin:4px 0;">Tên riêng xuất hiện lặp lại trong truyện nhưng chưa có hồ sơ. Chỉ là gợi ý — bạn quyết định.</div>'
       + sug.map((s, i) => '<div style="border-top:1px solid var(--line);padding:6px 0;"><b>' + esc(s.name) + '</b> <span class="hint">' + s.count + ' lần · ' + s.chapters + ' chương (ch' + s.first + '–' + s.last + ')</span>'
         + '<div class="hint" style="font-style:italic;">…' + esc(s.sample) + '…</div>'
-        + '<button class="btn btn-purple btn-sm" data-sg-add="' + i + '">＋ Nhân vật</button> <button class="btn btn-ghost btn-sm" data-sg-loc="' + i + '">📍 Địa điểm</button> <button class="btn btn-ghost btn-sm" data-sg-ign="' + i + '">✕ Bỏ qua</button></div>').join("") + '</details>';
+        + '<button class="btn btn-purple btn-sm" data-sg-add="' + i + '">＋ Nhân vật</button> <button class="btn btn-ghost btn-sm" data-sg-loc="' + i + '">📍 Địa điểm</button> <button class="btn btn-ghost btn-sm" data-sg-item="' + i + '">🎒 Vật phẩm/Công pháp</button> <button class="btn btn-ghost btn-sm" data-sg-ign="' + i + '">✕ Bỏ qua</button></div>').join("") + '</details>';
   }
   function onSuggestClick(e) {
     const b = e.target.closest("button"); if (!b) return;
@@ -107,6 +107,9 @@
     } else if ((s = pick("data-sg-loc"))) {
       state.locations = state.locations || []; state.locations.push({ id: genId(), name: s.name, description: "", status: "active", firstAppearance: s.first, lastAppearance: s.last });
       persist(); safe(() => renderLocations()); renderCharacters();
+    } else if ((s = pick("data-sg-item"))) {
+      state.items = state.items || []; state.items.push(newItem({ name: s.name, firstAppearance: s.first, lastAppearance: s.last }));
+      persist(); safe(() => renderItems()); renderCharacters();
     } else if ((s = pick("data-sg-ign"))) {
       state.ignoredNameSuggestions = state.ignoredNameSuggestions || []; state.ignoredNameSuggestions.push(s.name); persist(); renderCharacters();
     }

@@ -134,6 +134,11 @@
 <div class="field"><label>Thể Loại</label><input id="genre" type="text"/></div>
 <div class="field"><label>Thế Giới</label><textarea id="worldSetting" rows="2"></textarea></div>
 <div class="field"><label>Quy Tắc Thế Giới</label><textarea id="worldRules" rows="2"></textarea></div>
+<div class="field"><label style="color:var(--amber);">🧘 Hệ Thống Tu Luyện (tu tiên / huyền huyễn / võ hiệp)</label>
+<textarea id="cultivationSystem" rows="6" placeholder="Mô tả cảnh giới, tiểu tầng, tuổi thọ, điều kiện đột phá, độ hiếm... AI coi đây là canon và không tự đổi."></textarea>
+<input id="realmLadder" placeholder="Thang đại cảnh giới, thấp → cao, cách nhau dấu phẩy (để trống = Luyện Khí, Trúc Cơ, Kết Đan, Nguyên Anh)" type="text" style="margin-top:6px;"/>
+<div class="hint" style="margin-top:4px;">Mỗi đại cảnh giới chia 9 tiểu tầng (đệ nhất → đệ cửu trọng). Cảnh giới ngoài thang bị AI từ chối; đổi cảnh giới của nhân vật chỉ được chấp nhận khi chương kể rõ sự kiện đột phá.</div>
+<button class="btn btn-ghost btn-sm" id="cultSeedBtn" style="margin-top:4px;">📜 Nạp mẫu: Luyện Khí → Nguyên Anh (9 tầng)</button></div>
 <div class="field"><label>Quy Tắc Khác</label><textarea id="antagonist" rows="2"></textarea></div>
 <div class="field"><label style="color:var(--amber);">🗣️ Quy Tắc Xưng Hô</label><textarea id="pronounRules" rows="3"></textarea></div>
 <div class="field"><label style="color:var(--purple);">🎨 Miêu tả thế giới / không khí</label><textarea id="worldDescription" placeholder="Màu sắc, mùi, âm thanh, kiến trúc..." rows="3"></textarea></div>
@@ -196,6 +201,7 @@
 <textarea id="mcSexualExpInput" placeholder="Kinh nghiệm 18+" rows="2"></textarea>
 <textarea id="mcBoundariesInput" placeholder="Ranh giới / consent" rows="2"></textarea>
 <textarea id="mcPreferencesInput" placeholder="Sở thích / kink" rows="2"></textarea>
+<div id="mcExtraBox"></div>
 <button class="btn btn-amber" id="saveMainCharBtn">💾 Lưu</button>
 <button class="btn btn-ghost" id="rescanMainCharBtn">🔄 AI cập nhật</button>
 </div>
@@ -269,6 +275,12 @@
 <option value="destroyed">Hỏng</option><option value="stored">Cất giữ</option>
 </select>
 </div>
+<div class="row2" style="margin-bottom:6px;">
+<select id="itemKindInput"><option value="">Loại — chưa xác định</option><option value="pháp bảo">Pháp bảo</option><option value="binh khí">Binh khí</option><option value="đan dược">Đan dược</option><option value="công pháp/bí kíp">Công pháp / bí kíp</option><option value="trận pháp/phù lục">Trận pháp / phù lục</option><option value="linh thạch/tài nguyên">Linh thạch / tài nguyên</option><option value="khác">Khác</option></select>
+<input id="itemGradeInput" placeholder="Phẩm cấp (VD: Hạ phẩm pháp khí, Nhị giai đan)" type="text"/>
+</div>
+<input id="itemEffectInput" placeholder="Công dụng / hạn chế" style="margin-bottom:6px;" type="text"/>
+<label class="hint" style="display:block;margin-bottom:6px;"><input id="itemBoundInput" type="checkbox"/> Đã nhận chủ / bản mệnh</label>
 </div>
 <button class="btn btn-amber" id="itemAddBtn">＋ Thêm</button>
 </div>
@@ -1462,12 +1474,22 @@ function textHasNsfwKeyword(text) {
   return _NSFW_RE.test(String(text).normalize("NFC"));
 }
 
-function parseAgeNum(a) { const m = String(a == null ? "" : a).match(/\d{1,4}/); return m ? parseInt(m[0], 10) : null; }
+// V14.1: ưu tiên số đứng ngay trước "tuổi" ("17 tuổi, đã tu luyện 300 năm" -> 17), nếu không có thì lấy số đầu tiên như cũ.
+function parseAgeNum(a) {
+  const s = String(a == null ? "" : a);
+  const m = s.match(/(\d{1,4})\s*tuổi/i) || s.match(/\d{1,4}/);
+  return m ? parseInt(m[1] !== undefined ? m[1] : m[0], 10) : null;
+}
+// V14.1: tuổi dùng cho rào chắn 18+ = số NHỎ NHẤT trong (tuổi, tuổi ngoại hình). Nhân vật tu tiên "300 tuổi nhưng ngoại hình 16" vẫn bị chặn.
+function profileAgeNum(c, u) {
+  const a = parseAgeNum((c && c.age) || (u && u.age)), b = parseAgeNum((c && c.apparentAge) || (u && u.apparentAge));
+  if (a === null) return b; if (b === null) return a; return Math.min(a, b);
+}
 
 function underageNames(s) {
-  const out = []; const chk = (n, a) => { const v = parseAgeNum(a); if (n && v !== null && v < 18) out.push(String(n)); };
-  chk(s.mainCharProfile && s.mainCharProfile.name, s.mainCharProfile && s.mainCharProfile.age);
-  (s.characters || []).forEach(c => chk(c && c.name, c && c.age));
+  const out = []; const chk = (n, c) => { const v = profileAgeNum(c); if (n && v !== null && v < 18) out.push(String(n)); };
+  chk(s.mainCharProfile && s.mainCharProfile.name, s.mainCharProfile);
+  (s.characters || []).forEach(c => chk(c && c.name, c));
   return out;
 }
 
@@ -2449,6 +2471,125 @@ function lockCharsForText(st, text, limit) {
   ((st && st.characters) || []).forEach(c => { if (c && c.name && !c.dead && knownNameMentions(t, [c.name]).length) push(c); });
   return out;
 }
+// --- V14.1: HỆ THỐNG TU LUYỆN (tu tiên / huyền huyễn / võ hiệp) ---
+// Thang đại cảnh giới (thấp -> cao), mỗi đại cảnh giới chia 9 tiểu tầng "đệ nhất ... đệ cửu trọng". Người dùng có thể đổi thang trong Story Bible (state.realmLadder).
+const CULT_GENRE_RE = /tu (tiên|chân|luyện|đạo)|tiên hiệp|huyền huyễn|kiếm hiệp|võ hiệp|xianxia|cultivation|wuxia|tiên nghịch/i;
+const DEFAULT_REALM_LADDER = ["Luyện Khí", "Trúc Cơ", "Kết Đan", "Nguyên Anh"];
+const CULT_DEFAULT_SYSTEM_TEXT = [
+  "Cảnh giới giữ tên gọi cũ; mỗi đại cảnh giới chia chín tiểu tầng (đệ nhất đến đệ cửu trọng).",
+  "• Luyện Khí: khởi đầu. Chín tiểu tầng chủ yếu rèn thể chất, mở kinh mạch. Đệ cửu là ngưỡng cửa trước Trúc Cơ — nhiều người mắc kẹt hàng chục năm vì thiếu tài nguyên.",
+  "• Trúc Cơ: nơi phần lớn dừng chân lâu dài. Thể chất mạnh lên, nhan sắc giữ gìn, tuổi thọ kéo dài. Trúc Cơ hậu kỳ đã là nhân vật có tiếng trong giới trung lưu.",
+  "• Kết Đan: đẳng cấp khan hiếm. Kim đan ngưng kết, sức mạnh tăng vọt. Đệ cửu (viên mãn) được xem là đỉnh cao của thời đại đối với phần lớn người còn sống.",
+  "• Nguyên Anh trở lên: gần như chỉ còn trong lời đồn và cổ tịch. Còn nhiều cảnh giới khác chưa có ai chạm tới và chưa có ghi chép."
+].join("\n");
+const REALM_TIER_WORDS = ["nhat", "nhi", "tam", "tu", "ngu", "luc", "that", "bat", "cuu"];
+// Các trường tu luyện của hồ sơ nhân vật (dùng chung NPC + nhân vật chính). aliases/peakRealm xử lý riêng.
+const CULT_FIELDS = ["realm", "peakRealm", "spiritRoot", "talent", "element", "technique", "arts", "combatPower", "treasure", "inventory", "spiritStones", "apparentAge", "lifespan", "masterLine", "fortune", "grudges", "originSecret", "innerDemon", "karma"];
+const CULT_ACCUM = ["arts", "fortune", "grudges", "innerDemon", "karma"];                       // ghi thêm, không xóa cũ
+const CULT_FILL = ["spiritRoot", "talent", "element", "masterLine", "originSecret", "apparentAge"]; // chỉ điền khi còn trống
+const CULT_EXPLICIT = ["technique", "treasure", "lifespan"];                                       // điền khi trống; đổi cần sự kiện + bằng chứng
+const CULT_FREE = ["combatPower", "inventory", "spiritStones"];                                    // trạng thái động, được cập nhật
+function isCultivationGenre(genre) { return CULT_GENRE_RE.test(String(genre || "")); }
+function _rn(s) { return normalizeName(String(s == null ? "" : s).replace(/đ/gi, "d")).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim(); }
+function realmLadderOf(st) {
+  const raw = st && st.realmLadder;
+  let arr = Array.isArray(raw) ? raw : String(raw || "").split(/[,;\n>→]+/);
+  arr = arr.map(x => String(x).trim()).filter(Boolean).slice(0, 30);
+  return arr.length ? arr : DEFAULT_REALM_LADDER.slice();
+}
+// "Trúc Cơ đệ tam trọng" -> {major:1, tier:3, name:"Trúc Cơ", rank:13, known:true}. Tên ngoài thang -> known:false. "Phàm nhân" -> major:-1.
+function parseRealm(text, ladder) {
+  const n = _rn(text); if (!n) return null;
+  ladder = ladder && ladder.length ? ladder : DEFAULT_REALM_LADDER;
+  if (/(^| )(pham nhan|nguoi pham|chua tu luyen|chua nhap mon)( |$)/.test(n)) return { major: -1, tier: 0, name: "Phàm nhân", rank: -10, known: true };
+  let major = -1, best = "";
+  ladder.forEach((r, i) => { const rn = _rn(r); if (rn && (" " + n + " ").includes(" " + rn + " ") && rn.length >= best.length) { major = i; best = rn; } });
+  if (major < 0) return { major: -1, tier: 0, name: "", rank: null, known: false };
+  let tier = 0, m;
+  if ((m = n.match(/(?:^| )de (nhat|nhi|tam|tu|ngu|luc|that|bat|cuu) (?:trong|tang)/))) tier = REALM_TIER_WORDS.indexOf(m[1]) + 1;
+  else if ((m = n.match(/(?:tang|trong|cap) (\d)(?: |$)/)) || (m = n.match(/(?:^| )(\d) (?:trong|tang)/))) tier = Math.max(0, Math.min(9, parseInt(m[1], 10)));
+  else if (/vien man|dinh phong|dai vien man/.test(n)) tier = 9;
+  else if (/(^| )hau ky/.test(n)) tier = 8; else if (/(^| )trung ky/.test(n)) tier = 5; else if (/(^| )so ky/.test(n)) tier = 2;
+  return { major, tier, name: ladder[major], rank: major * 10 + tier, known: true };
+}
+// Quyết định có chấp nhận đổi cảnh giới old -> new không (chưa tính bằng chứng). ok=true: hợp lệ về mặt thang bậc.
+function realmChangeVerdict(oldText, newText, ladder) {
+  const nn = String(newText || "").trim(); if (!nn) return { ok: false, reason: "empty" };
+  const o = String(oldText || "").trim();
+  const b = parseRealm(nn, ladder);
+  if (!b || !b.known) return { ok: false, reason: "unknown", warn: "Cảnh giới \"" + nn.slice(0, 40) + "\" không nằm trong thang cảnh giới của truyện — bỏ qua (không tự đặt cảnh giới mới)." };
+  if (!o) return { ok: true, kind: "set" };
+  if (_rn(o) === _rn(nn)) return { ok: false, reason: "same" };
+  const a = parseRealm(o, ladder);
+  if (!a || !a.known) return { ok: true, kind: "set" };
+  if (b.major - a.major >= 2) return { ok: false, reason: "jump", warn: "Bỏ qua đổi cảnh giới \"" + o.slice(0, 30) + "\" → \"" + nn.slice(0, 30) + "\": nhảy từ 2 đại cảnh giới trở lên." };
+  if (b.rank > a.rank) return { ok: true, kind: b.major > a.major ? "breakthrough" : "advance" };
+  return { ok: true, kind: "drop" };
+}
+function _realmEvidenceOk(newRealm, evidence, ladder) {
+  const b = parseRealm(newRealm, ladder); if (!b || !b.known) return false;
+  const e = _rn(evidence); if (!e) return false;
+  return (b.name && e.includes(_rn(b.name))) || /dot pha|tien vao|tien len|len toi|dat toi|dat den|ngung ket|vien man|tang|trong|hau ky|trung ky|so ky|dinh phong|phe|tut|roi xuong|ton hai|suy giam/.test(e);
+}
+// Áp các trường tu luyện từ bản cập nhật AI `u` lên hồ sơ `target` (NPC hoặc nhân vật chính). Trả về mảng ghi chú/cảnh báo.
+// o: { explicit:boolean (có explicitCoreChange + bằng chứng hợp lệ), evidence:string, state }
+function applyCultivationUpdate(target, u, o) {
+  const notes = [];
+  if (!target || !u) return notes;
+  o = o || {};
+  const ladder = realmLadderOf(o.state), explicit = !!o.explicit;
+  const has = v => v != null && String(v).trim() !== "";
+  const clip = (v, n) => String(v).replace(/\s+/g, " ").trim().slice(0, n);
+  if (has(u.realm)) {
+    const v = realmChangeVerdict(target.realm, u.realm, ladder);
+    if (v.ok) {
+      const wasEmpty = !has(target.realm);
+      if (wasEmpty || (explicit && _realmEvidenceOk(u.realm, o.evidence, ladder))) {
+        target.realm = clip(u.realm, 80);
+        if (!wasEmpty) notes.push("Cảnh giới: " + (v.kind === "drop" ? "tụt" : "tăng") + " → " + target.realm);
+      } else notes.push("Bỏ qua đổi cảnh giới → \"" + clip(u.realm, 40) + "\": thiếu sự kiện đột phá có bằng chứng trích từ chương.");
+    } else if (v.warn) notes.push(v.warn);
+  }
+  { const pr = parseRealm(target.realm, ladder), pk = parseRealm(target.peakRealm, ladder);
+    if (pr && pr.known && pr.rank != null && (!pk || !pk.known || pr.rank > pk.rank)) target.peakRealm = target.realm; }
+  CULT_ACCUM.forEach(k => { if (has(u[k])) target[k] = mergeTextSegments(target[k], clip(u[k], 800), 1200); });
+  CULT_FILL.forEach(k => { if (has(u[k]) && !has(target[k])) target[k] = clip(u[k], 200); });
+  CULT_EXPLICIT.forEach(k => { if (has(u[k]) && (!has(target[k]) || explicit)) target[k] = clip(u[k], 240); });
+  CULT_FREE.forEach(k => { if (has(u[k])) target[k] = clip(u[k], 300); });
+  { // tên khác / đạo hiệu: chỉ thêm tên mới, không trùng nhân vật khác
+    const raw = Array.isArray(u.aliases) ? u.aliases : (has(u.aliases) ? String(u.aliases).split(/[,;\n]+/) : []);
+    if (raw.length) {
+      const cur = Array.isArray(target.aliases) ? target.aliases.slice() : [];
+      const taken = new Set([_rn(target.name)].concat(cur.map(_rn)));
+      const others = new Set();
+      const sts = o.state;
+      if (sts) { ((sts.characters) || []).forEach(c => { if (c && c !== target) { others.add(_rn(c.name)); (c.aliases || []).forEach(a => others.add(_rn(a))); } });
+        if (sts.mainCharProfile && sts.mainCharProfile !== target) others.add(_rn(sts.mainCharProfile.name)); }
+      raw.forEach(a => { const s = clip(a, 40), k = _rn(s);
+        if (!k || taken.has(k) || cur.length >= 8) return;
+        if (others.has(k)) { notes.push("Bỏ qua tên khác \"" + s + "\": trùng nhân vật khác."); return; }
+        cur.push(s); taken.add(k); });
+      if (cur.length) target.aliases = cur;
+    }
+  }
+  return notes;
+}
+// Khối canon về hệ thống tu luyện đưa vào prompt (rỗng nếu truyện không dùng).
+function cultivationSystemBlock(st) {
+  if (!st) return "";
+  const txt = String(st.cultivationSystem || "").trim();
+  const hasLadder = Array.isArray(st.realmLadder) ? st.realmLadder.length > 0 : !!String(st.realmLadder || "").trim();
+  if (!txt && !hasLadder && !isCultivationGenre(st.genre)) return "";
+  const ladder = realmLadderOf(st), top = ladder[ladder.length - 1];
+  const out = ["HỆ THỐNG TU LUYỆN (CANON — không tự đổi):"];
+  if (txt) out.push(txt.length > 1800 ? txt.slice(0, 1800) + "…" : txt);
+  out.push("Thang đại cảnh giới (thấp → cao): " + ladder.join(" → ") + ". Mỗi đại cảnh giới chia 9 tiểu tầng: đệ nhất, nhị, tam, tứ, ngũ, lục, thất, bát, cửu trọng.");
+  out.push("- Dùng ĐÚNG tên cảnh giới trong thang; không tự đặt tên cảnh giới/đại cảnh giới mới. Các cảnh giới cao hơn " + top + " chưa có ai chạm tới và chưa có ghi chép: chỉ được nhắc như lời đồn/cổ tịch mơ hồ, KHÔNG đặt tên, KHÔNG miêu tả chi tiết, KHÔNG cho nhân vật nào đạt tới.");
+  out.push("- Nhân vật chỉ đột phá/tụt cảnh khi chương kể RÕ sự kiện (tài nguyên, cơ duyên, ngộ đạo, bị thương nặng...). Không nhảy cảnh giới giữa hai chương; không vượt quá một đại cảnh giới mỗi lần.");
+  out.push("- Chênh lệch đại cảnh giới là vực sâu: thắng người cao hơn một đại cảnh giới phải có bù đắp cụ thể trong chương (pháp bảo, trận pháp, mưu kế, đối phương bị thương). Tiểu tầng cao hơn trong cùng đại cảnh giới chỉ là ưu thế vừa phải.");
+  return out.join("\n");
+}
+
 function characterLockPrompt(mc, chars, short) {
   const cut = (v, n) => { v = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return v.length > n ? v.slice(0, n) + "…" : v; };
   const line = (c, isMain) => {
@@ -2463,6 +2604,17 @@ function characterLockPrompt(mc, chars, short) {
     if (c.maritalNotes) f.push("ghi chú hôn nhân: " + cut(c.maritalNotes, 80));
     if (c.age) f.push("tuổi: " + cut(c.age, 10));
     if (c.skills || c.strength) f.push("năng lực: " + cut(c.skills || c.strength, 60));
+    if (c.realm) f.push("cảnh giới: " + cut(c.realm, 40));
+    if (c.peakRealm && c.peakRealm !== c.realm) f.push("từng đạt: " + cut(c.peakRealm, 40));
+    if (c.spiritRoot || c.talent) f.push("linh căn/tư chất: " + cut([c.spiritRoot, c.talent].filter(Boolean).join("; "), 60));
+    if (c.technique) f.push("công pháp: " + cut(c.technique, 50));
+    if (c.arts) f.push("thần thông/chiêu thức: " + cut(c.arts, 70));
+    if (c.combatPower) f.push("sức chiến đấu: " + cut(c.combatPower, 50));
+    if (c.treasure) f.push("pháp bảo/binh khí: " + cut(c.treasure, 50));
+    if (c.masterLine) f.push("sư môn/bối phận: " + cut(c.masterLine, 50));
+    if (c.apparentAge) f.push("tuổi ngoại hình: " + cut(c.apparentAge, 20));
+    if (c.lifespan) f.push("thọ nguyên: " + cut(c.lifespan, 30));
+    if (Array.isArray(c.aliases) && c.aliases.length) f.push("tên khác: " + cut(c.aliases.join(", "), 50));
     if (c.speech || c.voice) f.push("cách nói: " + cut(c.speech || c.voice, 60));
     if (c.personality) f.push("tính: " + cut(c.personality, 60));
     if (c.knowledge) f.push("biết: " + cut(c.knowledge, 60));
@@ -2474,6 +2626,8 @@ function characterLockPrompt(mc, chars, short) {
   (chars || []).forEach(c => { if (c && c.name && !(mc && mc.name === c.name)) rows.push(line(c, false)); });
   const lines = rows.filter(Boolean);
   if (!lines.length) return "";
+  const hasCult = [mc].concat(chars || []).some(c => c && (c.realm || c.technique || c.arts));
+  const cultRule = hasCult ? "- CẢNH GIỚI/CÔNG PHÁP: giữ đúng cảnh giới, công pháp, thần thông, pháp bảo ghi trong hồ sơ; không tự nâng/hạ cảnh giới, không tự thêm công pháp hoặc thần thông cao hơn hồ sơ. Đột phá chỉ khi chương kể rõ sự kiện; thắng người cao hơn một đại cảnh giới phải có bù đắp cụ thể." : "";
   const anatomyLock = [
     "GENDER ANATOMY LOCK — bắt buộc phân biệt nhân vật theo giới tính trong hồ sơ:",
     "- Trước mọi đoạn tả thân thể, đối chiếu đúng TÊN nhân vật với giới tính hồ sơ; không lấy mô tả của người này gán sang người khác.",
@@ -2481,7 +2635,7 @@ function characterLockPrompt(mc, chars, short) {
     "- Khi nhiều nhân vật cùng cảnh, mỗi câu tả thân thể phải có chủ thể rõ bằng tên hoặc đại từ đã khóa; không dùng đại từ mơ hồ.",
     "- Nếu giới tính hồ sơ trống hoặc mâu thuẫn, không suy đoán chi tiết nhạy cảm; dùng mô tả trung tính và giữ nguyên hồ sơ."
   ];
-  if (short) return ["HỒ SƠ KHÓA — giữ đúng nghề/địa vị/quyền hạn/năng lực/cách nói của từng nhân vật, không tự nâng cấp hay vượt thiết lập:", ...anatomyLock, ...lines].join("\n");
+  if (short) return ["HỒ SƠ KHÓA — giữ đúng nghề/địa vị/quyền hạn/năng lực/cách nói của từng nhân vật, không tự nâng cấp hay vượt thiết lập:", ...(cultRule ? [cultRule] : []), ...anatomyLock, ...lines].join("\n");
   return [
     "HỒ SƠ KHÓA — NHÂN VẬT PHẢI ĐÚNG THIẾT LẬP (ưu tiên hơn sự hấp dẫn của cảnh):",
     "- Mỗi nhân vật chỉ được nói, nghĩ và hành xử trong phạm vi nghề, địa vị, quyền hạn, tài sản, năng lực, tuổi, hiểu biết và tính cách ghi dưới đây. Không tự nâng cấp (quyền lực, giàu có, võ công, quan hệ, chức danh) và không tự hạ cấp.",
@@ -2489,6 +2643,7 @@ function characterLockPrompt(mc, chars, short) {
     "- Muốn nhân vật vượt hồ sơ (thăng chức, lộ thân phận, có năng lực mới) thì phải có sự kiện RÕ RÀNG trong chính chương làm nguyên nhân (và brief cho phép); nếu không, giữ đúng hồ sơ.",
     "- Hồ sơ trống ở một mục nghề/địa vị/quyền hạn/tài sản/năng lực = chưa xác định: đừng bịa chi tiết quan trọng cho mục đó, dùng chi tiết trung tính hoặc để mở. (NGOẠI LỆ: ngoại hình/vóc dáng/số đo trống thì được tự đặt chi tiết cụ thể, hợp lý.)",
     "- Trước khi viết mỗi cảnh, tự hỏi: nhân vật này có THẬT SỰ được phép nói/làm điều này theo hồ sơ không? Nếu không, đổi cách viết.",
+    ...(cultRule ? [cultRule] : []),
     ...anatomyLock,
     "HỒ SƠ:", ...lines
   ].join("\n");
@@ -2927,10 +3082,15 @@ function resolveCharacterTarget(state, name) {
 }
 
 /* AI báo thêm về nhân vật chính: chỉ cập nhật các trường trạng thái (không đụng hồ sơ do người dùng nhập). */
-function applyMainCharUpdate(profile, u) {
+function applyMainCharUpdate(profile, u, sourceText, st) {
   if (!profile || !u) return false;
   let changed = false;
   ["currentLocation", "physicalState", "mentalState", "secret"].forEach(k => { if (u[k] && String(u[k]).trim()) { profile[k] = u[k]; changed = true; } });
+  // V14.1: trường tu luyện (cảnh giới đổi cần explicitCoreChange + bằng chứng trích từ chương, như nghề/chức vụ).
+  const explicit = u.explicitCoreChange === true && String(u.changeEvidence || "").trim().length >= 12 && (sourceText == null || evidenceInText(u.changeEvidence, sourceText));
+  const before = JSON.stringify(profile);
+  applyCultivationUpdate(profile, u, { explicit, evidence: u.changeEvidence, state: st || (typeof state !== "undefined" ? state : null) });
+  if (JSON.stringify(profile) !== before) changed = true;
   return changed;
 }
 
@@ -2952,7 +3112,7 @@ function mergeTextSegments(a, b, max) {
 /* Gộp hồ sơ `source` vào `target` (target là bản giữ lại). Không mất thông tin: trường trống thì điền, trường chữ thì nối ý mới. */
 function mergeCharacterRecords(target, source) {
   const SKIP = ["id", "name", "relationships", "history", "aliases", "coreIdentity", "tier", "firstAppearance", "lastAppearance", "dead", "deathChapter", "locked", "coreLocked"];
-  const TEXT = ["appearance", "personality", "goals", "secret", "weakness", "fear", "knowledge", "independentPlot", "speech", "strength", "role", "relevanceToMC"];
+  const TEXT = ["appearance", "personality", "goals", "secret", "weakness", "fear", "knowledge", "independentPlot", "speech", "strength", "role", "relevanceToMC", "arts", "fortune", "grudges", "innerDemon", "karma"];
   Object.keys(source).forEach(k => {
     if (SKIP.includes(k)) return;
     const v = source[k];
@@ -3322,12 +3482,37 @@ function undoCanonDiffItem(st, item, field) {
 /* ----- Hộp thư nhân vật gợi ý: tên riêng lặp lại nhưng chưa có trong Database ----- */
 const NAME_SUGGEST_STOP = new Set(["viet nam","ha noi","sai gon","ho chi minh","da nang","hai phong","can tho","hue","trung quoc","nhat ban","han quoc","my","thu hai","thu ba","thu tu","thu nam","thu sau","thu bay","chu nhat","tet nguyen dan","nguyen dan","giang sinh","ban than","bo gia","ngay hom"]);
 const NAME_SUGGEST_HONORIFIC = /^(ong|ba|co|anh|chi|em|chu|di|bac|thay|cau|mo|cu|thim|duong|gi)$/;
+// V14.0.20 post-audit: tên công pháp / cảnh giới / thuật ngữ tu luyện (tu tiên, huyền huyễn, võ hiệp) không phải tên người.
+// Chỉ lọc khi truyện thật sự thuộc thể loại này (xem nameSuggestCultivationMode) để không làm mất tên người ở truyện khác (vd. "Nguyên Anh" là tên con gái).
+const NAME_SUGGEST_REALMS = ["luyen khi","truc co","ket dan","kim dan","ngung dan","nguyen anh","hoa than","luyen hu","hop the","dai thua","do kiep","phan than","xuat khieu","ngung mach","khai mach","tich coc","tien thien","hau thien","dia tien","thien tien","chan tien","huyen tien","kim tien","dau ky","dau su","dai dau su","dau vuong","dau hoang","dau ton","dau thanh","dau de","tong su","dai tong su"];
+const NAME_SUGGEST_CONCEPT_HEAD = ["canh gioi","cong phap","tam phap","phap quyet","bi kip","bi tich","than thong","tu vi","linh can","linh khi","linh luc","chan khi","chan nguyen","kiem phap","than phap","quyen phap","dan duoc","phap bao","linh thach","linh dan","dai dao"];
+const NAME_SUGGEST_TECH_SUFFIX = new Set(["quyết","công","pháp","kinh","thuật","chưởng","quyền","kiếm","trảo","trận","điển","đạo","phù","đan"]);
+// Họ phổ biến (kể cả họ kiểu Trung): cụm 3 chữ bắt đầu bằng họ + kết thúc bằng từ như "Quyết/Công" vẫn có thể là TÊN NGƯỜI (vd. "Nguyễn Văn Công") nên không lọc.
+const NAME_SUGGEST_SURNAMES = new Set(["nguyễn","trần","lê","phạm","hoàng","huỳnh","phan","vũ","võ","đặng","bùi","đỗ","hồ","ngô","dương","lý","lâm","trương","vương","tiêu","diệp","sở","mộ","âu","tư","thượng","lục","đường","triệu","tào","chu","tống","hạ","giang","cố","mạc","từ","thẩm","bạch","hứa","tạ","lưu","mã","hàn","đinh","khương","tôn","trịnh","đào","phùng","kiều"]);
+const NAME_SUGGEST_CULT_CUES = ["tu luyện","linh khí","cảnh giới","tu vi","công pháp","đan điền","tu tiên","tu sĩ","pháp bảo","linh thạch","đột phá","kinh mạch","tông môn","chân khí","linh căn"];
+function nameSuggestCultivationMode(chapters, opts) {
+  if (opts && /tu (tiên|chân|luyện|đạo)|tiên hiệp|huyền huyễn|kiếm hiệp|võ hiệp|xianxia|cultivation|wuxia/i.test(String(opts.genre || ""))) return true;
+  let n = 0;
+  (chapters || []).some(ch => {
+    const t = String((ch && ch.text) || "").normalize("NFC").toLowerCase();
+    for (const c of NAME_SUGGEST_CULT_CUES) { let i = -1; while ((i = t.indexOf(c, i + 1)) >= 0) { if (++n >= 6) return true; } }
+    return false;
+  });
+  return n >= 4;
+}
+function nameSuggestIsConcept(raw, nk) {
+  if (NAME_SUGGEST_REALMS.some(r => nk === r || nk.startsWith(r + " "))) return true;
+  if (NAME_SUGGEST_CONCEPT_HEAD.some(r => nk === r || nk.startsWith(r + " "))) return true;
+  const rw = String(raw || "").toLowerCase().split(" ");
+  return rw.length >= 3 && NAME_SUGGEST_TECH_SUFFIX.has(rw[rw.length - 1]) && !NAME_SUGGEST_SURNAMES.has(rw[0]);
+}
 function suggestCharacterCandidates(chapters, knownNames, opts) {
   opts = opts || {};
   const minCount = opts.minCount || 3, maxOut = opts.max || 12;
   const known = (knownNames || []).map(normalizeName).filter(Boolean);
   const re = /\p{Lu}\p{Ll}+(?:[ \t]+\p{Lu}\p{Ll}+){1,3}/gu;
   const found = new Map();
+  const cultivation = nameSuggestCultivationMode(chapters, opts);
   (chapters || []).forEach((ch, ci) => {
     const text = String((ch && ch.text) || "").normalize("NFC");
     let m; re.lastIndex = 0;
@@ -3346,6 +3531,7 @@ function suggestCharacterCandidates(chapters, knownNames, opts) {
   found.forEach((rec, nk) => {
     if (rec.count < minCount && rec.chapters.size < 2) return;
     if (rec.count < 2) return;
+    if (cultivation && nameSuggestIsConcept(rec.name, nk)) return;
     const covered = known.some(k => k === nk || (" " + nk + " ").includes(" " + k + " ") || (" " + k + " ").includes(" " + nk + " "));
     if (covered) return;
     const w = nk.split(" ");
@@ -3729,6 +3915,7 @@ function buildStoryMetaData(source){
   meta.storyBible={
     mainPlot:s.mainPlot||"", genre:s.genre||"", worldSetting:s.worldSetting||"",
     worldRules:s.worldRules||"", antagonist:s.antagonist||"", pronounRules:s.pronounRules||"",
+    cultivationSystem:s.cultivationSystem||"", realmLadder:Array.isArray(s.realmLadder)?s.realmLadder.join(", "):(s.realmLadder||""),
     worldDescription:s.worldDescription||"", storyBibleLocked:!!s.storyBibleLocked,
     mainCharProfile:s.mainCharProfile||null
   };
@@ -3880,7 +4067,7 @@ const state = {
   totalCalls: 0, totalTokensIn: 0, totalTokensOut: 0, totalCostUSD: 0,
   storyId: null, storyName: "",
   styleBible: { pov:"third_limited", tense:"past", tone:"", sample:"", extra:"" },
-  mainPlot: "", genre: "", worldSetting: "", worldRules: "", antagonist: "",
+  mainPlot: "", genre: "", worldSetting: "", worldRules: "", antagonist: "", cultivationSystem: "", realmLadder: "",
   pronounRules: "", worldDescription: "", storyBibleLocked: false,
   mainCharProfile: null,
   vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
@@ -3912,19 +4099,22 @@ const state = {
 };
 
 function newMainCharProfile(){
-  return {
+  const p = {
     name:"", age:"", gender:"", maritalStatus:"", spouseName:"", maritalNotes:"", appearance:"", personality:"", occupation:"",
     goals:"", skills:"", physicalState:"", mentalState:"", currentLocation:"", secret:"",
     height:"", bodyType:"", measurements:"", hair:"", eyes:"", skin:"", voice:"", scent:"",
     style:"", scars:"", tattoos:"", speech:"",
-    sexualExperience:"", boundaries:"", preferences:""
+    sexualExperience:"", boundaries:"", preferences:"",
+    position:"", faction:"", weakness:"", fear:"", knowledge:""
   };
+  CULT_FIELDS.forEach(k=>{ p[k] = ""; });   // V14.1: trường tu luyện dùng chung với nhân vật phụ
+  return p;
 }
 function newStoryState(name){
   return {
     schemaVersion: 12, lorebook: [], loreBudgetTokens: 2000, storyId: newStoryId(), storyName: name || ("Truyện " + (storiesIndex.length + 1)),
     styleBible: { pov:"third_limited", tense:"past", tone:"", sample:"", extra:"" },
-    mainPlot:"", genre:"", worldSetting:"", worldRules:"", antagonist:"",
+    mainPlot:"", genre:"", worldSetting:"", worldRules:"", antagonist:"", cultivationSystem:"", realmLadder:"",
     pronounRules:"", worldDescription:"", storyBibleLocked:false,
     mainCharProfile: newMainCharProfile(),
     mainCharCoreIdentity: {},
@@ -3970,6 +4160,7 @@ function newCharacter(partial){
     coreIdentity:{}, coreLocked:true,
     locked:false, dead:false, deathChapter:null, history:[]
   }, partial||{});
+  CULT_FIELDS.forEach(k=>{ if(c[k]==null) c[k]=""; });   // V14.1: cảnh giới, công pháp, pháp bảo...
   if(!c.coreIdentity || typeof c.coreIdentity!=="object" || !Object.keys(c.coreIdentity).length){
     c.coreIdentity = {};
     CHARACTER_CORE_LOCK_FIELDS.forEach(k=>{ c.coreIdentity[k] = c[k] ?? ""; });
@@ -3988,7 +4179,9 @@ function newLocation(partial){
     firstAppearance:null, lastAppearance:null }, partial||{});
 }
 function newItem(partial){
+  /* V14.1: kind = loại (pháp bảo/binh khí/đan dược...), grade = phẩm cấp, effect = công dụng/hạn chế, bound = đã nhận chủ/bản mệnh */
   return Object.assign({ id: genId(), name:"", description:"", owner:"", status:"active",
+    kind:"", grade:"", effect:"", bound:false,
     firstAppearance:null, lastAppearance:null }, partial||{});
 }
 function normalizeCharacterCoreLocks(){
@@ -5315,6 +5508,13 @@ function buildStoryBibleSummary(options){
     if(p.sexualExperience) parts.push("18+:"+String(p.sexualExperience).slice(0,120));
     if(p.preferences) parts.push("kink:"+String(p.preferences).slice(0,80));
     if(p.skills) parts.push("kỹ năng:"+p.skills);
+    if(p.realm) parts.push("CẢNH GIỚI:"+p.realm);
+    if(p.technique) parts.push("công pháp:"+String(p.technique).slice(0,60));
+    if(p.arts) parts.push("thần thông:"+String(p.arts).slice(0,80));
+    if(p.treasure) parts.push("pháp bảo:"+String(p.treasure).slice(0,60));
+    if(p.faction) parts.push("thế lực:"+String(p.faction).slice(0,40));
+    if(p.position) parts.push("chức vị:"+String(p.position).slice(0,40));
+    if(p.apparentAge) parts.push("tuổi ngoại hình:"+p.apparentAge);
     if(p.currentLocation) parts.push("ở:"+p.currentLocation);
     if(p.goals) parts.push("mục tiêu:"+p.goals);
     if(p.physicalState) parts.push("thể trạng:"+p.physicalState);
@@ -5325,6 +5525,7 @@ function buildStoryBibleSummary(options){
   if(state.genre) lines.push("THỂ LOẠI: " + state.genre);
   if(state.worldSetting) lines.push("THẾ GIỚI: " + state.worldSetting);
   if(state.worldRules) lines.push("QUY TẮC THẾ GIỚI: " + state.worldRules);
+  { const _cs = cultivationSystemBlock(state); if(_cs) lines.push(_cs); }
   if(!(options && options.includeOtherRules === false) && state.antagonist) lines.push("QUY TẮC KHÁC: " + state.antagonist);
   if(state.worldDescription) lines.push("MIÊU TẢ THẾ GIỚI: " + state.worldDescription);
   if(state.pronounRules) lines.push("QUY TẮC XƯNG HÔ:\n" + state.pronounRules);
@@ -5425,6 +5626,9 @@ function buildContextBlock(options){
     if(mc.personality) mcParts.push("tính:"+clip(mc.personality, 120));
     if(mc.goals) mcParts.push("mục tiêu:"+clip(mc.goals, 120));
     if(mc.currentLocation) mcParts.push("ở:"+mc.currentLocation);
+    if(mc.realm) mcParts.push("CẢNH GIỚI:"+clip(mc.realm, 40));
+    if(mc.technique) mcParts.push("công pháp:"+clip(mc.technique, 50));
+    if(mc.faction) mcParts.push("thế lực:"+clip(mc.faction, 40));
     if(mc.mentalState) mcParts.push("tâm lý:"+clip(mc.mentalState, 100));
     if(mc.physicalState) mcParts.push("thể trạng:"+clip(mc.physicalState, 100));
     lines.push(mcParts.join(" | "));
@@ -5436,7 +5640,7 @@ function buildContextBlock(options){
   if(activeLocs.length) lines.push("ĐỊA ĐIỂM:\n" + activeLocs.map(l=>"- "+l.name+": "+clip(l.description, 100)).join("\n"));
 
   const activeItems = state.items.filter(it=>it.status === 'active').slice(-5);
-  if(activeItems.length) lines.push("VẬT PHẨM:\n" + activeItems.map(it=>"- "+it.name+(it.owner?" (của "+it.owner+")":"")+": "+clip(it.description, 80)).join("\n"));
+  if(activeItems.length) lines.push("VẬT PHẨM:\n" + activeItems.map(it=>"- "+it.name+((it.kind||it.grade)?" ["+[it.kind,it.grade].filter(Boolean).join(", ")+"]":"")+(it.owner?" (của "+it.owner+(it.bound?", đã nhận chủ":"")+")":"")+": "+clip(it.description, 80)+(it.effect?" | công dụng: "+clip(it.effect, 60):"")).join("\n"));
 
   const openThreads = state.threads.filter(t=>t.status!=='paid_off' && t.status!=='abandoned').slice(0, 6);
   if(openThreads.length) lines.push("THREADS:\n" + openThreads.map(t=>"- ["+t.type+"] "+clip(t.desc, 120)).join("\n"));
@@ -5674,10 +5878,18 @@ $ID("saveStyleBibleBtn").addEventListener("click", ()=>{
   };
   persist(); setStatus("Đã lưu Style Bible.", false);
 });
+if($ID("cultSeedBtn")) $ID("cultSeedBtn").addEventListener("click", ()=>{
+  const cs = $ID("cultivationSystem"), rl = $ID("realmLadder");
+  if(cs) cs.value = CULT_DEFAULT_SYSTEM_TEXT;
+  if(rl) rl.value = DEFAULT_REALM_LADDER.join(", ");
+  setStatus("Đã nạp mẫu hệ thống tu luyện — bấm 'Lưu Story Bible' để áp dụng.", false);
+});
 $ID("saveSettingsBtn").addEventListener("click", ()=>{
   state.mainPlot = mainPlotEl.value; state.genre = genreEl.value;
   state.worldSetting = worldSettingEl.value; state.worldRules = worldRulesEl.value;
   state.antagonist = antagonistEl.value; state.pronounRules = pronounRulesEl.value;
+  state.cultivationSystem = ($ID("cultivationSystem")||{value:state.cultivationSystem||""}).value;
+  state.realmLadder = ($ID("realmLadder")||{value:state.realmLadder||""}).value.trim();
   state.worldDescription = worldDescriptionEl.value;
   state.storyBibleLocked = storyBibleLockEl.checked;
   persist(); setStatus("Đã lưu Story Bible.", false);
@@ -5995,8 +6207,76 @@ $ID("deleteChapterBtn").addEventListener("click", async ()=>{
 
 
 /* ========== MAIN CHARACTER FORM ========== */
+/* V14.1: bộ trường tu luyện dùng chung cho form nhân vật chính và nhân vật phụ. [field, nhãn, "in"=một dòng | "ta"=nhiều dòng] */
+const CULT_UI = [
+  ["realm","Cảnh giới hiện tại (VD: Trúc Cơ đệ tam trọng)","in"],
+  ["peakRealm","Cảnh giới cao nhất từng đạt (tự cập nhật)","in"],
+  ["spiritRoot","Linh căn / thể chất / huyết mạch","in"],
+  ["talent","Tư chất / ngộ tính","in"],
+  ["element","Thuộc tính (ngũ hành, kiếm, đan, trận...)","in"],
+  ["technique","Công pháp chính","ta"],
+  ["arts","Thần thông / chiêu thức / võ học","ta"],
+  ["combatPower","Sức chiến đấu (so với người cùng cấp)","in"],
+  ["treasure","Bản mệnh pháp bảo / binh khí","in"],
+  ["inventory","Túi trữ vật (vật phẩm đang giữ)","ta"],
+  ["spiritStones","Linh thạch / tài sản tu sĩ","in"],
+  ["apparentAge","Tuổi ngoại hình (rào chắn 18+ lấy số nhỏ hơn)","in"],
+  ["lifespan","Thọ nguyên","in"],
+  ["masterLine","Sư môn & bối phận (sư phụ, sư huynh/tỷ/đệ/muội)","ta"],
+  ["aliasesText","Đạo hiệu / hiệu / tên gọi khác (cách nhau dấu phẩy)","in"],
+  ["fortune","Cơ duyên / kỳ ngộ","ta"],
+  ["grudges","Ân oán / thù hận","ta"],
+  ["originSecret","Bí mật thân thế","ta"],
+  ["innerDemon","Tâm ma / chấp niệm","ta"],
+  ["karma","Nghiệp lực / khí vận","ta"]
+];
+const MC_EXTRA_FIELDS = [
+  ["position","Chức vị / bối phận","in"], ["faction","Tông môn / thế lực","in"],
+  ["weakness","Điểm yếu","ta"], ["fear","Nỗi sợ","ta"], ["knowledge","Điều biết (chỉ những gì NV thực sự biết)","ta"]
+];
+const MC_DYN = MC_EXTRA_FIELDS.concat(CULT_UI);
+/* V14.1: nhãn theo thể loại — truyện tu tiên/huyền huyễn/võ hiệp dùng "thân phận, chức vị, tông môn" thay cho "nghề, vị trí, phe". */
+function genreLabels(){
+  const g = (typeof genreEl !== "undefined" && genreEl && genreEl.value) || state.genre || "";
+  const c = isCultivationGenre(g);
+  return {
+    cult: c,
+    age: c ? "Tuổi thực" : "Tuổi",
+    occupation: c ? "Thân phận / nghề (đệ tử ngoại môn, luyện đan sư...)" : "Nghề",
+    position: c ? "Chức vị / bối phận" : "Vị trí",
+    faction: c ? "Tông môn / gia tộc / thế lực" : "Phe",
+    currentLocation: c ? "Đang ở (địa danh, động phủ...)" : "Đang ở",
+    schedule: c ? "Việc đang làm / bế quan" : "Lịch trình",
+    skills: c ? "Võ học / kỹ năng" : "Kỹ năng"
+  };
+}
+function cultSectionOpen(c){
+  return genreLabels().cult || CULT_FIELDS.some(k=>c && String(c[k]||"").trim()) || !!(c && Array.isArray(c.aliases) && c.aliases.length);
+}
+function cultFieldHtml(f,label,kind,val,attrs){
+  const ph = escapeHtml(label);
+  return kind==="ta"
+    ? '<textarea '+attrs+' rows="2" placeholder="'+ph+'" title="'+ph+'">'+escapeHtml(val)+'</textarea>'
+    : '<input type="text" '+attrs+' value="'+escapeHtml(val)+'" placeholder="'+ph+'" title="'+ph+'" style="width:100%;margin-bottom:4px;">';
+}
+function buildMcExtraForm(){
+  const box = $ID("mcExtraBox"); if(!box) return;
+  let h = '<div class="hint" style="color:var(--purple);margin-top:4px;">🏷 Thân phận & tâm lý</div>';
+  h += MC_EXTRA_FIELDS.map(([f,label,kind])=>cultFieldHtml(f,label,kind,"",'id="mcf_'+f+'"')).join("");
+  h += '<details id="mcCultDetails" style="margin-top:6px;"><summary class="hint" style="cursor:pointer;color:var(--amber);font-weight:600;">🧘 Tu luyện (cảnh giới, công pháp, pháp bảo...)</summary>';
+  h += CULT_UI.map(([f,label,kind])=>cultFieldHtml(f,label,kind,"",'id="mcf_'+f+'"')).join("");
+  h += '</details>';
+  box.innerHTML = h;
+}
+function applyGenreLabels(){
+  const L = genreLabels();
+  const set = (id,ph)=>{ const el=$ID(id); if(el){ el.placeholder=ph; el.title=ph; } };
+  set("mcAgeInput", L.age); set("mcOccupationInput", L.occupation); set("mcLocationInput", L.cult ? L.currentLocation : "Đang ở đâu");
+  set("mcSkillsInput", L.skills); set("mcf_position", L.cult ? L.position : "Chức vị / vị trí"); set("mcf_faction", L.cult ? L.faction : "Phe / tổ chức");
+}
 function saveMainCharFromForm(){
-  state.mainCharProfile = {
+  const _old = state.mainCharProfile || {};
+  state.mainCharProfile = Object.assign({}, _old, {
     name: $ID("mcNameInput").value.trim(), age: $ID("mcAgeInput").value.trim(),
     gender: $ID("mcGenderInput").value.trim(), occupation: $ID("mcOccupationInput").value.trim(),
     maritalStatus: ($ID("mcMaritalStatusInput")||{value:""}).value.trim(), spouseName: ($ID("mcSpouseNameInput")||{value:""}).value.trim(),
@@ -6023,9 +6303,15 @@ function saveMainCharFromForm(){
     sexualExperience: $ID("mcSexualExpInput").value.trim(),
     boundaries: $ID("mcBoundariesInput").value.trim(),
     preferences: $ID("mcPreferencesInput").value.trim(),
-    maritalNotes: (state.mainCharProfile && state.mainCharProfile.maritalNotes) || "",
-    aliases: Array.isArray(state.mainCharProfile && state.mainCharProfile.aliases) ? state.mainCharProfile.aliases : []
-  };
+    maritalNotes: _old.maritalNotes || "",
+    aliases: Array.isArray(_old.aliases) ? _old.aliases : []
+  });
+  MC_DYN.forEach(([f])=>{
+    const el = $ID("mcf_"+f); if(!el) return;
+    if(f==="aliasesText") state.mainCharProfile.aliases = el.value.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean).slice(0,8);
+    else state.mainCharProfile[f] = el.value.trim();
+  });
+  applyCultivationUpdate(state.mainCharProfile, {}, {state});   // cập nhật peakRealm khi người dùng sửa cảnh giới
   persist();
 }
 const MC_FIELDS = ["mcNameInput","mcAgeInput","mcGenderInput","mcOccupationInput","mcLocationInput",
@@ -6034,6 +6320,10 @@ const MC_FIELDS = ["mcNameInput","mcAgeInput","mcGenderInput","mcOccupationInput
   "mcPersonalityInput","mcSpeechInput","mcGoalsInput","mcSkillsInput",
   "mcPhysicalInput","mcMentalInput","mcSecretInput",
   "mcSexualExpInput","mcBoundariesInput","mcPreferencesInput"];
+buildMcExtraForm();
+MC_DYN.forEach(([f])=>MC_FIELDS.push("mcf_"+f));
+if(typeof genreEl !== "undefined" && genreEl) genreEl.addEventListener("input", ()=>{ applyGenreLabels(); });
+if(typeof genreEl !== "undefined" && genreEl) genreEl.addEventListener("change", ()=>{ applyGenreLabels(); try{ renderCharacters(); }catch(e){} });
 MC_FIELDS.forEach(id=>{
   const el = $ID(id);
   if(!el) return;
@@ -6049,19 +6339,22 @@ $ID("rescanMainCharBtn").addEventListener("click", async ()=>{
     "Đọc chương sau và trích xuất thông tin MỚI về NHÂN VẬT CHÍNH.",
     "Thông tin hiện tại:", JSON.stringify(state.mainCharProfile, null, 2), "",
     "Nội dung chương:", state.chapters[state.chapters.length-1].text, "",
-    "Trả về DUY NHẤT object JSON cùng schema (chỉ điền những gì chương này thay đổi).",
+    "Trả về DUY NHẤT object JSON cùng schema (chỉ điền những gì chương này thay đổi). Cảnh giới (realm) chỉ ghi khi chương nêu rõ, dùng đúng tên trong thang cảnh giới; nếu có đột phá/tụt cảnh thì thêm explicitCoreChange=true và changeEvidence = câu trích nguyên văn từ chương.",
+    cultivationSystemBlock(state),
     JSON.stringify(newMainCharProfile())
   ].join("\n");
   try{
     const { text: raw } = await callAI(prompt, {maxTokens:1500, temperature:0.3});
     const obj = safeJsonParse(raw);
     if(obj && typeof obj === "object"){
-      const lockedMain = new Set(["name","age","gender","maritalStatus","spouseName","appearance","personality","occupation","goals"]);
+      const lockedMain = new Set(["name","age","gender","maritalStatus","spouseName","appearance","personality","occupation","goals","position","faction"]);
       Object.keys(obj).forEach(k=>{
+        if(CULT_FIELDS.includes(k) || k==="aliases" || k==="explicitCoreChange" || k==="changeEvidence") return;   // trường tu luyện đi qua applyMainCharUpdate (có kiểm soát đột phá)
         if(!obj[k] || !String(obj[k]).trim()) return;
         if(lockedMain.has(k) && state.mainCharProfile[k] && !obj.explicitCoreChange) return;
         state.mainCharProfile[k] = String(obj[k]).trim();
       });
+      applyMainCharUpdate(state.mainCharProfile, obj, state.chapters[state.chapters.length-1].text, state);
       persist(); hydrateMainCharForm();
       setStatus("Đã cập nhật.", false);
     } else setStatus("Không phân tích được.", false);
@@ -6085,6 +6378,12 @@ function hydrateMainCharForm(){
     const el = $ID(id);
     if(el) el.value = p[field] || "";
   });
+  MC_DYN.forEach(([f])=>{
+    const el = $ID("mcf_"+f); if(!el) return;
+    el.value = f==="aliasesText" ? (Array.isArray(p.aliases) ? p.aliases.join(", ") : "") : (p[f] || "");
+  });
+  { const d = $ID("mcCultDetails"); if(d) d.open = cultSectionOpen(p); }
+  applyGenreLabels();
 }
 
 /* ========== ARCS ========== */
@@ -6215,13 +6514,14 @@ function relationshipRowHtml(charIdx, relIdx, rel){
     + '</div>';
 }
 function charDetailHtml(c, idx){
+  const L = genreLabels();
   const classifyFields = [
     ["role","Vai trò với truyện (vd: đồng minh, phản diện phụ, nạn nhân...)"],
     ["relevanceToMC","Mức độ liên quan tới nhân vật chính"]
   ];
   const fields = [
-    ["age","Tuổi"], ["gender","Giới tính"], ["maritalStatus","Tình trạng hôn nhân"], ["spouseName","Vợ/chồng/người yêu"], ["maritalNotes","Ghi chú hôn nhân"], ["occupation","Nghề"], ["position","Vị trí"],
-    ["faction","Phe"], ["currentLocation","Đang ở"], ["schedule","Lịch trình"],
+    ["age",L.age], ["gender","Giới tính"], ["maritalStatus","Tình trạng hôn nhân"], ["spouseName","Vợ/chồng/người yêu"], ["maritalNotes","Ghi chú hôn nhân"], ["occupation",L.occupation], ["position",L.position],
+    ["faction",L.faction], ["currentLocation",L.currentLocation], ["schedule",L.schedule],
     ["height","Chiều cao"], ["bodyType","Dáng người"], ["measurements","Số đo / kích thước"],
     ["hair","Tóc"], ["eyes","Mắt"], ["skin","Da"],
     ["voice","Giọng nói"], ["scent","Mùi"], ["style","Phong cách ăn mặc"],
@@ -6249,11 +6549,14 @@ function charDetailHtml(c, idx){
   ).join("");
   html += '<div class="hint" style="color:var(--purple);margin-top:4px;">🎨 Miêu tả chi tiết</div>';
   html += '<div class="row2">' + fields.map(([f,label])=>
-    '<input type="text" data-char-field="'+f+'" data-char="'+idx+'" value="'+escapeHtml(c[f]||"")+'" placeholder="'+label+'">'
+    '<input type="text" data-char-field="'+f+'" data-char="'+idx+'" value="'+escapeHtml(c[f]||"")+'" placeholder="'+escapeHtml(label)+'" title="'+escapeHtml(label)+'">'
   ).join("") + '</div>';
   html += areas.map(([f,label])=>
     '<textarea data-char-field="'+f+'" data-char="'+idx+'" rows="2" placeholder="'+label+'">'+escapeHtml(c[f]||"")+'</textarea>'
   ).join("");
+  html += '<details'+(cultSectionOpen(c)?' open':'')+' style="margin-top:6px;"><summary class="hint" style="cursor:pointer;color:var(--amber);font-weight:600;">🧘 Tu luyện (cảnh giới, công pháp, pháp bảo...)</summary>'
+    + CULT_UI.map(([f,label,kind])=>cultFieldHtml(f,label,kind, f==="aliasesText" ? (Array.isArray(c.aliases)?c.aliases.join(", "):"") : (c[f]||""), 'data-char-field="'+f+'" data-char="'+idx+'"')).join("")
+    + '</details>';
   html += '<div style="font-size:11px;color:var(--red);margin-top:8px;font-weight:600;">🔥 Quan hệ & Ranh giới 18+</div>';
   html += adultFields.map(([f,label])=>
     '<textarea data-char-field="'+f+'" data-char="'+idx+'" rows="2" placeholder="'+label+'" style="border-color:rgba(226,88,77,.35);">'+escapeHtml(c[f]||"")+'</textarea>'
@@ -6361,6 +6664,11 @@ function renderCharactersCore(){
 function saveCharacterFromDom(idx){
   const c = state.characters[idx]; if(!c) return;
   document.querySelectorAll('[data-char-field][data-char="'+idx+'"]').forEach(el=>{ c[el.getAttribute("data-char-field")] = el.value; });
+  if(Object.prototype.hasOwnProperty.call(c,"aliasesText")){
+    c.aliases = String(c.aliasesText||"").split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean).slice(0,8);
+    delete c.aliasesText;
+  }
+  applyCultivationUpdate(c, {}, {state});   // cập nhật peakRealm khi người dùng sửa cảnh giới
   /* Lưu thủ công = ý chí của người dùng. Đồng bộ lại hồ sơ gốc cho các trường cốt lõi. */
   if(!c.coreIdentity || typeof c.coreIdentity!=="object") c.coreIdentity={};
   CHARACTER_CORE_LOCK_FIELDS.forEach(k=>{ c.coreIdentity[k] = c[k] ?? ""; });
@@ -6609,7 +6917,10 @@ function renderItems(){
   if(!state.items.length){ itemList.innerHTML = '<div class="empty-note">Chưa có.</div>'; return; }
   itemList.innerHTML = state.items.map((it,i)=>
     '<div class="item-item"><b>'+escapeHtml(it.name)+'</b> <span style="font-size:10px;color:var(--ink-dim);">'+it.status+'</span>'
+    + ((it.kind||it.grade) ? ' <span class="hint" style="color:var(--amber);">['+escapeHtml([it.kind,it.grade].filter(Boolean).join(" · "))+']</span>' : '')
+    + (it.bound ? ' <span class="hint" title="Đã nhận chủ / bản mệnh">🔗</span>' : '')
     + (it.owner ? ' <span class="hint">→ '+escapeHtml(it.owner)+'</span>' : '')
+    + (it.effect ? '<div class="hint" style="margin-top:2px;">⚙ '+escapeHtml(it.effect)+'</div>' : '')
     + (it.description ? '<div style="margin-top:3px;">'+escapeHtml(it.description)+'</div>' : '')
     + '<div class="char-actions"><button class="btn btn-outline-red btn-sm" data-item-del="'+i+'">Xóa</button></div></div>'
   ).join("");
@@ -6624,10 +6935,13 @@ $ID("itemAddBtn").addEventListener("click", ()=>{
     name, description: $ID("itemDescInput").value.trim(),
     owner: $ID("itemOwnerInput").value.trim(),
     status: $ID("itemStatusInput").value,
+    kind: $ID("itemKindInput").value, grade: $ID("itemGradeInput").value.trim(), effect: $ID("itemEffectInput").value.trim(),
+    bound: $ID("itemBoundInput").checked,
     firstAppearance: state.chapters.length, lastAppearance: state.chapters.length
   }));
   persist(); renderItems();
-  ["itemNameInput","itemDescInput","itemOwnerInput"].forEach(id=> $ID(id).value="");
+  ["itemNameInput","itemDescInput","itemOwnerInput","itemKindInput","itemGradeInput","itemEffectInput"].forEach(id=> $ID(id).value="");
+  $ID("itemBoundInput").checked = false;
 });
 
 /* ========== THREADS ========== */
@@ -6870,6 +7184,16 @@ function characterSummaryForPrompt(list){
     if(c.maritalNotes) parts.push("ghi chú hôn nhân:"+cut(c.maritalNotes, 80));
     if(c.occupation) parts.push("nghề:"+cut(c.occupation, 40));
     if(c.faction) parts.push("phe:"+cut(c.faction, 40));
+    if(c.position) parts.push("chức vị:"+cut(c.position, 40));
+    if(c.realm) parts.push("CẢNH GIỚI:"+cut(c.realm, 40));
+    if(c.technique) parts.push("công pháp:"+cut(c.technique, 50));
+    if(c.arts) parts.push("thần thông:"+cut(c.arts, 60));
+    if(c.treasure) parts.push("pháp bảo:"+cut(c.treasure, 50));
+    if(c.combatPower) parts.push("sức chiến đấu:"+cut(c.combatPower, 40));
+    if(c.masterLine) parts.push("sư môn:"+cut(c.masterLine, 50));
+    if(c.apparentAge) parts.push("tuổi ngoại hình:"+cut(c.apparentAge, 20));
+    if(c.lifespan) parts.push("thọ nguyên:"+cut(c.lifespan, 30));
+    if(Array.isArray(c.aliases) && c.aliases.length) parts.push("tên khác:"+cut(c.aliases.join(", "), 50));
     /* Ngoại hình / số đo — ƯU TIÊN (để cảnh 18+ bám hồ sơ) */
     if(c.height) parts.push("cao:"+cut(c.height, 30));
     if(c.bodyType) parts.push("dáng:"+cut(c.bodyType, 40));
@@ -6914,7 +7238,7 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
   /* v12.18: tên trùng hồ sơ Nhân Vật Chính / nhãn chung "nhân vật chính" / bí danh → cập nhật hồ sơ có sẵn, KHÔNG tạo mục mới */
   const rt = resolveCharacterTarget(state, cleanName);
   if(rt.kind === "main"){
-    applyMainCharUpdate(state.mainCharProfile, update);
+    applyMainCharUpdate(state.mainCharProfile, update, sourceText, state);
     return { name: (state.mainCharProfile&&state.mainCharProfile.name)||cleanName, isNewChar: false };
   }
   let c = rt.kind === "character" ? rt.character : null;
@@ -6932,7 +7256,7 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
     && (sourceText == null || evidenceInText(update.changeEvidence, sourceText));
   const JOB_FIELDS = ["role","position","occupation","faction"];
   Object.keys(update).forEach(key=>{
-    if(["name","isNew","relationshipWithMain","relationships","chapterEvent","isDead","explicitCoreChange","changeEvidence","_ghi_chu_18"].includes(key)) return;
+    if(["name","isNew","relationshipWithMain","relationships","chapterEvent","isDead","explicitCoreChange","changeEvidence","_ghi_chu_18","aliases"].includes(key) || CULT_FIELDS.includes(key)) return;
     const wasEmpty = !String(c[key]||"").trim();
     /* V12.19: khóa hồ sơ gốc chỉ chặn GHI ĐÈ giá trị đã có; trường còn trống (giới tính, tuổi, nghề...) vẫn được điền. */
     if(lockedFields.includes(key) && !explicitCoreChange && !wasEmpty) return;
@@ -6940,7 +7264,7 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
     /* Đặc điểm thân thể ổn định: chỉ điền khi trống, không để mỗi chương đổi một kiểu. */
     if(["age","gender","height","bodyType","measurements","hair","eyes","skin","voice","scent","style","scars","tattoos"].includes(key) && !wasEmpty && !explicitCoreChange) return;
     /* Trường 18+ chỉ ghi cho NV đủ 18 tuổi (khớp rào chắn tuổi của app). */
-    if(["sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"].includes(key)){ const ag=parseAgeNum(c.age||update.age); if(ag!==null && ag<18) return; }
+    if(["sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"].includes(key)){ const ag=profileAgeNum(c,update); if(ag!==null && ag<18) return; }
     /* V12.19: nghề/chức vụ đã có thì chỉ đổi khi có sự kiện + bằng chứng trích từ chương (kể cả NV đã mở khóa). */
     if(JOB_FIELDS.includes(key) && String(c[key]||"").trim() && normalizeName(c[key]) !== normalizeName(update[key]) && !explicitCoreChange) return;
     const value=String(update[key]);
@@ -6964,13 +7288,15 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
       c.coreIdentity[key]=c[key];
     }
   });
+  /* V14.1: trường tu luyện — cảnh giới chỉ đổi khi có sự kiện đột phá + bằng chứng trích từ chương; thang bậc lấy từ Story Bible. */
+  const cultNotes = applyCultivationUpdate(c, update, { explicit: explicitCoreChange, evidence: update.changeEvidence, state });
   if(update.isDead === true && !c.dead){ c.dead = true; c.deathChapter = chapterNumber; }
   c.lastAppearance = chapterNumber;
   if(update.relationshipWithMain && Object.values(update.relationshipWithMain).some(v=>v)){
     let rel = (c.relationships||[]).find(r=>normalizeName(r.withName).includes("nhan vat chinh"));
     if(!rel){ rel = newRelationship({withName:"Nhân vật chính"}); c.relationships.push(rel); }
     {
-      const _ag=parseAgeNum(c.age||update.age), _minor=(_ag!==null && _ag<18);
+      const _ag=profileAgeNum(c,update), _minor=(_ag!==null && _ag<18);
       Object.keys(update.relationshipWithMain).forEach(k=>{ const v=update.relationshipWithMain[k]; if(v==="" || v==null) return; if(_minor && (k==="attraction"||k==="boundaries")) return; rel[k]=v; });
     }
   }
@@ -6981,7 +7307,7 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
       if(!ru || !ru.withName) return;
       let rel = c.relationships.find(r=>normalizeName(r.withName)===normalizeName(ru.withName));
       if(!rel){ rel = newRelationship({withName: ru.withName}); c.relationships.push(rel); }
-      const _ag2=parseAgeNum(c.age), _minor2=(_ag2!==null && _ag2<18);
+      const _ag2=profileAgeNum(c,null), _minor2=(_ag2!==null && _ag2<18);
       Object.keys(ru).forEach(k=>{ if(k!=="withName" && ru[k]!=="" && ru[k]!=null && !(_minor2 && (k==="attraction"||k==="boundaries"))) rel[k]=ru[k]; });
     });
   }
@@ -6991,13 +7317,13 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
   const prevTracker=state.characterStateTracker[trackerKey]||{};
   state.characterStateTracker[trackerKey]={
     chapter:chapterNumber, name:c.name,
-    powerLevel:update.powerLevel||update.realm||update.level||prevTracker.powerLevel||"",
+    powerLevel:c.realm||update.powerLevel||update.level||prevTracker.powerLevel||"",
     location:update.currentLocation||prevTracker.location||"",
     health:update.healthStatus||update.physicalState||prevTracker.health||"",
     itemsHeld:update.itemsHeld||update.heldItems||prevTracker.itemsHeld||"",
     dead:!!c.dead
   };
-  return { name: c.name, isNewChar };
+  return { name: c.name, isNewChar, cultNotes };
 }
 // Định dạng JSON mà AI phải trả về khi cập nhật nhân vật — bao gồm phân loại
 // vai trò, mức liên quan tới nhân vật chính, mục tiêu, quan hệ với các NV
@@ -7022,6 +7348,7 @@ const CHAR_JSON_FORMAT_HINT = [
   '  "currentLocation": "", "physicalState": "", "mentalState": "",',
   '  "knowledge": "những gì NV này BIẾT/NGHI NGỜ tính đến hết chương này — chỉ ghi điều họ thực sự đã chứng kiến/được kể/suy luận hợp lý, KHÔNG được gán kiến thức của người đọc cho nhân vật",',
   '  "powerLevel": "cấp/cảnh giới hiện tại nếu có bằng chứng", "healthStatus": "tình trạng sức khỏe/vết thương hiện tại", "itemsHeld": "vật phẩm đang giữ",',
+  '  "realm": "cảnh giới hiện tại, CHỈ dùng đúng tên trong thang cảnh giới + tiểu tầng (vd: Trúc Cơ đệ tam trọng); chỉ ghi khi chương nêu rõ", "spiritRoot": "", "talent": "", "element": "", "technique": "công pháp chính", "arts": "thần thông/chiêu thức/võ học MỚI lộ ra trong chương", "combatPower": "", "treasure": "bản mệnh pháp bảo/binh khí", "inventory": "túi trữ vật hiện có", "spiritStones": "", "apparentAge": "", "lifespan": "", "masterLine": "sư phụ, sư huynh/tỷ/đệ/muội", "fortune": "cơ duyên mới", "grudges": "ân oán mới", "originSecret": "", "innerDemon": "", "karma": "", "aliases": ["đạo hiệu/biệt danh CHỈ khi chương nêu rõ là cùng một người"],',
   '  "chapterEvent": "1 câu ngắn mô tả sự kiện quan trọng nhất liên quan tới NV này trong chương (để lưu vào lịch sử)",',
   '  "relationshipWithMain": {"trust":"","respect":"","affection":"","attraction":"","suspicion":"","tension":"","boundaries":"ranh giới/giới hạn của NV với NVC (chỉ khi chương thể hiện rõ)","stage":"","notes":""},',
   '  "relationships": [{"withName": "tên NV khác", "stage": "", "trust": "", "respect": "", "affection": "", "attraction": "", "suspicion": "", "tension": "", "boundaries": "", "notes": "diễn biến quan hệ MỚI trong chương này, không lặp lại thông tin cũ"}],',
@@ -7035,6 +7362,7 @@ const CHAR_JSON_FORMAT_HINT = [
   '- Với NV ghi [MỞ KHÓA]: BẮT BUỘC bổ sung appearance/personality/goals bằng các chi tiết CỤ THỂ, MỚI xuất hiện trong chương (mỗi trường 30-60 từ, không lặp lại mục "hiện có"); nếu chương không có gì mới thì để trống.',
   '- Nghề/chức vụ (role, occupation, position, faction) là DỮ LIỆU GỐC: KHÔNG đổi, KHÔNG suy diễn từ cách người khác xưng hô, từ việc nhân vật làm việc với giám đốc/sếp, hay từ cảnh nhân vật ngồi ghế/ở phòng của ai. Chỉ đổi khi chương KỂ RÕ một sự kiện thăng chức/bổ nhiệm/từ chức/đổi nghề đã xảy ra; khi đó đặt explicitCoreChange=true và changeEvidence phải TRÍCH NGUYÊN VĂN câu trong chương cho thấy sự kiện đó. Nếu không có, để trống role/occupation/position/faction.',
   '- Với NV bị KHÓA: không đổi tính cách, ngoại hình, nghề/vị trí hay mục tiêu gốc chỉ vì cách diễn giải của AI khác đi.',
+  '- TU LUYỆN: realm CHỈ dùng tên trong thang cảnh giới của truyện (+ tiểu tầng đệ nhất…đệ cửu trọng), không tự đặt cảnh giới mới. Đột phá/tụt cảnh giới BẮT BUỘC explicitCoreChange=true và changeEvidence = câu trích NGUYÊN VĂN kể sự kiện đó; không có thì để realm trống. Nhảy từ 2 đại cảnh giới trở lên sẽ bị bác. technique/treasure đã có thì không đổi trừ khi explicitCoreChange. arts/fortune/grudges/innerDemon/karma chỉ ghi diễn biến MỚI. aliases chỉ ghi khi chương nói rõ đó là cùng một người.',
   '- Chỉ dùng explicitCoreChange=true khi có thay đổi cốt lõi xảy ra thật trong truyện và changeEvidence phải nêu bằng chứng cụ thể; nếu không thì KHÔNG đổi hồ sơ gốc.',
   '- Nếu một trường không có thông tin MỚI/thay đổi thật sự trong chương này → để trống ("") hoặc bỏ qua trường đó, ĐỪNG bịa hay đoán để điền cho đủ.',
   '- Không được suy đoán cảm xúc/kiến thức/bí mật nếu chương không có bằng chứng — thà bỏ trống còn hơn đoán sai.',
@@ -7070,6 +7398,8 @@ async function updateCharactersIncremental(text, chapterNumber, silent){
     if(missing.length) line+="\n    CHƯA CÓ (hãy điền nếu chương nêu rõ) -> "+missing.join(", ");
     const job=["role","occupation","position","faction"].map(k=>c[k]?k+": "+String(c[k]).slice(0,80):"").filter(Boolean).join(" | ");
     if(job) line+="\n    nghề/chức vụ GỐC (giữ nguyên) -> "+job;
+    const cult=["realm","technique","treasure"].map(k=>c[k]?k+": "+String(c[k]).slice(0,60):"").filter(Boolean).join(" | ");
+    if(cult) line+="\n    tu luyện hiện có (đổi cảnh giới chỉ khi có đột phá + explicitCoreChange) -> "+cult;
     return line;
   }).join("\n")||"(chưa có)";
   for(let i=0;i<chunks.length;i++){
@@ -7077,6 +7407,7 @@ async function updateCharactersIncremental(text, chapterNumber, silent){
       "CẬP NHẬT NHÂN VẬT SAU CHƯƠNG "+chapterNumber+" — PHẦN "+(i+1)+"/"+chunks.length+".",
       mcName?"Nhân vật chính: "+mcName+" — khi ghi nhân vật chính PHẢI dùng đúng tên này; KHÔNG tạo mục tên \"nhân vật chính\".":"",
       "Chỉ ghi NV thực sự xuất hiện/được nhắc tới có ý nghĩa trong phần này. Không bịa.",
+      cultivationSystemBlock(state),
       "Tên NV đã có:",nameList,
       "NỘI DUNG:",chunks[i],
       CHAR_JSON_FORMAT_HINT,
@@ -7137,7 +7468,7 @@ $ID("npcUpdateBtn").addEventListener("click", async ()=>{
    cập nhật" nếu JSON lỗi. Có thử lại 1 lần nếu không parse được. */
 const WORLD_JSON_FORMAT_HINT = 'Trả về DUY NHẤT một object JSON (không thêm chữ nào khác, không markdown):\n'
   + '{"locations":[{"name":"","description":"","status":"active|destroyed|abandoned|locked"}],'
-  + '"items":[{"name":"","description":"","owner":"","status":"active|lost|destroyed|stored"}],'
+  + '"items":[{"name":"","description":"","owner":"","status":"active|lost|destroyed|stored","kind":"pháp bảo|binh khí|đan dược|công pháp/bí kíp|trận pháp/phù lục|linh thạch/tài nguyên|khác","grade":"phẩm cấp nếu chương nêu rõ","effect":"công dụng/hạn chế nếu chương nêu","bound":false}],'
   + '"threads":[{"type":"open_thread|foreshadowing|consequence","desc":"","status":"seeded|developing|paid_off|abandoned","matchExistingDesc":""}]}\n'
   + 'Chỉ liệt kê địa điểm/vật phẩm MỚI hoặc CÓ THAY ĐỔI, và thread mới/đổi trạng thái. Nếu không có gì đổi ở 1 mục, để mảng rỗng []. Tất cả TIẾNG VIỆT.';
 function applyWorldUpdate(obj, chapterNumber){
@@ -7157,6 +7488,11 @@ function applyWorldUpdate(obj, chapterNumber){
     if(u.description) it.description = u.description;
     if(u.owner) it.owner = u.owner;
     if(u.status) it.status = u.status;
+    /* V14.1: phân loại/phẩm cấp là thuộc tính ổn định — chỉ điền khi còn trống; "bound" chỉ bật, không tự tắt. */
+    if(u.kind && !it.kind) it.kind = String(u.kind).slice(0,40);
+    if(u.grade && !it.grade) it.grade = String(u.grade).slice(0,80);
+    if(u.effect && !it.effect) it.effect = String(u.effect).slice(0,200);
+    if(u.bound === true) it.bound = true;
     it.lastAppearance = chapterNumber;
   });
   (obj.threads||[]).forEach(t=>{
@@ -9891,6 +10227,9 @@ function hydrateFormFromState(){
   worldSettingEl.value = state.worldSetting || "";
   worldRulesEl.value = state.worldRules || "";
   antagonistEl.value = state.antagonist || "";
+  { const cs=$ID("cultivationSystem"), rl=$ID("realmLadder");
+    if(cs) cs.value = state.cultivationSystem || "";
+    if(rl) rl.value = Array.isArray(state.realmLadder) ? state.realmLadder.join(", ") : (state.realmLadder || ""); }
   pronounRulesEl.value = state.pronounRules || "";
   worldDescriptionEl.value = state.worldDescription || "";
   storyBibleLockEl.checked = !!state.storyBibleLocked;
@@ -10634,7 +10973,7 @@ chapterSearch.addEventListener("input", renderChapterNav);
 (function(){const t=document.querySelector(".topbar");if(!t)return;const f=()=>document.documentElement.style.setProperty("--topbar-h",t.offsetHeight+"px");f();addEventListener("resize",f);addEventListener("load",f);})();
 
 window.__XTA__ = {
-  state, persist, escapeHtml, setStatus, showAlert, callAI, renderCharacters, renderLocations, newCharacter, genId,
+  state, persist, escapeHtml, setStatus, showAlert, callAI, renderCharacters, renderLocations, newCharacter, newItem, renderItems, genId,
   get generating(){ return generating; },
   core: { computeCanonDiff, undoCanonDiffItem, suggestCharacterCandidates, storyHealthReport, deterministicConsistencyCheck, buildConsistencyPrompt, parseConsistencyResponse, STEP_LABELS }
 };
@@ -10646,7 +10985,8 @@ if(window.__XTA_TEST__){
     persist, persistNow, flushPersist, buildContextBlock, underageNames, ageGuardPrompt,
     writeEmergencyCopy, readEmergencyRecord, serializeStoryRecord, removeStoryFromDisk,
     setIdbPut(fn){ idbPut = fn; }, getIdbPut(){ return idbPut; },
-    newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint
+    newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint,
+    mergeCharacterUpdate, saveMainCharFromForm, hydrateMainCharForm, renderItems
   };
 }
 })();

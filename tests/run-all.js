@@ -29,6 +29,8 @@ const dir = __dirname; const suites = [
   ["V14.0.16 kiểm tra từng scene + tự sửa sau chấm nhanh (logic)", process.execPath, ["v14_0_16_scene_check_quickfix.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],
+  ["V14.0.20 gợi ý nhân vật loại công pháp/cảnh giới", process.execPath, ["v14_0_20_name_suggest.test.js"]],
+  ["V14.1 hệ thống tu luyện (thang 9 tầng, khóa đột phá, vật phẩm, worker)", process.execPath, ["v14_1_cultivation.test.js"]],
   ["V14.0.20 Outline AI theo cài đặt 18+ + rào chắn tuổi", process.execPath, ["v14_0_20_outline_mature.test.js"]],
   ["V12.32.18 tiến độ Arc + Outline", process.execPath, ["v12_32_18_arc_outline.test.js"]],
   ["V12.32.14 dọn dẹp: tài liệu, hàm chết, chặn file nội bộ", process.execPath, ["v12_32_14_repo_hygiene.test.js"]],
@@ -61,6 +63,8 @@ const dir = __dirname; const suites = [
   ["E2E job nền", "python3", ["e2e_bg.py"], {}, true],
   ["E2E job nền: payload gọn + khôi phục snapshot", "python3", ["e2e_bg_slim.py"], {}, true],
   ["E2E xóa chương", "python3", ["e2e_delete.py"], {}, true],
+  ["E2E gợi ý nhân vật (tu luyện) + nút Vật phẩm", "python3", ["e2e_name_suggest.py"], {}, true],
+  ["E2E V14.1 form tu luyện + Story Bible + vật phẩm", "python3", ["e2e_v14_1_cultivation.py"], {}, true],
   ["E2E Outline AI theo cài đặt 18+", "python3", ["e2e_outline_mature.py"], {}, true],
 ];
 let failed = 0, skipped = 0;

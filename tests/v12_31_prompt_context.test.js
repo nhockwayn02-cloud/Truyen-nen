@@ -30,6 +30,7 @@ function makeContext(state) {
     currentOutline: () => null,
     characterCardsForPromptV102: () => '',
     relevantCharacters: () => [],
+    cultivationSystemBlock: () => '',   // V14.1: khối hệ thống tu luyện (shared/core.js)
     characterSummaryForPrompt: () => '',
     matureFocusPrompt: () => '',
     normalizeChapterMatureFocus: () => 'none',
