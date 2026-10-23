@@ -3082,6 +3082,8 @@ function modelForStep(st, step, fallback) {
 
 function stripFences(raw) {
   return String(raw || "")
+    /* V14.1.7: model có thinking đôi khi chèn <think>…</think> vào content -> JSON hậu kỳ "không đọc được". */
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "")
     .replace(/```(?:json|JSON)?/g, "")
     .replace(/```/g, "")
     .replace(/\uFEFF/g, "")
@@ -5181,6 +5183,13 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
   ].filter(Boolean).join("\n\n");
 }
 
+/* V14.1.7: trước đây chỉ lấy 4 ghi chú đầu nên lý do thật của các lần thử lại (world/status) bị cắt mất, và ghi chú "thành công" chiếm chỗ.
+   Nay bỏ ghi chú thành công, giữ các lỗi (kể cả lần thử lại) và giới hạn độ dài. */
+function postprocessFailReason(notes) {
+  const bad = (notes || []).filter(x => !/thành công\s*$/.test(String(x)));
+  const txt = bad.slice(0, 8).join("; ");
+  return txt.length > 1400 ? txt.slice(0, 1400) + "…" : txt;
+}
 function labelsForUnifiedPostProcess() { return ["Summary", "NV", "Thế giới", "Status", "Memory", "Continuity", "Scene", "Gợi ý chương sau"]; }
 
 function validEvidenceItems(items, source) {
@@ -5263,9 +5272,20 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
       }, tries);
       res.callCount++;
       const truncated = rr.finishReason === "length";
-      const pp = tryParse(stripFences(String(rr.text || "")));
+      const clean = stripFences(String(rr.text || ""));
+      let pp = tryParse(clean);
+      /* V14.1.7: model đôi khi trả nhiều object rời nhau ({"world":…}{"status":…}) hoặc kèm lời dẫn quanh JSON -> gộp các object hoàn chỉnh ngoài cùng. */
+      if (!truncated && !(pp && pp.ok && isPlainObj(pp.value))) {
+        const merged = {}; let n = 0;
+        for (const c of scanTop(clean, "{")) {
+          if (!c.complete) continue;
+          const t = tryParse(c.text);
+          if (t.ok && isPlainObj(t.value)) { Object.assign(merged, t.value); n++; }
+        }
+        if (n) pp = { ok: true, value: merged, method: "merge-objects" };
+      }
       const obj = !truncated && pp && pp.ok && isPlainObj(pp.value) ? pp.value : null;
-      return { r: rr, parsed: pp, obj, truncated };
+      return { r: rr, parsed: pp, obj, truncated, tail: clean.slice(-90) };
     };
     let first = await callGroup(null, 1); // V12.30: không retry cùng một request; lỗi API thì fail-safe.
     let r = first.r, parsed = first.parsed, data = first.obj;
@@ -5274,6 +5294,9 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
     const whyBad = g => {
       const rr = (g && g.r) || {};
       let t = (g && g.truncated ? "bị cắt" : "JSON không đọc được") + " [" + fin(rr) + (rr.partial ? ", ngắt: " + sampleOf(rr.partialReason, 60) : "") + "]";
+      /* V14.1.7: finish=? (không có finish_reason) + JSON hỏng thường là stream bị ngắt giữa chừng; kèm đuôi phản hồi để biết hỏng ở đâu. */
+      if (g && !g.truncated && !rr.finishReason) t += " — stream kết thúc không có finish_reason (có thể bị ngắt giữa chừng)";
+      if (g && !g.truncated && g.tail) t += ` — đuôi: «${sampleOf(g.tail, 90)}»`;
       if (g && g.truncated && Number(rr.reasoningLen) > 0) t += " — model dùng token cho phần suy nghĩ; hãy chọn model không-thinking cho bước Hậu kỳ";
       return t;
     };
@@ -5286,13 +5309,14 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
       data = {};
       let okGroups = 0;
       /* V14.1.1: nhóm bị cắt/hỏng -> thử lại MỘT lần với phạm vi nhỏ hơn (NV: tối đa 5 nhân vật; Thế giới và Status gọi riêng). */
-      const RETRY_PLAN = { characters: [{ keys:["characters"], opts:{ maxChars:5 }, label:"tối đa 5 nhân vật" }], worldStatus: [{ keys:["world"], label:"world" }, { keys:["status"], label:"status" }] };
+      const RETRY_PLAN = { characters: [{ keys:["characters"], opts:{ maxChars:4 }, label:"tối đa 4 nhân vật" }], worldStatus: [{ keys:["world"], label:"world" }, { keys:["status"], label:"status" }] };
       const takeGroup = (gkeys, g) => { gkeys.forEach(k => { gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); r = g.r; parsed = g.parsed; okGroups++; };
       for (const [gname, keys] of Object.entries(UNIFIED_GROUPS)) {
         if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: bỏ qua do sắp hết thời gian`); continue; }
         let groupOk = false;
         try {
-          const g = await callGroup(keys, 1);
+          /* V14.1.7: nhóm NV gọi lần đầu với 8 nhân vật (12 nhân vật hầu như luôn vượt 7800 token -> lãng phí một lần gọi + thời gian). */
+          const g = await callGroup(keys, 1, gname === "characters" ? { maxChars: 8 } : undefined);
           if (g.obj) { takeGroup(keys, g); groupOk = true; }
           else fallbackNotes.push(`nhóm ${gname}: ${whyBad(g)}`);
         } catch (ge) { fallbackNotes.push(`nhóm ${gname}: ${sampleOf(ge.message, 120)}`); }
@@ -5786,7 +5810,7 @@ exports.handler = async (event) => {
       // khiến giao diện báo "Đã đồng bộ" trong khi NV/World/Status/Memory không hề cập nhật.
       const failedLabels = labelsForUnifiedPostProcess().filter(l => l !== "Scene" && l !== "Gợi ý chương sau" && !(unified.tasks[l] && unified.tasks[l].ok));
       const ppStatus = !unified.ok ? "FAILED" : (failedLabels.length ? "PARTIAL" : "DONE");
-      const ppError = ppStatus === "DONE" ? null : (unified.problems[0] || ("Chưa cập nhật: " + failedLabels.join(", ") + ((unified.failNotes && unified.failNotes.length) ? " — lý do: " + unified.failNotes.slice(0, 4).join("; ") : "")));
+      const ppError = ppStatus === "DONE" ? null : (unified.problems[0] || ("Chưa cập nhật: " + failedLabels.join(", ") + ((unified.failNotes && unified.failNotes.length) ? " — lý do: " + postprocessFailReason(unified.failNotes) : "")));
       targetChapter.postProcess = Object.assign({}, targetChapter.postProcess || {}, { status:ppStatus, finishedAt:Date.now(), serverSide:true, error:ppError, failedTasks:failedLabels });
       targetChapter.review = Object.assign({}, targetChapter.review || {}, { status:"completed" });
       job.status = "completed";

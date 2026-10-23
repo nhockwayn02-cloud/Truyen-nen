@@ -169,7 +169,7 @@ function validOutput() {
       if(calls===1) return {text:'{\"summary\":\"bị cắt',finishReason:'length'};
       const sch=(p.match(/JSON SCHEMA[^\n]*/)||[''])[0];
       const onlyChars=/\"characters\"/.test(sch)&&!/\"memory\"/.test(sch);
-      if(onlyChars&&!/tối đa 5 nhân vật/.test(sch)) return {text:'{\"characters\":[{\"name\":\"Minh',finishReason:'length'};
+      if(onlyChars&&!/tối đa 4 nhân vật/.test(sch)) return {text:'{\"characters\":[{\"name\":\"Minh',finishReason:'length'};
       if(onlyChars) sawMax5=true;
       const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const s2=m?m[1]:''; const o={};
       ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(s2.includes('\"'+k+'\"')) o[k]=out[k]; });
@@ -179,5 +179,18 @@ function validOutput() {
     assert(r.tasks.NV.ok,'NV phải cập nhật sau khi thử lại');
     assert(r.failNotes.some(x=>/thử lại.*thành công/.test(x)));
     console.log('PASS V14.1.1: truncated characters group is retried with fewer characters');
+  }
+  // Case 8 (V14.1.7): nhóm world+status trả 2 object rời nhau + khối <think> -> vẫn đọc được; lý do lỗi không còn bị cắt.
+  {
+    const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ'}; const out=validOutput(); let calls=0;
+    sandbox.callWithRetry=async(a)=>{ calls++; const p=a.messages[a.messages.length-1].content;
+      if(calls===1) return {text:'{\"summary\":\"bị cắt',finishReason:'length'};
+      const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:''; const o={};
+      ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('\"'+k+'\"')) o[k]=out[k]; });
+      if(o.world&&o.status) return {text:'<think>nghĩ...</think>\n'+JSON.stringify({world:o.world})+'\n'+JSON.stringify({status:o.status}),finishReason:null};
+      return {text:JSON.stringify(o),finishReason:'stop'}; };
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    assert(r.tasks['Thế giới'].ok&&r.tasks.Status.ok,'hai object rời nhau phải được gộp');
+    console.log('PASS V14.1.7: separate JSON objects + <think> block are merged');
   }
 })().catch(e=>{console.error('FAIL V12.30 unified postprocess:',e.stack||e.message);process.exit(1);});

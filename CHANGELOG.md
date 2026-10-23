@@ -1,5 +1,13 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1.7 — Sửa hậu kỳ "chỉ cập nhật một phần" (Thế giới, Status)]
+
+- **Lý do lỗi bị cắt mất:** thông báo chỉ lấy 4 ghi chú đầu nên lần thử lại của world/status không bao giờ hiện, và ghi chú "thành công" chiếm chỗ. Nay bỏ ghi chú thành công, hiện tới 8 lỗi (≤1400 ký tự).
+- **Chẩn đoán:** JSON hỏng kèm đuôi phản hồi (90 ký tự cuối) và cảnh báo khi `finish=?` (stream bị ngắt không có finish_reason).
+- **Đọc được thêm:** loại khối `<think>…</think>`; gộp nhiều object JSON rời nhau (`{"world":…}{"status":…}`).
+- **Nhóm NV:** lần đầu 8 nhân vật (trước 12, hầu như luôn bị cắt), thử lại 4 (trước 5) — đỡ tốn một lần gọi.
+- **Test:** thêm ca 8 vào `v12_30_unified_postprocess.test.js`.
+
 ## [V14.1.6 — Tự chèn câu chuyển cảnh + gợi ý hành động]
 
 - **Tự chèn câu chuyển cảnh:** bản nháp nền chỉ có cảnh báo thiếu chuyển cảnh (SOFT_FAIL) nay vẫn được tự sửa, bằng vá cục bộ CHỈ CHÈN 1–2 câu cầu nối (`insert_after/insert_before`, không replace/delete, không viết lại chương). Bản vá được giữ nếu ít chỗ thiếu chuyển cảnh hơn dù điểm bằng nhau (`reviewIsBetter`), nếu không thì khôi phục bản cũ.
