@@ -31,6 +31,8 @@ const dir = __dirname; const suites = [
   ["V14.0.16 kiểm tra từng scene + tự sửa sau chấm nhanh (logic)", process.execPath, ["v14_0_16_scene_check_quickfix.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],
+  ["V14.1.6 tự chèn câu chuyển cảnh + gợi ý hành động", process.execPath, ["v14_1_6_transition_fix_advice.test.js"]],
+  ["V14.1.5 thiếu chuyển cảnh = cảnh báo, không đếm đôi", process.execPath, ["v14_1_5_scene_transition.test.js"]],
   ["V14.0.20 gợi ý nhân vật loại công pháp/cảnh giới", process.execPath, ["v14_0_20_name_suggest.test.js"]],
   ["V14.1 hệ thống tu luyện (thang 9 tầng, khóa đột phá, vật phẩm, worker)", process.execPath, ["v14_1_cultivation.test.js"]],
   ["V14.0.20 Outline AI theo cài đặt 18+ + rào chắn tuổi", process.execPath, ["v14_0_20_outline_mature.test.js"]],

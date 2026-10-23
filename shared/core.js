@@ -1359,6 +1359,14 @@ function gateItemText(x) { return typeof x === "string" ? x : ((x && (x.descript
 
 function gateMaxAttempts(v) { const n = Number(v); const eff = (!n || n === 3) ? GATE_DEFAULT_ATTEMPTS : n; return Math.max(1, Math.min(GATE_MAX_ATTEMPTS, eff)); }
 
+// V14.1.5: lỗi cảnh chỉ là THIẾU CÂU CHUYỂN CẢNH (nhảy địa điểm/thời gian) hay là NGƯỜI VẮNG MẶT nói/làm? Chỉ loại thứ hai mới là lỗi nặng.
+function sceneTransitionOnly(text) {
+  const t = String(text || "").toLowerCase();
+  if (!t.trim()) return false;
+  const transition = /chuyển cảnh|đột ngột|không có (câu|mô tả)|không có dòng|thiếu (câu|mô tả)|nhảy (từ|sang|địa điểm|thời gian)|không (rõ|thấy) (cách|việc) (di chuyển|đến)|xuất hiện (ở|tại|trong)/.test(t);
+  const absent = /không có mặt|đã rời (đi|khỏi cảnh)|đã đi khỏi|đã cúp máy|đã bị đưa đi|lời thoại[^|]{0,40}(cảnh cũ|lẫn)|(nói|trả lời|phản ứng|lên tiếng|chen vào)[^|]{0,60}(khi|dù|lúc)[^|]{0,40}(không có mặt|đã rời|chưa (đến|tới)|vắng)/.test(t);
+  return transition && !absent;
+}
 // Chuẩn hoá kết quả Auditor → review có verdict cuối cùng. Trả null nếu obj không phải object JSON.
 // opts: { maxMainEvents, maxNamedCharacters, passScore, softFailScore, extraHard: string[], now }
 function evaluateReview(obj, opts) {
@@ -1384,9 +1392,17 @@ function evaluateReview(obj, opts) {
     const an2 = (Array.isArray(obj.arcNotes) ? obj.arcNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     hard.push("Chương không đưa Arc/Outline tiến thêm bước nào (không làm việc bắt buộc của giai đoạn)" + (an2 ? ": " + an2 : "."));
   }
+  const sceneWarn = [];
   if (obj.sceneViolation) {
     const sn2 = (Array.isArray(obj.sceneNotes) ? obj.sceneNotes : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
-    hard.push("Lỗi cảnh/người có mặt: nhân vật tự xuất hiện hoặc nói khi không có mặt/đã rời đi, hoặc lẫn cảnh" + (sn2 ? ": " + sn2 : "."));
+    // V14.1.5: Auditor hay ghi cùng một lỗi cảnh hai lần (một dòng "sceneViolation: ..." trong hardFailures + cờ sceneViolation) => chương bị đếm 2 lỗi nặng.
+    const isSceneItem = x => /^\s*(sceneViolation\b|Lỗi cảnh\/người có mặt)/i.test(gateItemText(x));
+    const sceneItems = hard.filter(isSceneItem).map(gateItemText);
+    const sceneText = sceneItems.concat(sn2).join(" | ");
+    for (let i = hard.length - 1; i >= 0; i--) if (isSceneItem(hard[i])) hard.splice(i, 1);
+    // Chỉ thiếu câu chuyển cảnh/nhảy địa điểm (không có ai nói/làm khi vắng mặt) => cảnh báo, không phải lỗi nặng; viết lại bằng vá chèn câu chuyển cảnh.
+    if (sceneTransitionOnly(sceneText)) sceneWarn.push("Thiếu câu chuyển cảnh (không có nhân vật nào nói/làm khi vắng mặt)" + (sceneText ? ": " + sceneText.replace(/^\s*sceneViolation:\s*/i, "").slice(0, 600) : "."));
+    else hard.push("Lỗi cảnh/người có mặt: nhân vật tự xuất hiện hoặc nói khi không có mặt/đã rời đi, hoặc lẫn cảnh" + (sceneText ? ": " + sceneText.slice(0, 900) : "."));
   }
   if (obj.profileViolation) {
     const pv = (Array.isArray(obj.profileViolations) ? obj.profileViolations : []).slice(0, 3).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
@@ -1410,7 +1426,7 @@ function evaluateReview(obj, opts) {
   return Object.assign({}, obj, {
     score, verdict, hardFailures: hard,
     dimensions: obj.dimensions && typeof obj.dimensions === "object" ? obj.dimensions : {},
-    warnings: arr(obj.warnings, 20).concat(timeWarn, opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
+    warnings: arr(obj.warnings, 20).concat(sceneWarn, timeWarn, opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
     reviewedAt: opts.now || Date.now()
   });
 }
@@ -1988,6 +2004,7 @@ function scenePresencePrompt() {
     "- Người MỚI vào cảnh phải có câu cho thấy họ đến (gõ cửa, bước vào, gọi điện/nhắn tin, xuất hiện ở cửa…) và vì sao họ biết/đến đúng lúc đó. Người RỜI cảnh phải có câu cho thấy họ đi (ra ngoài, cúp máy, bị đưa đi…). Không để ai tự xuất hiện hay biến mất giữa chừng.",
     "- Người đã rời đi thì KHÔNG còn nói, nghe hay phản ứng trong cảnh đó cho tới khi có câu cho họ quay lại.",
     "- Chuyển sang địa điểm/thời điểm khác: dùng một câu chuyển cảnh tự nhiên trong mạch kể (di chuyển, thời gian trôi) hoặc dòng ngăn cảnh, và cho thấy ai có mặt ở cảnh mới. Không lẫn lời thoại/hành động của cảnh cũ vào cảnh mới.",
+    "- MỌI lần đổi địa điểm hoặc nhảy thời gian phải có 1–2 câu cầu nối nêu: rời nơi cũ bằng cách nào, đến nơi mới (đi/lái xe/đến nơi), và thời điểm mới. Không mở cảnh bằng việc nhân vật đã ở sẵn chỗ mới; không để nhân vật chính thấy người khác 'đã ngồi sẵn' mà không có câu hắn đến và nhìn thấy.",
     "- Cảnh có ≥3 người: mỗi lượt lời thoại phải rõ ai nói; không để người không có mặt (hoặc đã đi) nói chen vào."
   ].join("\n");
 }
@@ -2125,7 +2142,7 @@ function buildQualityReviewPrompt(p) {
     "- retcon=true nếu mâu thuẫn canon đã xác nhận.",
     "- stagnation=true CHỈ KHI cuối chương hầu như không có thay đổi nào so với đầu chương (quan hệ/thông tin/quyền lực/mục tiêu/hậu quả) HOẶC một cảnh lặp lại cùng hành động/miêu tả nhiều lần chỉ để kéo dài. Ghi 1–2 ví dụ ngắn vào stagnationNotes. Cảnh trưởng thành đủ dài nhưng có đổi quan hệ/quyền lực/hậu quả thì KHÔNG phải stagnation.",
     p.arcProgress ? "- arcStall=true CHỈ KHI chương hoàn toàn không thực hiện việc bắt buộc/bước tiến nêu trong TIẾN ĐỘ ARC/OUTLINE (không có sự kiện nào đưa Arc hay giai đoạn Outline tới gần mục tiêu hơn so với đầu chương; chỉ tả thêm/lặp lại không tính). Ghi 1 dẫn chứng ngắn vào arcNotes. Nếu chương đã làm được việc bắt buộc của Outline hoặc có một bước tiến thật của Arc thì KHÔNG báo." : "",
-    "- sceneViolation=true CHỈ KHI có CÂU CỤ THỂ trong bản thảo cho nhân vật nói/hành động/phản ứng khi họ KHÔNG có mặt trong cảnh (chưa được nói là đến, hoặc đã rời đi mà không quay lại), hoặc lời thoại/hành động của cảnh cũ lẫn sang cảnh mới không có chuyển cảnh. Ghi trích dẫn ngắn + tên nhân vật vào sceneNotes. Không báo nếu chỉ là nhân vật ở gần/đang nghe được hợp lý.",
+    "- sceneViolation=true CHỈ KHI có CÂU CỤ THỂ trong bản thảo cho nhân vật nói/hành động/phản ứng khi họ KHÔNG có mặt trong cảnh (chưa được nói là đến, hoặc đã rời đi mà không quay lại), hoặc lời thoại/hành động của cảnh cũ lẫn sang cảnh mới không có chuyển cảnh. Ghi trích dẫn ngắn + tên nhân vật vào sceneNotes. Không báo nếu chỉ là nhân vật ở gần/đang nghe được hợp lý. THIẾU câu chuyển cảnh/nhảy địa điểm hay thời gian mà KHÔNG có nhân vật nào nói/làm khi vắng mặt thì KHÔNG phải sceneViolation: ghi vào warnings, không ghi vào hardFailures; và không ghi cùng một lỗi vừa vào hardFailures vừa bật sceneViolation.",
     "- timeStagnation=true CHỈ KHI có BẰNG CHỨNG CỤ THỂ thời gian trong truyện sai hoặc đứng yên: (a) thời gian đi lùi/mâu thuẫn (vừa tối đã lại là buổi sáng cùng ngày không lý do; vết thương, hạn chót, tuổi, ngày tháng không khớp), hoặc (b) chương mở lại đúng thời điểm chương trước dù sự kiện trước đã kết thúc trọn và không có lý do cốt truyện. Ghi 1 dẫn chứng ngắn vào timeNotes. TUYỆT ĐỐI KHÔNG báo chỉ vì chương không ghi ngày/giờ/mốc rõ ràng ở đầu hay cuối chương: văn xuôi tự nhiên để thời gian ngầm hiểu qua chi tiết, thiếu nhãn thời gian KHÔNG phải lỗi. Đây chỉ là CẢNH BÁO mềm, không chặn.",
     "- appearanceVague=true CHỈ KHI có nhân vật có tên xuất hiện lần đầu hoặc cảnh tả cơ thể mà chỉ dùng tính từ trống (đẹp, to, đầy đặn…) không kèm kích thước/hình dáng/so sánh cụ thể nào để hình dung. Ghi tên nhân vật vào appearanceNotes. Chỉ là CẢNH BÁO mềm.",
     p.characterLock ? "- profileViolation=true CHỈ KHI có câu/đoạn CỤ THỂ trong bản thảo trái rõ ràng với HỒ SƠ KHÓA (nhân vật nói hoặc hành xử như có địa vị/quyền/tài sản/năng lực/kiến thức cao hơn hồ sơ; xưng hô hoặc giọng nói sai thiết lập; đổi nghề). Ghi trích dẫn ngắn + mục hồ sơ bị vi phạm vào profileViolations; không báo nếu chỉ suy đoán hoặc thiếu thông tin." : "",
@@ -2184,7 +2201,10 @@ function reviewIsBetter(a, b) {
   if (vr !== 0) return vr > 0;
   const sd = Number(a && a.score || 0) - Number(b && b.score || 0);
   if (sd !== 0) return sd > 0;
-  return (a && a.hardFailures || []).length < (b && b.hardFailures || []).length;
+  const ha = (a && a.hardFailures || []).length, hb = (b && b.hardFailures || []).length;
+  if (ha !== hb) return ha < hb;
+  // V14.1.6: điểm bằng nhau nhưng ít chỗ thiếu chuyển cảnh hơn => bản vá chèn câu chuyển cảnh được giữ.
+  return transitionWarnings(a).length < transitionWarnings(b).length;
 }
 async function runGateLoop(chapter, deps, opts) {
   opts = opts || {}; deps = deps || {};
@@ -2273,7 +2293,45 @@ function quickFixNeeded(review) {
   const r = review || {};
   if (!r.verdict || r.verdict === "PASS") return false;
   if (r.verdict === "HARD_FAIL" || (r.hardFailures || []).length) return true;
-  return hasActionableCanonWarning(r);
+  return hasActionableCanonWarning(r) || transitionWarnings(r).length > 0;
+}
+// V14.1.6: cảnh báo THIẾU CÂU CHUYỂN CẢNH (nhảy địa điểm/thời gian) — sửa được bằng vài câu chèn, không cần viết lại.
+function transitionWarnings(review) {
+  return ((review && review.warnings) || []).map(gateItemText).filter(t => /thiếu câu chuyển cảnh|câu chuyển cảnh|chuyển cảnh|không có mô tả (di chuyển|thời gian)|nhảy (từ|sang)|đột ngột/i.test(t));
+}
+// Review "giả" chỉ chứa các chỗ thiếu chuyển cảnh + hướng sửa chỉ-chèn-câu, để vá cục bộ (không replace/delete, không viết lại chương). null nếu còn lỗi nặng hoặc không có cảnh báo chuyển cảnh.
+function transitionFixReview(review) {
+  const r = review || {};
+  if ((r.hardFailures || []).length) return null;
+  const tw = transitionWarnings(r);
+  if (!tw.length) return null;
+  return {
+    verdict: r.verdict, score: r.score, dimensions: r.dimensions || {}, hardFailures: [], warnings: tw.slice(0, 6),
+    rewriteInstructions: [
+      "CHỈ CHÈN câu chuyển cảnh: dùng insert_after / insert_before để thêm 1–2 câu cầu nối ngay tại các chỗ nhảy địa điểm/thời gian đã nêu (rời nơi cũ bằng cách nào, đến nơi mới, thời điểm mới, ai có mặt).",
+      "KHÔNG dùng replace/delete, KHÔNG đổi nội dung khác, KHÔNG thêm sự kiện hay nhân vật mới, KHÔNG viết nhãn ngày giờ; câu chèn là văn xuôi thuần nối mượt với đoạn trước và sau."
+    ]
+  };
+}
+// Gợi ý hành động cho người dùng từ một review: { level: ok|read|fix|split|rewrite, action, issues:[{kind,text}] }. null nếu chưa có review.
+function reviewActionAdvice(review) {
+  const r = review || {};
+  if (!r.verdict) return null;
+  const clip = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n) + "…" : t; };
+  const kindOf = t => /vượt ngân sách sự kiện/i.test(t) ? "events" : /vượt số nhân vật có tên|nhân vật mới quan trọng/i.test(t) ? "cast" : /lỗi cảnh|người có mặt|sceneviolation/i.test(t) ? "scene"
+    : /vượt thiết lập|hồ sơ|địa vị|quyền hạn/i.test(t) ? "profile" : /knowledge|biết thông tin|chưa thể biết/i.test(t) ? "knowledge" : /retcon/i.test(t) ? "retcon"
+    : /dậm chân|stagnation/i.test(t) ? "stall" : /arc\/outline|không đưa arc/i.test(t) ? "arc" : /giải phẫu|đặc điểm sinh học/i.test(t) ? "anatomy" : "other";
+  const issues = (r.hardFailures || []).map(gateItemText).map(t => ({ kind: kindOf(t), text: clip(t.replace(/^\s*sceneViolation:\s*/i, ""), 140) }));
+  if (r.verdict === "PASS" && !issues.length) return { level: "ok", action: "Có thể bấm ☁ Chạy hậu kỳ luôn.", issues };
+  if (!issues.length) {
+    const tw = transitionWarnings(r).length;
+    return { level: "read", action: "Chỉ có cảnh báo" + (tw ? " (" + tw + " chỗ thiếu câu chuyển cảnh)" : "") + ": đọc lướt rồi bấm ☁ Chạy hậu kỳ, không cần viết lại.", issues };
+  }
+  const kinds = new Set(issues.map(i => i.kind));
+  if (["knowledge", "retcon", "stall", "arc"].some(k => kinds.has(k))) return { level: "rewrite", action: "Lỗi nội dung (nhân vật biết điều chưa thể biết / retcon / dậm chân / lệch Arc) — nên ↻ Viết lại, vá vài câu không đủ.", issues };
+  if (kinds.has("events") || kinds.has("cast")) return { level: "split", action: "Chương nhồi quá nhiều sự kiện/nhân vật — rút bớt trong Outline (chia sang chương sau) rồi ↻ Viết lại, hoặc nâng giới hạn nếu cố ý.", issues };
+  if (kinds.has("scene") || kinds.has("profile") || kinds.has("anatomy")) return { level: "fix", action: "Lỗi vá được: bấm 🔍 Duyệt lại (tự sửa cục bộ). Nếu đọc thấy mạch ổn có thể duyệt tay rồi chạy hậu kỳ" + (kinds.has("profile") ? "; kiểm tra hồ sơ nhân vật nếu hồ sơ mới là chỗ sai" : "") + ".", issues };
+  return { level: "fix", action: "Đọc kỹ lỗi bên dưới: sửa tay hoặc 🔍 Duyệt lại; nếu nặng thì ↻ Viết lại.", issues };
 }
 function _reviewBrief(r) { return r ? { verdict: r.verdict, score: r.score == null ? null : r.score, hard: (r.hardFailures || []).length, warn: (r.warnings || []).length } : null; }
 async function runQuickAutoFix(chapter, startReview, deps, opts) {

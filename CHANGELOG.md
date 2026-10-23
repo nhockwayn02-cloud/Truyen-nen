@@ -1,5 +1,18 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1.6 — Tự chèn câu chuyển cảnh + gợi ý hành động]
+
+- **Tự chèn câu chuyển cảnh:** bản nháp nền chỉ có cảnh báo thiếu chuyển cảnh (SOFT_FAIL) nay vẫn được tự sửa, bằng vá cục bộ CHỈ CHÈN 1–2 câu cầu nối (`insert_after/insert_before`, không replace/delete, không viết lại chương). Bản vá được giữ nếu ít chỗ thiếu chuyển cảnh hơn dù điểm bằng nhau (`reviewIsBetter`), nếu không thì khôi phục bản cũ.
+- **Dòng trạng thái bản nháp:** hiện nội dung tối đa 2 lỗi nặng + hành động nên làm (`reviewActionAdvice`): chạy hậu kỳ / đọc lướt cảnh báo / 🔍 Duyệt lại / rút bớt sự kiện-nhân vật / ↻ Viết lại.
+- **Test:** `v14_1_6_transition_fix_advice.test.js`.
+
+## [V14.1.5 — Thiếu chuyển cảnh không còn là lỗi nặng]
+
+- **Chương bị "LỖI NẶNG" dù 85/100:** Auditor ghi một lỗi chuyển cảnh hai lần (dòng `sceneViolation:` trong hardFailures + cờ `sceneViolation`) nên bị đếm 2 lỗi nặng. `evaluateReview` nay gộp thành một.
+- **Chỉ thiếu câu chuyển cảnh** (nhảy địa điểm/thời gian, không ai nói/làm khi vắng mặt) nay là cảnh báo; người đã rời đi/không có mặt mà vẫn nói/làm vẫn là lỗi nặng.
+- **Prompt:** Auditor được dặn không xếp thiếu chuyển cảnh vào hardFailures; prompt viết chương yêu cầu 1–2 câu cầu nối mỗi lần đổi địa điểm/thời gian.
+- **Test:** `v14_1_5_scene_transition.test.js`.
+
 ## [V14.1.1 — Sửa hậu kỳ bị chặn / chỉ cập nhật một phần]
 
 - **Hậu kỳ chỉ cập nhật một phần:** prompt hậu kỳ yêu cầu model bỏ hẳn khóa/mảng rỗng, nhưng worker bắt buộc đủ `world.locations/items/threads`, `memory.events/foreshadowing/knowledge`, `continuityWarnings`, `status.changes` → Thế giới/Memory/Continuity bị báo lỗi và dữ liệu hợp lệ bị bỏ (PARTIAL). Nay khóa thiếu (null/undefined) trong lần gọi AI đã thành công được coi là rỗng, phần hợp lệ vẫn được ghi. Kiểu sai (chuỗi/số) vẫn bị từ chối; nhóm gọi AI thất bại (JSON bị cắt/hỏng) vẫn báo lỗi thật.
