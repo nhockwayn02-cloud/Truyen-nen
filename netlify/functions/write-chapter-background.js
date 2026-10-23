@@ -5199,6 +5199,8 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
     let first = await callGroup(null, 1); // V12.30: không retry cùng một request; lỗi API thì fail-safe.
     let r = first.r, parsed = first.parsed, data = first.obj;
     const fallbackNotes = [];
+    // V14.1.1: khóa nào nằm trong một lần gọi AI đã trả JSON hoàn chỉnh thì "khóa thiếu" = model cố ý bỏ khóa rỗng (đúng như prompt yêu cầu).
+    const gotKeys = new Set(data ? ["summary","characters","world","status","memory","continuityWarnings","nextChapterHint"] : []);
     if (!data) {
       // V12.32.2: JSON gộp bị cắt/hỏng -> chia thành các nhóm nhỏ, mỗi nhóm một lần gọi riêng.
       // Nhóm nào lỗi thì chỉ nhóm đó giữ dữ liệu cũ; các nhóm khác vẫn được cập nhật.
@@ -5209,12 +5211,32 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: bỏ qua do sắp hết thời gian`); continue; }
         try {
           const g = await callGroup(keys, 1);
-          if (g.obj) { keys.forEach(k => { if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); okGroups++; r = g.r; parsed = g.parsed; }
+          if (g.obj) { keys.forEach(k => { gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); okGroups++; r = g.r; parsed = g.parsed; }
           else fallbackNotes.push(`nhóm ${gname}: ${g.truncated ? "vẫn bị cắt" : "JSON không đọc được"}`);
         } catch (ge) { fallbackNotes.push(`nhóm ${gname}: ${sampleOf(ge.message, 120)}`); }
       }
       if (!okGroups) throw new Error("Không nhóm nào trả JSON hoàn chỉnh (" + fallbackNotes.join("; ") + "); đã giữ nguyên dữ liệu cũ.");
       res.notes.push("Hậu kỳ chia nhóm: " + fallbackNotes.join("; ") + ".");
+    }
+
+    /* V14.1.1: prompt bảo model BỎ HẲN khóa/mảng rỗng, nhưng bộ kiểm tra cũ bắt buộc đủ mọi mảng -> Thế giới/Memory/Continuity
+       bị báo lỗi và dữ liệu hợp lệ bị bỏ ("chỉ cập nhật một phần"). Khóa thiếu (null/undefined) trong lần gọi đã thành công = rỗng.
+       Kiểu sai (chuỗi, số...) vẫn bị từ chối như cũ; nhóm gọi AI thất bại (không có trong gotKeys) vẫn báo lỗi thật. */
+    const _blank = v => v === undefined || v === null;
+    const _arrOrBlank = v => _blank(v) ? [] : v;
+    if (gotKeys.has("characters")) data.characters = _arrOrBlank(data.characters);
+    if (gotKeys.has("continuityWarnings")) data.continuityWarnings = _arrOrBlank(data.continuityWarnings);
+    if (gotKeys.has("world") && (_blank(data.world) || isPlainObj(data.world))) {
+      const w = data.world || {};
+      data.world = Object.assign({}, w, { locations:_arrOrBlank(w.locations), items:_arrOrBlank(w.items), threads:_arrOrBlank(w.threads) });
+    }
+    if (gotKeys.has("memory") && (_blank(data.memory) || isPlainObj(data.memory))) {
+      const m = data.memory || {};
+      data.memory = Object.assign({}, m, { events:_arrOrBlank(m.events), foreshadowing:_arrOrBlank(m.foreshadowing), knowledge:_arrOrBlank(m.knowledge) });
+    }
+    if (gotKeys.has("status") && (_blank(data.status) || isPlainObj(data.status))) {
+      const st0 = data.status || {};
+      data.status = Object.assign({}, st0, { changes: _blank(st0.changes) ? {} : st0.changes });
     }
 
     // 1) Summary: grounded check + local cap only. Never clear a previous summary.

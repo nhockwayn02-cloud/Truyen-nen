@@ -106,7 +106,7 @@ function validOutput() {
   // Case 3: incomplete memory section preserves records and does not advance the sync cursor.
   {
     const state=baseState(); const beforeTimeline=JSON.stringify(state.timeline); const beforeFS=JSON.stringify(state.foreshadowing); const beforeKL=JSON.stringify(state.knowledgeLedger);
-    const o=validOutput(); delete o.memory.knowledge;
+    const o=validOutput(); o.memory.knowledge='không phải mảng';
     sandbox.callWithRetry=async()=>({text:JSON.stringify(o),finishReason:'stop'});
     const chapter={text:source,summary:'Tóm tắt cũ'};
     const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
@@ -132,5 +132,33 @@ function validOutput() {
     assert(r.tasks.Memory.ok&&r.tasks.Status.ok&&r.tasks.NV.ok&&r.tasks['Thế giới'].ok,'mọi task cập nhật sau fallback');
     assert(state.timeline.length>1,'timeline được thêm');
     console.log('PASS V12.32.2: truncated combined JSON falls back to grouped calls');
+  }
+  // Case 5 (V14.1.1): model bỏ khóa rỗng đúng như prompt yêu cầu -> phần hợp lệ vẫn được ghi, không báo lỗi giả.
+  {
+    const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ'}; const out=validOutput();
+    const o={ summary:out.summary, characters:out.characters, world:{items:out.world.items}, status:{changes:{mainEvent:out.status.changes.mainEvent}}, memory:{events:out.memory.events} };
+    sandbox.callWithRetry=async()=>({text:JSON.stringify(o),finishReason:'stop'});
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    assert.strictEqual(r.ok,true);
+    ['Summary','NV','Thế giới','Status','Memory','Continuity'].forEach(k=>assert(r.tasks[k].ok,k+' phải OK khi model bỏ khóa rỗng'));
+    assert(state.items.some(x=>x.name==='Chìa khóa'),'vật phẩm hợp lệ phải được ghi');
+    assert(state.timeline.some(x=>x.chapter===2),'sự kiện hợp lệ phải được ghi');
+    assert(state.knowledgeLedger.some(x=>x.id==='kl-old'),'knowledge cũ vẫn nguyên');
+    console.log('PASS V14.1.1: omitted empty keys no longer cause PARTIAL');
+  }
+  // Case 6 (V14.1.1): nhóm gọi AI thất bại vẫn báo lỗi thật (không coi là rỗng).
+  {
+    const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ'}; const out=validOutput(); let calls=0;
+    sandbox.callWithRetry=async(a)=>{ calls++; const p=a.messages[a.messages.length-1].content;
+      if(calls===1) return {text:'{\"summary\":\"bị cắt',finishReason:'length'};
+      if(/\"world\"/.test((p.match(/JSON SCHEMA[^\n]*/)||[''])[0])) return {text:'{hỏng',finishReason:'stop'};
+      const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:''; const o={};
+      ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('\"'+k+'\"')) o[k]=out[k]; });
+      return {text:JSON.stringify(o),finishReason:'stop'}; };
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    assert.strictEqual(r.tasks['Thế giới'].ok,false,'nhóm world/status hỏng phải báo lỗi thật');
+    assert.strictEqual(r.tasks.Status.ok,false);
+    assert(r.tasks.Memory.ok&&r.tasks.NV.ok);
+    console.log('PASS V14.1.1: failed AI group is still reported as failed');
   }
 })().catch(e=>{console.error('FAIL V12.30 unified postprocess:',e.stack||e.message);process.exit(1);});

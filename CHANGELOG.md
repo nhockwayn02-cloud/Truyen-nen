@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1.1 — Sửa hậu kỳ bị chặn / chỉ cập nhật một phần]
+
+- **Hậu kỳ chỉ cập nhật một phần:** prompt hậu kỳ yêu cầu model bỏ hẳn khóa/mảng rỗng, nhưng worker bắt buộc đủ `world.locations/items/threads`, `memory.events/foreshadowing/knowledge`, `continuityWarnings`, `status.changes` → Thế giới/Memory/Continuity bị báo lỗi và dữ liệu hợp lệ bị bỏ (PARTIAL). Nay khóa thiếu (null/undefined) trong lần gọi AI đã thành công được coi là rỗng, phần hợp lệ vẫn được ghi. Kiểu sai (chuỗi/số) vẫn bị từ chối; nhóm gọi AI thất bại (JSON bị cắt/hỏng) vẫn báo lỗi thật.
+- **Hậu kỳ bị chặn trên chương Bản nháp:** nút ☁ Chạy hậu kỳ server gửi chương `DRAFTED` nên rào chắn Canon (V14.0.19) chặn toàn bộ. Nay nút tự duyệt chương (APPROVED, `MANUAL_OVERRIDE`) trước khi gửi; chương `REVISION_REQUIRED/REJECTED/FAILED` hỏi xác nhận trước. Rào chắn ở worker giữ nguyên.
+- **Test:** cập nhật `v12_30_unified_postprocess.test.js` (+2 ca), thêm `v14_1_1_postprocess_approve.test.js`.
+
 ## [V14.1 — Hệ thống tu luyện (tu tiên / huyền huyễn / võ hiệp)]
 
 - **Hồ sơ nhân vật:** thêm cảnh giới (kèm tiểu tầng đệ nhất → đệ cửu trọng), cảnh giới cao nhất từng đạt (tự cập nhật), linh căn/thể chất, tư chất, thuộc tính, công pháp chính, thần thông/chiêu thức, sức chiến đấu, bản mệnh pháp bảo, túi trữ vật, linh thạch, tuổi ngoại hình, thọ nguyên, sư môn/bối phận, đạo hiệu (`aliases`), cơ duyên, ân oán, bí mật thân thế, tâm ma, nghiệp lực. Dùng chung cho nhân vật chính và nhân vật phụ.

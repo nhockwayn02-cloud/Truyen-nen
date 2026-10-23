@@ -5,6 +5,7 @@ const dir = __dirname; const suites = [
   ["Đồng bộ code dùng chung", process.execPath, ["sync-check.js"]],
   ["Unit Quality Gate (core)", process.execPath, ["core.test.js"]],
   ["Nhân vật trùng", process.execPath, ["characters.test.js"]],
+  ["V14.1.1 nút hậu kỳ tự duyệt nháp", process.execPath, ["v14_1_1_postprocess_approve.test.js"]],
   ["Unit worker", process.execPath, ["worker.test.js"]],
   ["V12.20 từ lỗi/câu cụt/bám gợi ý", process.execPath, ["v12_20.test.js"]],
   ["V12.22b chống chương viết lặp (diễn đạt khác)", process.execPath, ["v12_22b.test.js"]],

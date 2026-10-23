@@ -10704,6 +10704,18 @@ async function retryBackgroundPostProcess(){
   const ch=idx>=0?state.chapters[idx]:null;
   if(!ch || !String(ch.text||"").trim()){ setStatus("Chưa có chương để chạy hậu kỳ.",false); return; }
   try{
+    /* V14.1.1: bấm ☁ Chạy hậu kỳ server = người dùng đã đọc và đồng ý -> tự duyệt chương nháp/cần sửa trước,
+       nếu không worker sẽ chặn hậu kỳ (rào chắn Canon chỉ nhận chương đã được chấp nhận). */
+    normalizeChapterPipelineState(ch);
+    if(/^(draft|drafted|revision_required|rejected|failed|running|writing)$/i.test(String(ch.status||""))){
+      if(/^(revision_required|rejected|failed)$/i.test(String(ch.status))){
+        if(!await showConfirm("Chương "+(idx+1)+" đang ở trạng thái "+chapterStatusLabel(String(ch.status).toUpperCase())+".\nVẫn tự duyệt và chạy hậu kỳ/ghi Canon?")) return;
+      }
+      ch.status="APPROVED";
+      ch.review=Object.assign({},ch.review||{},{verdict:(ch.review&&ch.review.verdict==="PASS")?"PASS":"MANUAL_OVERRIDE",status:"completed",overriddenAt:Date.now()});
+      ch.sync=Object.assign(ch.sync||{},{status:"pending"});
+      persist(); renderChapterNav(); renderCurrentChapter();
+    }
     await startBackgroundPostProcess(ch,idx+1,ch.text,ch.briefUsed||state.nextChapterHint||"");
   }catch(e){
     setBgStatus("⚠ "+String(e&&e.message||e),true);
