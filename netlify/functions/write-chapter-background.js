@@ -3325,7 +3325,7 @@ async function detectHeatLevel(job, tail, hint, directive) {
 // v9.2: dùng streaming + idle-timeout thay vì abort cứng sau 170s.
 // Chương dài (5000+ từ, ~12-16k token) thường chạy >170s nên bản cũ bị "This operation was aborted".
 // Nếu bị ngắt giữa chừng nhưng đã có nội dung, trả phần đã nhận (finishReason="length") để vòng "viết tiếp" xử lý.
-async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4000, temperature = 0.3, totalMs = 400000, firstTokenMs = 150000, idleMs = 60000, creative = false, frequencyPenalty, presencePenalty, noReasoning = !creative, _noReasoningParam = false }) {
+async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4000, temperature = 0.3, totalMs = 400000, firstTokenMs = 150000, idleMs = 60000, creative = false, frequencyPenalty, presencePenalty, noReasoning = !creative, _noReasoningParam = false, _noThinkingParam = false }) {
   if (timeLeft() < 15000) throw new Error("Hết thời gian job nền (giới hạn 15 phút của Netlify)");
   totalMs = Math.min(totalMs, Math.max(15000, timeLeft() - 25000));
   firstTokenMs = Math.min(firstTokenMs, totalMs);
@@ -3356,7 +3356,11 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
         (creative && typeof frequencyPenalty === "number") ? { frequency_penalty: frequencyPenalty } : {},
         (creative && typeof presencePenalty === "number") ? { presence_penalty: presencePenalty } : {},
           // Model có "thinking" sẽ ăn hết max_tokens vào reasoning -> content rỗng/bị cắt. Tắt cho trích xuất (chỉ OpenRouter).
-          (noReasoning && !_noReasoningParam && /openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) ? { reasoning: { enabled: false } } : {})),
+          (noReasoning && !_noReasoningParam && /openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) ? { reasoning: { enabled: false } } : {},
+          /* V14.1.4: DeepSeek V4 (v4-flash...) BẬT thinking mặc định và reasoning dùng chung ngân sách max_tokens -> JSON hậu kỳ bị cắt (content rỗng, finish=length).
+             Endpoint không phải OpenRouter (vd AnonRouter) trước đây không được gửi lệnh tắt. Gửi `thinking:{type:"disabled"}` (chuẩn DeepSeek) cho lệnh trích xuất/JSON;
+             nếu gateway từ chối bằng HTTP 400 thì gọi lại không kèm tham số này (xem bên dưới). */
+          (noReasoning && !_noThinkingParam && !/openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) ? { thinking: { type: "disabled" } } : {})),
       signal: controller.signal
     });
     if (!res.ok) {
@@ -3364,6 +3368,10 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
       if (res.status === 400 && noReasoning && !_noReasoningParam && /reasoning/i.test(err)) {
         clearTimeout(timer);
         return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, noReasoning, _noReasoningParam: true });
+      }
+      if (res.status === 400 && noReasoning && !_noThinkingParam && !/openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) {
+        clearTimeout(timer);
+        return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, noReasoning, _noReasoningParam, _noThinkingParam: true });
       }
       const e = new Error(`API ${res.status}: ${err.slice(0, 500)}`);
       e.status = res.status;
@@ -5032,7 +5040,7 @@ function mergeStatusChanges(state, n, extraction) {
    deterministic: no JSON-repair model call, and a missing/invalid section never clears stored data. */
 const UNIFIED_SCHEMA_PARTS = {
   summary: "\"summary\":\"\"",
-  characters: "\"characters\":[{\"name\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"role\":\"\",\"occupation\":\"\",\"faction\":\"\",\"appearance\":\"\",\"personality\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"chapterEvent\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"measurements\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\",\"realm\":\"\",\"technique\":\"\",\"arts\":\"\",\"treasure\":\"\",\"inventory\":\"\",\"spiritRoot\":\"\",\"talent\":\"\",\"element\":\"\",\"combatPower\":\"\",\"spiritStones\":\"\",\"apparentAge\":\"\",\"lifespan\":\"\",\"masterLine\":\"\",\"fortune\":\"\",\"grudges\":\"\",\"originSecret\":\"\",\"innerDemon\":\"\",\"karma\":\"\"},\"stateEvidence\":{\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"secret\":\"\"},\"relationshipWithMainEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"},\"deathEvidence\":\"\",\"tier\":\"\",\"age\":\"\",\"gender\":\"\",\"position\":\"\",\"speech\":\"\",\"height\":\"\",\"bodyType\":\"\",\"measurements\":\"\",\"hair\":\"\",\"eyes\":\"\",\"skin\":\"\",\"role\":\"\",\"relevanceToMC\":\"\",\"voice\":\"\",\"scent\":\"\",\"style\":\"\",\"scars\":\"\",\"tattoos\":\"\",\"schedule\":\"\",\"strength\":\"\",\"independentPlot\":\"\",\"sexualExperience\":\"\",\"boundaries\":\"\",\"taboos\":\"\",\"preferences\":\"\",\"attractionToMC\":\"\",\"tensionWithMC\":\"\",\"consentNotes\":\"\",\"appearance\":\"\",\"personality\":\"\",\"occupation\":\"\",\"faction\":\"\",\"goals\":\"\",\"secret\":\"\",\"weakness\":\"\",\"fear\":\"\",\"knowledge\":\"\",\"currentLocation\":\"\",\"physicalState\":\"\",\"mentalState\":\"\",\"chapterEvent\":\"\",\"relationshipWithMain\":{},\"relationships\":[{\"withName\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"stage\":\"\",\"trust\":\"\",\"respect\":\"\",\"affection\":\"\",\"attraction\":\"\",\"suspicion\":\"\",\"tension\":\"\",\"boundaries\":\"\",\"notes\":\"\"}}],\"realm\":\"\",\"peakRealm\":\"\",\"spiritRoot\":\"\",\"talent\":\"\",\"element\":\"\",\"technique\":\"\",\"arts\":\"\",\"combatPower\":\"\",\"treasure\":\"\",\"inventory\":\"\",\"spiritStones\":\"\",\"apparentAge\":\"\",\"lifespan\":\"\",\"masterLine\":\"\",\"fortune\":\"\",\"grudges\":\"\",\"originSecret\":\"\",\"innerDemon\":\"\",\"karma\":\"\",\"aliases\":[],\"isDead\":false,\"explicitCoreChange\":false,\"changeEvidence\":\"\"}]",
+  characters: "\"characters\":[{\"name\":\"\",\"tier\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"<tên trường đã điền>\":\"<trích đoạn>\"},\"stateEvidence\":{},\"relationshipWithMain\":{},\"relationshipWithMainEvidence\":{},\"relationships\":[{\"withName\":\"\",\"evidence\":\"\",\"fieldEvidence\":{}}],\"aliases\":[],\"isDead\":false,\"deathEvidence\":\"\",\"explicitCoreChange\":false,\"changeEvidence\":\"\",\"<trường hồ sơ đã điền>\":\"<giá trị>\"}]",
   world: "\"world\":{\"locations\":[{\"name\":\"\",\"description\":\"\",\"status\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"status\":\"\"}}],\"items\":[{\"name\":\"\",\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"kind\":\"\",\"grade\":\"\",\"effect\":\"\",\"bound\":false,\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"grade\":\"\",\"effect\":\"\"}}],\"threads\":[{\"type\":\"\",\"desc\":\"\",\"status\":\"\",\"matchExistingDesc\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"desc\":\"\",\"status\":\"\"}}]}",
   status: "\"status\":{\"changes\":{\"time\":{},\"situation\":{},\"mainEvent\":{},\"location\":{},\"overall\":{},\"mainCharacter\":{},\"relationships\":{},\"power\":{},\"rules\":{},\"conflict\":{},\"nextGoal\":{},\"knowledge\":{},\"unresolved\":{},\"secrets\":{},\"weaknesses\":{},\"characterChanges\":[{\"characterId\":\"\",\"characterName\":\"\",\"status\":\"updated\",\"changes\":{},\"changeEvidence\":{},\"evidence\":\"\"}],\"conflicts\":[{\"characterName\":\"\",\"field\":\"\",\"oldValue\":\"\",\"newValue\":\"\",\"description\":\"\",\"evidence\":\"\"}]}}",
   memory: "\"memory\":{\"events\":[{\"type\":\"event\",\"summary\":\"\",\"causes\":\"\",\"consequences\":\"\",\"evidence\":\"\"}],\"foreshadowing\":[{\"description\":\"\",\"status\":\"seeded\",\"match\":\"\",\"characters\":\"\",\"evidence\":\"\"}],\"knowledge\":[{\"character\":\"\",\"fact\":\"\",\"confidence\":\"direct\",\"evidence\":\"\"}]}",
@@ -5042,6 +5050,9 @@ const UNIFIED_SCHEMA_PARTS = {
 /* V12.32.2: một phản hồi JSON cho cả gói hậu kỳ thường vượt giới hạn 8192 token output của model
    (chương dài + nhiều nhân vật) -> bị cắt -> hoàn tác toàn bộ -> "hậu kỳ không cập nhật".
    Vì vậy schema được chia nhóm; nếu lần gọi gộp bị cắt/hỏng, chạy lần lượt từng nhóm nhỏ hơn. */
+/* V14.1.1: schema nhân vật cũ liệt kê >100 khóa rỗng -> model chép nguyên khung, mỗi nhân vật ~600 token, 12 nhân vật vượt 7800 token -> JSON bị cắt -> NV/Thế giới/Status không cập nhật.
+   Nay schema chỉ là khung gọn; danh sách trường hợp lệ nằm ở đây và chỉ ghi khóa nào thật sự có thông tin. */
+const UNIFIED_CHAR_FIELDS = "age, gender, position, role, occupation, faction, appearance, personality, goals, secret, weakness, fear, knowledge, speech, height, bodyType, measurements, hair, eyes, skin, relevanceToMC, voice, scent, style, scars, tattoos, schedule, strength, independentPlot, sexualExperience, boundaries, taboos, preferences, attractionToMC, tensionWithMC, consentNotes, currentLocation, physicalState, mentalState, chapterEvent, realm, peakRealm, spiritRoot, talent, element, technique, arts, combatPower, treasure, inventory, spiritStones, apparentAge, lifespan, masterLine, fortune, grudges, originSecret, innerDemon, karma";
 const UNIFIED_GROUPS = {
   core: ["summary", "memory", "continuityWarnings", "nextChapterHint"],
   characters: ["characters"],
@@ -5052,7 +5063,8 @@ function unifiedSchemaText(keys) {
   const want = keys && keys.length ? all.filter(k => keys.includes(k)) : all;
   return "{" + want.map(k => UNIFIED_SCHEMA_PARTS[k]).join(",") + "}";
 }
-function unifiedPostprocessPrompt(job, chapter, n, state, keys) {
+function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
+  const maxOutChars = Math.max(1, Number(opts && opts.maxChars) || 12);
   const source = representativeText(String(chapter.text || ""), 90000);
   /* V12.32.2: tiết kiệm token — chỉ gửi hồ sơ đầy đủ của nhân vật XUẤT HIỆN trong chương (tối đa 40);
      nhân vật còn lại chỉ gửi tên để AI không tạo trùng. Hậu kỳ chỉ được cập nhật NV có tên trong chương nên không mất gì. */
@@ -5105,7 +5117,8 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys) {
     "MAIN CHARACTER PROFILE:\n" + JSON.stringify(state.mainCharProfile || {}),
     has("continuityWarnings") ? "ĐOẠN CUỐI CHƯƠNG TRƯỚC (đối chiếu continuity; có thể rỗng ở chương đầu):\n" + String(previousEnding || "") : "",
     "CHAPTER SUMMARY/CONTENT SOURCE — chỉ nguồn này chứng minh diễn biến:\n<chapter>\n" + source + "\n</chapter>",
-    `JSON SCHEMA (điền các khóa cần thiết; BỎ HẲN mọi khóa/trường rỗng hoặc không đổi để phản hồi ngắn gọn, tối đa 12 nhân vật quan trọng nhất; chỉ trả các khóa của schema này): ${unifiedSchemaText(keys)}`,
+    `JSON SCHEMA (điền các khóa cần thiết; BỎ HẲN mọi khóa/trường rỗng hoặc không đổi để phản hồi ngắn gọn, tối đa ${maxOutChars} nhân vật quan trọng nhất; chỉ trả các khóa của schema này): ${unifiedSchemaText(keys)}`,
+    has("characters") ? `TRƯỜNG HỒ SƠ HỢP LỆ cho nhân vật (đặt trực tiếp trong object nhân vật, và đặt trích đoạn tương ứng trong fieldEvidence cùng tên khóa). CHỈ ghi khóa nào chương có thông tin MỚI, TUYỆT ĐỐI không liệt kê khóa rỗng: ${UNIFIED_CHAR_FIELDS}.` : "",
     "Đối với mỗi thay đổi Status field, giá trị có dạng {\"status\":\"updated|added|resolved\",\"value\":\"...\",\"evidence\":\"trích đoạn\"}. Không tạo khóa lạ. Nếu không có thay đổi: mảng [] và value rỗng. Chỉ tiếng Việt."
   ].filter(Boolean).join("\n\n");
 }
@@ -5181,12 +5194,12 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
   try {
     // Chọn model chính cho toàn gói hậu kỳ (không thay cấu hình model/provider của người dùng).
     // Gộp tác vụ bắt buộc dùng chung một phản hồi, nên ưu tiên tính nhất quán canon.
-    const callGroup = async (keys, tries) => {
+    const callGroup = async (keys, tries, gopts) => {
       const rr = await callWithRetry({
         endpoint: job.apiEndpoint, apiKey: job.apiKey, model: modelForStep(job.storyState, "post", job.model),
         messages: [
           { role:"system", content:"Bạn là bộ đồng bộ canon và bộ nhớ tiểu thuyết dài kỳ tiếng Việt. Chỉ trả một JSON object hoàn chỉnh, không markdown. Ưu tiên dữ liệu cũ; chỉ đề xuất delta có evidence lấy từ chương." },
-          { role:"user", content: unifiedPostprocessPrompt(job, chapter, n, state, keys) }
+          { role:"user", content: unifiedPostprocessPrompt(job, chapter, n, state, keys, gopts) }
         ],
         maxTokens:7800, temperature:0.1 /* keep below AnonRouter models capped at 8192 */
       }, tries);
@@ -5199,24 +5212,46 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
     let first = await callGroup(null, 1); // V12.30: không retry cùng một request; lỗi API thì fail-safe.
     let r = first.r, parsed = first.parsed, data = first.obj;
     const fallbackNotes = [];
+    /* V14.1.2: ghi rõ vì sao một lần gọi hỏng (finish, số ký tự, reasoning, bị ngắt do timeout) để phân biệt cắt token / model "suy nghĩ" ăn token / timeout. */
+    const whyBad = g => {
+      const rr = (g && g.r) || {};
+      let t = (g && g.truncated ? "bị cắt" : "JSON không đọc được") + " [" + fin(rr) + (rr.partial ? ", ngắt: " + sampleOf(rr.partialReason, 60) : "") + "]";
+      if (g && g.truncated && Number(rr.reasoningLen) > 0) t += " — model dùng token cho phần suy nghĩ; hãy chọn model không-thinking cho bước Hậu kỳ";
+      return t;
+    };
     // V14.1.1: khóa nào nằm trong một lần gọi AI đã trả JSON hoàn chỉnh thì "khóa thiếu" = model cố ý bỏ khóa rỗng (đúng như prompt yêu cầu).
     const gotKeys = new Set(data ? ["summary","characters","world","status","memory","continuityWarnings","nextChapterHint"] : []);
     if (!data) {
       // V12.32.2: JSON gộp bị cắt/hỏng -> chia thành các nhóm nhỏ, mỗi nhóm một lần gọi riêng.
       // Nhóm nào lỗi thì chỉ nhóm đó giữ dữ liệu cũ; các nhóm khác vẫn được cập nhật.
-      fallbackNotes.push(first.truncated ? "JSON gộp bị cắt ở giới hạn token" : "JSON gộp không đọc được");
+      fallbackNotes.push("JSON gộp " + whyBad(first));
       data = {};
       let okGroups = 0;
+      /* V14.1.1: nhóm bị cắt/hỏng -> thử lại MỘT lần với phạm vi nhỏ hơn (NV: tối đa 5 nhân vật; Thế giới và Status gọi riêng). */
+      const RETRY_PLAN = { characters: [{ keys:["characters"], opts:{ maxChars:5 }, label:"tối đa 5 nhân vật" }], worldStatus: [{ keys:["world"], label:"world" }, { keys:["status"], label:"status" }] };
+      const takeGroup = (gkeys, g) => { gkeys.forEach(k => { gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); r = g.r; parsed = g.parsed; okGroups++; };
       for (const [gname, keys] of Object.entries(UNIFIED_GROUPS)) {
         if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: bỏ qua do sắp hết thời gian`); continue; }
+        let groupOk = false;
         try {
           const g = await callGroup(keys, 1);
-          if (g.obj) { keys.forEach(k => { gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); okGroups++; r = g.r; parsed = g.parsed; }
-          else fallbackNotes.push(`nhóm ${gname}: ${g.truncated ? "vẫn bị cắt" : "JSON không đọc được"}`);
+          if (g.obj) { takeGroup(keys, g); groupOk = true; }
+          else fallbackNotes.push(`nhóm ${gname}: ${whyBad(g)}`);
         } catch (ge) { fallbackNotes.push(`nhóm ${gname}: ${sampleOf(ge.message, 120)}`); }
+        if (!groupOk && RETRY_PLAN[gname]) {
+          for (const step of RETRY_PLAN[gname]) {
+            if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: không thử lại ${step.label} do sắp hết thời gian`); break; }
+            try {
+              const g2 = await callGroup(step.keys, 1, step.opts);
+              if (g2.obj) { takeGroup(step.keys, g2); fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) thành công`); }
+              else fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) ${whyBad(g2)}`);
+            } catch (ge2) { fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) lỗi ${sampleOf(ge2.message, 100)}`); }
+          }
+        }
       }
       if (!okGroups) throw new Error("Không nhóm nào trả JSON hoàn chỉnh (" + fallbackNotes.join("; ") + "); đã giữ nguyên dữ liệu cũ.");
       res.notes.push("Hậu kỳ chia nhóm: " + fallbackNotes.join("; ") + ".");
+      res.failNotes = fallbackNotes.slice();
     }
 
     /* V14.1.1: prompt bảo model BỎ HẲN khóa/mảng rỗng, nhưng bộ kiểm tra cũ bắt buộc đủ mọi mảng -> Thế giới/Memory/Continuity
@@ -5693,7 +5728,7 @@ exports.handler = async (event) => {
       // khiến giao diện báo "Đã đồng bộ" trong khi NV/World/Status/Memory không hề cập nhật.
       const failedLabels = labelsForUnifiedPostProcess().filter(l => l !== "Scene" && l !== "Gợi ý chương sau" && !(unified.tasks[l] && unified.tasks[l].ok));
       const ppStatus = !unified.ok ? "FAILED" : (failedLabels.length ? "PARTIAL" : "DONE");
-      const ppError = ppStatus === "DONE" ? null : (unified.problems[0] || ("Chưa cập nhật: " + failedLabels.join(", ")));
+      const ppError = ppStatus === "DONE" ? null : (unified.problems[0] || ("Chưa cập nhật: " + failedLabels.join(", ") + ((unified.failNotes && unified.failNotes.length) ? " — lý do: " + unified.failNotes.slice(0, 4).join("; ") : "")));
       targetChapter.postProcess = Object.assign({}, targetChapter.postProcess || {}, { status:ppStatus, finishedAt:Date.now(), serverSide:true, error:ppError, failedTasks:failedLabels });
       targetChapter.review = Object.assign({}, targetChapter.review || {}, { status:"completed" });
       job.status = "completed";

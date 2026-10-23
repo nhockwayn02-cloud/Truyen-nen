@@ -4,7 +4,10 @@
 
 - **Hậu kỳ chỉ cập nhật một phần:** prompt hậu kỳ yêu cầu model bỏ hẳn khóa/mảng rỗng, nhưng worker bắt buộc đủ `world.locations/items/threads`, `memory.events/foreshadowing/knowledge`, `continuityWarnings`, `status.changes` → Thế giới/Memory/Continuity bị báo lỗi và dữ liệu hợp lệ bị bỏ (PARTIAL). Nay khóa thiếu (null/undefined) trong lần gọi AI đã thành công được coi là rỗng, phần hợp lệ vẫn được ghi. Kiểu sai (chuỗi/số) vẫn bị từ chối; nhóm gọi AI thất bại (JSON bị cắt/hỏng) vẫn báo lỗi thật.
 - **Hậu kỳ bị chặn trên chương Bản nháp:** nút ☁ Chạy hậu kỳ server gửi chương `DRAFTED` nên rào chắn Canon (V14.0.19) chặn toàn bộ. Nay nút tự duyệt chương (APPROVED, `MANUAL_OVERRIDE`) trước khi gửi; chương `REVISION_REQUIRED/REJECTED/FAILED` hỏi xác nhận trước. Rào chắn ở worker giữ nguyên.
-- **Test:** cập nhật `v12_30_unified_postprocess.test.js` (+2 ca), thêm `v14_1_1_postprocess_approve.test.js`.
+- **Hậu kỳ lỗi NV + Thế giới + Status (JSON bị cắt):** schema nhân vật liệt kê >100 khóa rỗng (tăng mạnh từ V14.1) nên model chép nguyên khung, mỗi nhân vật ~600 token và vượt giới hạn ~7800 token. Schema nay là khung gọn + danh sách trường hợp lệ (`UNIFIED_CHAR_FIELDS`). Nhóm bị cắt/hỏng được thử lại một lần với phạm vi nhỏ hơn (NV: tối đa 5 nhân vật; Thế giới và Status gọi riêng). Thông báo PARTIAL nay kèm lý do thật ("— lý do: nhóm characters: vẫn bị cắt…").
+- **Chẩn đoán hậu kỳ:** mỗi lần gọi AI hỏng nay ghi `finish`, số ký tự, độ dài reasoning và lý do bị ngắt (timeout) vào thông báo, để phân biệt cắt token / model thinking ăn token / timeout; có gợi ý đổi model bước Hậu kỳ khi nghi model thinking.
+- **Tắt thinking cho lệnh JSON trên endpoint không phải OpenRouter (AnonRouter):** DeepSeek V4 (v4-flash) bật thinking mặc định và reasoning dùng chung `max_tokens` nên JSON hậu kỳ bị cắt. Lệnh trích xuất/JSON nay gửi `thinking:{type:"disabled"}`; gateway trả HTTP 400 thì gọi lại không kèm tham số. Viết văn không đổi. Test `v14_1_4_thinking_off.test.js`.
+- **Test:** cập nhật `v12_30_unified_postprocess.test.js` (+3 ca), thêm `v14_1_1_postprocess_approve.test.js`.
 
 ## [V14.1 — Hệ thống tu luyện (tu tiên / huyền huyễn / võ hiệp)]
 
