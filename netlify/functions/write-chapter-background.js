@@ -5284,10 +5284,20 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         }
         if (n) pp = { ok: true, value: merged, method: "merge-objects" };
       }
-      const obj = !truncated && pp && pp.ok && isPlainObj(pp.value) ? pp.value : null;
-      return { r: rr, parsed: pp, obj, truncated, tail: clean.slice(-90) };
+      let obj = !truncated && pp && pp.ok && isPlainObj(pp.value) ? pp.value : null;
+      /* V14.1.8: gateway hay đóng stream giữa chừng (finish=? hoặc length) khi JSON mới viết nửa chừng. Cứu phần đã hoàn chỉnh (đóng ngoặc tại dấu phẩy hợp lệ cuối cùng);
+         mọi mục vẫn phải qua kiểm tra evidence nên mất mục cuối dở dang là chấp nhận được. Khóa không có trong bản cứu được coi là CHƯA làm (không phải rỗng). */
+      let salvaged = false;
+      if (!obj && (truncated || !rr.finishReason) && clean.length > 200) {
+        const sv = salvageTruncated(clean.slice(Math.max(0, clean.indexOf("{"))));
+        if (isPlainObj(sv) && Object.keys(sv).some(k => k in UNIFIED_SCHEMA_PARTS)) { obj = sv; salvaged = true; }
+      }
+      return { r: rr, parsed: pp, obj, truncated, salvaged, tail: clean.slice(-90) };
     };
-    let first = await callGroup(null, 1); // V12.30: không retry cùng một request; lỗi API thì fail-safe.
+    /* V14.1.8: lần hậu kỳ trước đã PARTIAL/FAILED (JSON gộp không qua) -> bỏ lần gọi gộp, đi thẳng các nhóm nhỏ chạy SONG SONG (mỗi lần gọi mất vài phút nên chạy tuần tự dễ hết 15 phút). */
+    const prevPP = chapter.postProcess && String(chapter.postProcess.status || "").toUpperCase();
+    const skipCombined = prevPP === "PARTIAL" || prevPP === "FAILED";
+    let first = skipCombined ? { r:{}, parsed:null, obj:null, truncated:false, skipped:true } : await callGroup(null, 1); // V12.30: không retry cùng một request; lỗi API thì fail-safe.
     let r = first.r, parsed = first.parsed, data = first.obj;
     const fallbackNotes = [];
     /* V14.1.2: ghi rõ vì sao một lần gọi hỏng (finish, số ký tự, reasoning, bị ngắt do timeout) để phân biệt cắt token / model "suy nghĩ" ăn token / timeout. */
@@ -5300,38 +5310,49 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
       if (g && g.truncated && Number(rr.reasoningLen) > 0) t += " — model dùng token cho phần suy nghĩ; hãy chọn model không-thinking cho bước Hậu kỳ";
       return t;
     };
+    const ALL_KEYS = ["summary","characters","world","status","memory","continuityWarnings","nextChapterHint"];
     // V14.1.1: khóa nào nằm trong một lần gọi AI đã trả JSON hoàn chỉnh thì "khóa thiếu" = model cố ý bỏ khóa rỗng (đúng như prompt yêu cầu).
-    const gotKeys = new Set(data ? ["summary","characters","world","status","memory","continuityWarnings","nextChapterHint"] : []);
-    if (!data) {
+    const gotKeys = new Set();
+    if (data) {
+      if (first.salvaged) { Object.keys(data).filter(k => ALL_KEYS.includes(k)).forEach(k => gotKeys.add(k)); fallbackNotes.push("JSON gộp bị ngắt giữa chừng — đã cứu phần hoàn chỉnh (" + [...gotKeys].join(",") + ")"); }
+      else ALL_KEYS.forEach(k => gotKeys.add(k));
+    }
+    if (!data || first.salvaged) {
       // V12.32.2: JSON gộp bị cắt/hỏng -> chia thành các nhóm nhỏ, mỗi nhóm một lần gọi riêng.
       // Nhóm nào lỗi thì chỉ nhóm đó giữ dữ liệu cũ; các nhóm khác vẫn được cập nhật.
-      fallbackNotes.push("JSON gộp " + whyBad(first));
-      data = {};
-      let okGroups = 0;
-      /* V14.1.1: nhóm bị cắt/hỏng -> thử lại MỘT lần với phạm vi nhỏ hơn (NV: tối đa 5 nhân vật; Thế giới và Status gọi riêng). */
+      if (!data) { if (first.skipped) fallbackNotes.push("bỏ lần gọi gộp (lần hậu kỳ trước chưa trọn vẹn) — chạy thẳng các nhóm nhỏ song song"); else fallbackNotes.push("JSON gộp " + whyBad(first)); }
+      data = data || {};
+      let okGroups = first.salvaged ? 1 : 0;
+      /* V14.1.1: nhóm bị cắt/hỏng -> thử lại MỘT lần với phạm vi nhỏ hơn (NV: tối đa 4 nhân vật; Thế giới và Status gọi riêng). */
       const RETRY_PLAN = { characters: [{ keys:["characters"], opts:{ maxChars:4 }, label:"tối đa 4 nhân vật" }], worldStatus: [{ keys:["world"], label:"world" }, { keys:["status"], label:"status" }] };
-      const takeGroup = (gkeys, g) => { gkeys.forEach(k => { gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); r = g.r; parsed = g.parsed; okGroups++; };
-      for (const [gname, keys] of Object.entries(UNIFIED_GROUPS)) {
-        if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: bỏ qua do sắp hết thời gian`); continue; }
-        let groupOk = false;
+      const takeGroup = (gkeys, g) => { gkeys.forEach(k => { if (g.salvaged && g.obj[k] === undefined) return; gotKeys.add(k); if (g.obj[k] !== undefined) data[k] = g.obj[k]; }); r = g.r; parsed = g.parsed; okGroups++; };
+      const runGroup = async (gname, keys) => {
+        const notes = [];
+        const need = () => keys.filter(k => !gotKeys.has(k));
+        if (timeLeft() < 60000) { notes.push(`nhóm ${gname}: bỏ qua do sắp hết thời gian`); return notes; }
         try {
-          /* V14.1.7: nhóm NV gọi lần đầu với 8 nhân vật (12 nhân vật hầu như luôn vượt 7800 token -> lãng phí một lần gọi + thời gian). */
+          /* V14.1.7: nhóm NV gọi lần đầu với 8 nhân vật (12 nhân vật hầu như luôn vượt 7800 token). */
           const g = await callGroup(keys, 1, gname === "characters" ? { maxChars: 8 } : undefined);
-          if (g.obj) { takeGroup(keys, g); groupOk = true; }
-          else fallbackNotes.push(`nhóm ${gname}: ${whyBad(g)}`);
-        } catch (ge) { fallbackNotes.push(`nhóm ${gname}: ${sampleOf(ge.message, 120)}`); }
-        if (!groupOk && RETRY_PLAN[gname]) {
-          for (const step of RETRY_PLAN[gname]) {
-            if (timeLeft() < 60000) { fallbackNotes.push(`nhóm ${gname}: không thử lại ${step.label} do sắp hết thời gian`); break; }
+          if (g.obj) { takeGroup(keys, g); if (g.salvaged) notes.push(`nhóm ${gname}: bị ngắt giữa chừng — đã cứu phần hoàn chỉnh`); }
+          else notes.push(`nhóm ${gname}: ${whyBad(g)}`);
+        } catch (ge) { notes.push(`nhóm ${gname}: ${sampleOf(ge.message, 120)}`); }
+        const todo = (RETRY_PLAN[gname] || []).filter(step => step.keys.some(k => !gotKeys.has(k)));
+        if (todo.length && need().length) {
+          await Promise.all(todo.map(async step => {
+            if (timeLeft() < 60000) { notes.push(`nhóm ${gname}: không thử lại ${step.label} do sắp hết thời gian`); return; }
             try {
               const g2 = await callGroup(step.keys, 1, step.opts);
-              if (g2.obj) { takeGroup(step.keys, g2); fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) thành công`); }
-              else fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) ${whyBad(g2)}`);
-            } catch (ge2) { fallbackNotes.push(`nhóm ${gname}: thử lại (${step.label}) lỗi ${sampleOf(ge2.message, 100)}`); }
-          }
+              if (g2.obj) { takeGroup(step.keys, g2); notes.push(`nhóm ${gname}: thử lại (${step.label}) thành công${g2.salvaged ? " (đã cứu phần hoàn chỉnh)" : ""}`); }
+              else notes.push(`nhóm ${gname}: thử lại (${step.label}) ${whyBad(g2)}`);
+            } catch (ge2) { notes.push(`nhóm ${gname}: thử lại (${step.label}) lỗi ${sampleOf(ge2.message, 100)}`); }
+          }));
         }
-      }
-      if (!okGroups) throw new Error("Không nhóm nào trả JSON hoàn chỉnh (" + fallbackNotes.join("; ") + "); đã giữ nguyên dữ liệu cũ.");
+        return notes;
+      };
+      const groupsToRun = Object.entries(UNIFIED_GROUPS).filter(([, keys]) => keys.some(k => !gotKeys.has(k)));
+      const results = await Promise.all(groupsToRun.map(([gname, keys]) => runGroup(gname, keys)));
+      results.forEach(n2 => n2.forEach(x => fallbackNotes.push(x)));
+      if (!okGroups) throw new Error("Không nhóm nào trả JSON hoàn chỉnh (" + postprocessFailReason(fallbackNotes) + "); đã giữ nguyên dữ liệu cũ.");
       res.notes.push("Hậu kỳ chia nhóm: " + fallbackNotes.join("; ") + ".");
       res.failNotes = fallbackNotes.slice();
     }

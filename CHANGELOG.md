@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1.8 — Hậu kỳ: cứu JSON bị ngắt, chạy nhóm song song]
+
+- **Nguyên nhân:** gateway đóng stream giữa chừng (`finish=?`, JSON dừng ở 6–12 nghìn ký tự, không phải do token) và các lần gọi chạy tuần tự nên hết 15 phút ("không thử lại do sắp hết thời gian").
+- **Cứu JSON bị ngắt:** phần hoàn chỉnh được giữ (vẫn qua kiểm tra evidence); khóa không có trong bản cứu được coi là chưa làm và được gọi lại riêng.
+- **Song song:** các nhóm core / NV / Thế giới+Status và các lần thử lại chạy đồng thời.
+- **Bấm thử lại sau PARTIAL/FAILED:** bỏ lần gọi gộp (luôn hỏng với chương dài), chạy thẳng các nhóm nhỏ.
+
 ## [V14.1.7 — Sửa hậu kỳ "chỉ cập nhật một phần" (Thế giới, Status)]
 
 - **Lý do lỗi bị cắt mất:** thông báo chỉ lấy 4 ghi chú đầu nên lần thử lại của world/status không bao giờ hiện, và ghi chú "thành công" chiếm chỗ. Nay bỏ ghi chú thành công, hiện tới 8 lỗi (≤1400 ký tự).

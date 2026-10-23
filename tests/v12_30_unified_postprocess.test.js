@@ -193,4 +193,18 @@ function validOutput() {
     assert(r.tasks['Thế giới'].ok&&r.tasks.Status.ok,'hai object rời nhau phải được gộp');
     console.log('PASS V14.1.7: separate JSON objects + <think> block are merged');
   }
+  // Case 9 (V14.1.8): lần trước PARTIAL -> bỏ lần gọi gộp; stream bị ngắt (finish=null) nhưng cứu được phần hoàn chỉnh.
+  {
+    const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ',postProcess:{status:'PARTIAL'}}; const out=validOutput(); let calls=0, sawCombined=false;
+    sandbox.callWithRetry=async(a)=>{ calls++; const p=a.messages[a.messages.length-1].content;
+      const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:''; const o={};
+      ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('\"'+k+'\"')) o[k]=out[k]; });
+      if(o.summary&&o.characters&&o.world) sawCombined=true;
+      if(o.characters&&!o.world){ const full=JSON.stringify(o); return {text:full.slice(0,full.length-12),finishReason:null}; }
+      return {text:JSON.stringify(o),finishReason:'stop'}; };
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    assert(!sawCombined,'không gọi gộp khi lần trước PARTIAL');
+    assert(r.ok&&r.tasks.Memory.ok&&r.tasks['Thế giới'].ok&&r.tasks.Status.ok,'các nhóm khác vẫn chạy');
+    console.log('PASS V14.1.8: skip combined call after PARTIAL; salvage cut stream');
+  }
 })().catch(e=>{console.error('FAIL V12.30 unified postprocess:',e.stack||e.message);process.exit(1);});
