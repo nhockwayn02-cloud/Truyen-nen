@@ -1,5 +1,16 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.1.10 — create-job không phản hồi sau 45 giây]
+
+- Rút gọn văn bản chương cũ ngay từ 1,5MB (trước 3,5MB) để upload nhanh hơn trên mạng di động.
+- Client chờ create-job 90 giây (trước 45); khi hết giờ báo dung lượng đã gửi + 4 phần nặng nhất.
+- create-job: dọn job cũ tối đa 1,5 giây/10 job (trước: tuần tự tới 50 lần xóa), chờ kích hoạt worker 4 giây (trước 8) — để hàm đồng bộ Netlify (mặc định 10 giây) kịp trả lời.
+
+## [V14.1.9 — "Không gửi được hậu kỳ server: Load failed"]
+
+- **Nguyên nhân khả dĩ:** kiểm tra kích thước đếm KÝ TỰ (≤5.000.000) nhưng Netlify giới hạn ~6MB BYTE; tiếng Việt UTF-8 ~2 byte/ký tự nên truyện dài vượt giới hạn mà không bị chặn, Safari chỉ báo "Load failed".
+- **Sửa:** đo byte thật; quá 3,5MB thì rút gọn văn bản chương cũ (giữ chương hậu kỳ + 2 chương trước), văn bản đầy đủ được khôi phục từ bản local khi hợp nhất; quá 5,5MB báo rõ. Lỗi mạng nay kèm dung lượng đã gửi; HTTP 413 có thông báo riêng.
+
 ## [V14.1.8 — Hậu kỳ: cứu JSON bị ngắt, chạy nhóm song song]
 
 - **Nguyên nhân:** gateway đóng stream giữa chừng (`finish=?`, JSON dừng ở 6–12 nghìn ký tự, không phải do token) và các lần gọi chạy tuần tự nên hết 15 phút ("không thử lại do sắp hết thời gian").

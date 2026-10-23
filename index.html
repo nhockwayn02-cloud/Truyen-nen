@@ -10576,17 +10576,36 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
     model:state.model||"deepseek/deepseek-v3.2",
     modelNsfw:state.modelNsfw||"aion-labs/aion-2.0", forceNsfw:false
   };
-  const bodyStr=JSON.stringify(payload);
-  if(bodyStr.length>5000000) throw new Error("Dữ liệu hậu kỳ quá lớn ("+Math.round(bodyStr.length/1024)+" KB). Hãy backup và giảm dữ liệu lịch sử trước khi chạy hậu kỳ.");
+  /* V14.1.9: Netlify chặn request > ~6MB (Safari chỉ báo "Load failed"). Tiếng Việt UTF-8 ~2 byte/ký tự nên phải đo BYTE, không đo số ký tự.
+     Quá ~1.5MB: rút gọn văn bản các chương cũ (giữ chương đang hậu kỳ + 2 chương trước + tóm tắt); phần rút gọn được khôi phục từ bản local khi hợp nhất. */
+  const _bytes=s=>{ try{ return new TextEncoder().encode(s).length; }catch(_){ return s.length*2; } };
+  let bodyStr=JSON.stringify(payload), bodyBytes=_bytes(bodyStr), trimmedN=0;
+  if(bodyBytes>1500000 && Array.isArray(storyBlob.chapters)){
+    storyBlob.chapters=storyBlob.chapters.map((c,i)=>{
+      if(!c||typeof c!=="object"||i>=chapterNumber-3&&i<=chapterNumber-1||i>chapterNumber-1) return c;
+      const t=String(c.text||""); if(t.length<=2000) return c;
+      trimmedN++; return Object.assign({},c,{text:t.slice(-1500),_bgTrimmed:true});
+    });
+    bodyStr=JSON.stringify(payload); bodyBytes=_bytes(bodyStr);
+  }
+  if(bodyBytes>5500000) throw new Error("Dữ liệu hậu kỳ quá lớn ("+Math.round(bodyBytes/1024)+" KB, giới hạn Netlify ~6MB). Hãy backup và giảm dữ liệu lịch sử (Timeline/Memory/NV) trước khi chạy hậu kỳ.");
   const pc=getAppPasscode(); const headers={"Content-Type":"application/json"}; if(pc)headers["X-App-Passcode"]=pc;
   setBgStatus("☁ Đang gửi hậu kỳ lên server...",true);
-  const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),45000);
+  const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   let res;
   try{ res=await fetch(BG_FUNCTIONS_BASE+"/create-job",{method:"POST",headers,body:bodyStr,signal:ac.signal}); }
-  catch(e){ if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 45 giây."); throw e; }
+  catch(e){
+    if(e&&e.name==="AbortError"){
+      /* V14.1.10: kèm phân tích dung lượng để biết phần nào nặng (upload chậm trên mạng di động là nguyên nhân thường gặp). */
+      let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
+      throw new Error("create-job không phản hồi sau 90 giây (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+"). Nguyên nhân thường gặp: mạng di động yếu khi tải lên, hoặc hàm Netlify chạy quá 10 giây. Thử Wi-Fi; xem Netlify → Functions → create-job → Logs; job có thể đã được tạo — đợi vài phút rồi mở lại app.");
+    }
+    throw new Error(String(e&&e.message||e)+" — request không tới được server (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"). Kiểm tra mạng/Wi-Fi, site Netlify còn hoạt động và đúng địa chỉ; nếu dung lượng gần 6000 KB thì giảm dữ liệu lịch sử rồi thử lại.");
+  }
   finally{ clearTimeout(timer); }
   const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}
   if(res.status===401) throw new Error("Sai hoặc thiếu Mã truy cập server (mục 🔒).");
+  if(res.status===413) throw new Error("Server từ chối vì dữ liệu quá lớn ("+Math.round(bodyBytes/1024)+" KB). Hãy backup và giảm dữ liệu lịch sử.");
   if(!res.ok || !data.jobId || !data.accessToken) throw new Error(data.error || ("HTTP "+res.status));
   bgWarnText=Array.isArray(data.warnings)&&data.warnings.length ? " ⚠ "+data.warnings.join(" | ") : "";
   const record={jobId:data.jobId,accessToken:data.accessToken,storyId:state.storyId,baseChapterCount:state.chapters.length,createdAt:Date.now(),briefAtStart:String(state.nextChapterHint||""),mode:"postprocess",chapterNumber:Number(chapterNumber)};
@@ -10704,6 +10723,15 @@ async function mergeBackgroundChapter(statusData,record){
     }
     setStatus("✓ Background hoàn tất. Đã hợp nhất chương mới mà không ghi đè các chương local.",false);
   }else{
+    /* V14.1.9: chương cũ bị rút gọn văn bản khi gửi hậu kỳ -> trả lại văn bản đầy đủ từ bản local (khớp tiêu đề); không có bản local thì giữ nguyên local, không ghi đè bằng bản cụt. */
+    if(incoming.chapters.some(c=>c&&c._bgTrimmed)){
+      incoming.chapters=incoming.chapters.map((ich,i)=>{
+        if(!ich||!ich._bgTrimmed) return ich;
+        const lch=state.chapters[i]&&String(state.chapters[i].title||"")===String(ich.title||"")?state.chapters[i]:state.chapters.find(c=>c&&String(c.title||"")===String(ich.title||"")&&(c.wordCount||0)===(ich.wordCount||0));
+        if(lch&&typeof lch.text==="string"){ const o=Object.assign({},ich,{text:lch.text}); delete o._bgTrimmed; return o; }
+        return lch||ich;
+      });
+    }
     /* V12.23: payload đã bỏ stateSnapshots/versions của các chương cũ -> khôi phục từ bản local (khớp theo vị trí + tiêu đề). */
     incoming.chapters.forEach((ich,i)=>{
       const lch=state.chapters[i];
