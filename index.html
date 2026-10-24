@@ -701,14 +701,19 @@ const DEFAULT_ADVANCED_RULES = [
   "QUY TẮC XƯNG HÔ (BẮT BUỘC): Đại từ nhân xưng NHẤT QUÁN xuyên suốt. Không tự tiện đổi giữa chừng.",
   "QUY TẮC LIỀN MẠCH: Mỗi chương tiếp nối từ đoạn kết chương trước; cảnh đang dở thì tiếp nối đúng thời điểm, sự kiện đã khép thì được cho thời gian trôi bằng một câu chuyển tự nhiên trong mạch kể (không nhãn ngày giờ). Không nhảy cảnh đột ngột.",
   "QUY TẮC THỜI GIAN: Thời gian luôn trôi về phía trước.",
-  "QUY TẮC TỐC ĐỘ: Tình cảm dài hạn nên có tích tụ. Khi mệnh lệnh/mức 18+ yêu cầu cảnh nóng: viết thẳng, không né, không kéo dài vô ích.",
+  "QUY TẮC TỐC ĐỘ: Tình cảm dài hạn nên có tích tụ. Khi mệnh lệnh/mức 18+ yêu cầu cảnh nóng: viết thẳng, không né; viết chậm và dày theo QUY TẮC CẢNH NÓNG.",
   "QUY TẮC GHI NHỚ QUAN HỆ: Ghi nhớ trạng thái quan hệ, ranh giới, mức hấp dẫn hiện tại của từng nhân vật.",
   "QUY TẮC TÂM LÝ: Mọi thay đổi tính cách / dục vọng có nguyên nhân rõ.",
   "QUY TẮC CHỐNG NHÀM & CHỐNG LẶP: Mỗi chương có ít nhất một yếu tố mới. Không lặp sự kiện, cách giải quyết, cấu trúc chương, câu chữ, hình ảnh đã dùng.",
-  "QUY TẮC NHỊP CHƯƠNG: Mỗi chương tập trung tối đa 3 SỰ KIỆN TRỤC CHÍNH có liên quan nhân-quả. Bên trong một sự kiện trục được phép có biến cố lớn lồng vào nếu thật sự cần cho nguyên nhân, bước ngoặt, phản ứng hoặc hậu quả; biến cố lồng không tính thành sự kiện chính thứ 4. Không phải chương nào cũng cần biến cố lồng. Không nhồi tuyến phụ hoặc bước ngoặt độc lập.",
+  "QUY TẮC NHỊP CHƯƠNG: Mỗi chương chỉ giải quyết 1–2 việc chính (1–2 SỰ KIỆN TRỤC CHÍNH có liên quan nhân-quả); một chương = MỘT bước tiến rõ về quyền lực hoặc tu luyện (hoặc cả hai), kèm tâm lý / mức sa đọa nếu có. Phần dẫn dắt + cảnh cao trào + hậu quả trực tiếp của nó tính là MỘT sự kiện. Bên trong một sự kiện trục được phép có biến cố lớn lồng vào nếu thật sự cần (không tính thành sự kiện chính thêm). Không phải chương nào cũng cần biến cố lồng. Không nhồi nhiều sự kiện, nhiều địa điểm, nhiều cảnh nóng vào cùng một chương; không nhảy thời gian/địa điểm liên tục. Không nhồi tuyến phụ hoặc bước ngoặt độc lập. Càng dài càng phải có trọng tâm rõ.",
+  "QUY TẮC CẤU TRÚC CHƯƠNG 18+ (khi chương có cảnh nóng): Mở đầu 15–20% (tâm lý, không khí, áp lực; chưa vào cảnh nóng) → Leo thang 20–25% (lệnh/thử thách mới đẩy nhân vật khuất phục sâu hơn) → Cảnh nóng trọng tâm 40–50% (chỉ MỘT cảnh chính) → Hậu quả + móc kết 10–15%. Chương không có cảnh nóng thì giữ nhịp mở – leo thang – hậu quả.",
+  "QUY TẮC CẢNH NÓNG (ưu tiên hơn 'không kéo dài vô ích'): Mỗi cảnh phải có mục đích (siết quyền lực, thử thách, đánh dấu, phá kháng cự), không chỉ để thỏa mãn. Viết chậm, dày, nhiều lớp: thể xác + tâm lý + quyền lực đan vào nhau — ánh mắt, hơi thở, run rẩy, giằng xé nội tâm, phản ứng cơ thể, âm thanh, lời thoại đứt quãng. Tuyệt đối không viết kiểu liệt kê hành động nối nhau; mỗi động tác kéo theo một phản ứng cảm xúc hoặc một bước đổi thế quyền lực.",
+  "QUY TẮC NHÂN VẬT BỊ THỐNG TRỊ: Mỗi chương đổi một chút nhưng rõ, đến từ áp lực + khoái cảm + tâm lý, không nhảy cóc. Không kháng cự mãi, cũng không phục tùng hoàn toàn quá sớm; luôn chừa khoảng trống để bị đẩy sâu hơn ở chương sau.",
+  "QUY TẮC QUYỀN LỰC: Xây dần, có lớp lang. Bên thống trị không thắng quá dễ/quá nhanh; mỗi lần siết chặt đi kèm rủi ro, kháng cự hoặc cái giá phải trả.",
+  "QUY TẮC LEO THANG KHÔNG LẶP: Không lặp cách hành hạ, tư thế, lời thoại, phản ứng của chương trước. Mỗi chương có ít nhất một yếu tố mới (tình huống, địa điểm nguy hiểm hơn, lệnh mới, mức công khai hơn, thử thách tâm lý mới). Càng về sau càng nặng và tinh vi hơn về tâm lý, không chỉ mạnh hơn về thể xác.",
   "QUY TẮC NHÂN VẬT PHỤ: Không tùy tiện tạo nhân vật quan trọng mới. Chỉ tạo nhân vật mới khi câu chuyện thực sự cần; mỗi nhân vật xuất hiện phải có lý do rõ ràng, vai trò cụ thể và liên hệ với sự kiện đang diễn ra. Ưu tiên tái sử dụng nhân vật đã có. Nếu không cần, không thêm người mới chỉ để lấp cảnh.",
   "QUY TẮC XUNG ĐỘT LIÊN TỤC: Mỗi chương có ít nhất một xung đột ảnh hưởng về sau.",
-  "QUY TẮC KẾT CHƯƠNG: Để lại câu hỏi, hậu quả, phát hiện, hoặc thay đổi quan hệ.",
+  "QUY TẮC KẾT CHƯƠNG: Luôn kết bằng một móc: lệnh mới chưa thực hiện / nghi ngờ hoặc nguy cơ bị phát hiện / ham muốn chưa được thỏa / nhân vật bắt đầu có suy nghĩ nguy hiểm hoặc phụ thuộc hơn.",
   "QUY TẮC HẬU QUẢ: Hành động lớn đều để lại hậu quả.",
   "QUY TẮC MIÊU TẢ: Khi giới thiệu nhân vật/cảnh mới, miêu tả ngoại hình và không khí qua các chi tiết cụ thể (ánh mắt, mùi, giọng nói, da, chuyển động) — không dùng từ chung chung như 'xinh đẹp', 'lạnh lùng' mà phải cho thấy qua chi tiết.",
   "QUY TẮC VĂN PHONG CON NGƯỜI: Tránh câu AI điển hình (cô ấy cảm thấy / anh ta nhận ra rằng / một cảm giác lạ lùng). Ưu tiên chi tiết cụ thể, hơi thở, khoảng lặng.",
@@ -2131,6 +2136,15 @@ function evaluateReview(obj, opts) {
     hard.push("Nhầm giải phẫu/đặc điểm sinh học giữa các giới theo hồ sơ nhân vật" + (ga ? ": " + ga : "."));
   }
   const timeWarn = [];
+  /* V14.2: văn "liệt kê hành động" và kết chương không có móc chỉ là CẢNH BÁO mềm (không chặn Sync); dùng để gợi ý sửa/viết lại tay. */
+  if (obj.listLikeProse) {
+    const ln = (Array.isArray(obj.listLikeNotes) ? obj.listLikeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Văn như liệt kê hành động nối nhau, thiếu cảm xúc/quyền lực đan xen" + (ln ? ": " + ln : "."));
+  }
+  if (obj.weakHook) {
+    const hn = (Array.isArray(obj.hookNotes) ? obj.hookNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Kết chương chưa có móc (lệnh mới/nguy cơ bị phát hiện/ham muốn chưa thỏa/phụ thuộc hơn)" + (hn ? ": " + hn : "."));
+  }
   if (obj.timeStagnation) {
     const tn = (Array.isArray(obj.timeNotes) ? obj.timeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     timeWarn.push("Thời gian truyện bất nhất hoặc đứng yên" + (tn ? ": " + tn : "."));
@@ -2821,7 +2835,7 @@ function knownNameMentions(text, names) {
 }
 
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
-const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"genderAnatomyMismatch":false,"genderAnatomyNotes":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"arcStall":false,"arcNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
+const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"genderAnatomyMismatch":false,"genderAnatomyNotes":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"arcStall":false,"arcNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"listLikeProse":false,"listLikeNotes":[],"weakHook":false,"hookNotes":[],"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
 /* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
    Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
@@ -2867,6 +2881,11 @@ function buildQualityReviewPrompt(p) {
     p.characterLock ? "- genderAnatomyMismatch=true nếu bản thảo gán cho một nhân vật bộ phận, đặc điểm hoặc phản ứng sinh học không phù hợp giới tính ghi trong HỒ SƠ KHÓA. Ghi đúng tên nhân vật, trích dẫn ngắn và giới tính hồ sơ vào genderAnatomyNotes. Đây là HARD FAILURE, không được chấm PASS." : "",
     p.prevEnding ? "- ĐỊA ĐIỂM MỞ CHƯƠNG: nếu cảnh mở đầu của bản thảo KHÁC địa điểm/thời điểm/người có mặt so với ĐOẠN KẾT CHƯƠNG TRƯỚC mà không có đoạn chuyển cảnh hợp lý (ví dụ chương trước kết ở biệt thự của A nhưng chương này mở ở phòng trọ của B), phải ghi vào hardFailures (nêu rõ kết ở đâu, mở ở đâu) và đặt continuity thấp." : "",
     "- outlineDeviation=true nếu bỏ mốc bắt buộc hoặc mở tuyến lớn ngoài contract.",
+    /* V14.2: chấm theo phong cách "chậm – sâu – ít sự kiện" (1–2 việc chính/chương, một cảnh trọng tâm). */
+    "- CÁCH ĐẾM SỰ KIỆN: phần dẫn dắt + cảnh nóng/cảnh cao trào chính + hậu quả trực tiếp của nó là MỘT sự kiện chính, không tách thành nhiều. Chương chỉ có 1–2 sự kiện nhưng viết chậm, dày, có một bước tiến rõ về quyền lực hoặc tu luyện (cảnh giới, công pháp, thực lực) hay tâm lý là ĐÚNG phong cách mong muốn — KHÔNG trừ điểm pacing, KHÔNG báo arcStall/stagnation chỉ vì ít sự kiện hay một cảnh dài. Chương nhồi nhiều sự kiện/địa điểm/nhiều cảnh nóng mới là lỗi nhịp.",
+    "- listLikeProse=true CHỈ KHI một đoạn dài (từ ~6 câu) chủ yếu là chuỗi hành động nối nhau kiểu 'rồi… rồi… tiếp theo…' mà thiếu phản ứng cảm xúc, cảm giác cơ thể, nội tâm hoặc thế quyền lực đổi qua từng bước; hoặc cảnh nóng chỉ liệt kê tư thế/hành động. Ghi 1–2 trích dẫn ngắn vào listLikeNotes. Chỉ là CẢNH BÁO mềm, không đưa vào hardFailures.",
+    "- weakHook=true nếu câu/đoạn cuối chương KHÔNG để lại móc nào: lệnh mới chưa thực hiện, nghi ngờ/nguy cơ bị phát hiện, ham muốn chưa được thỏa, hoặc nhân vật bắt đầu có ý nghĩ nguy hiểm/phụ thuộc hơn. Ghi 1 dẫn chứng ngắn vào hookNotes. Chỉ là CẢNH BÁO mềm.",
+    "- LẶP: nếu cách hành hạ/tư thế/lời thoại/phản ứng giống hệt chương trước (theo bối cảnh/đoạn kết chương trước), ghi vào warnings và hạ điểm style; không đưa vào hardFailures trừ khi lặp nguyên cảnh.",
     "- hardFailures phải chứa mọi lỗi chặn Sync. Nếu có hard failure thì verdict phải HARD_FAIL dù score cao.",
     "SCHEMA: " + GATE_REVIEW_SCHEMA
   ].filter(x => x !== "").join("\n\n");
@@ -4131,7 +4150,7 @@ const state = {
   vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
   arcs: [], outlinePlans: [], storyClock: "", directive: "", nextChapterHint: "", nextChapterHintMeta: { targetChapter: 0, version: 0, status: "unverified" }, autoNextChapterHint: "",
   difficulty: "vua", mature: false, chapterMatureFocus: "none",
-  storyControl: { schemaVersion:1, maxMainEvents:3, maxNamedCharacters:4, maxNewThreads:3, noRetcon:true, agencyRequired:true, lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"] },
+  storyControl: { schemaVersion:1, maxMainEvents:2, maxNamedCharacters:4, maxNewThreads:3, noRetcon:true, agencyRequired:true, lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"] },
   currentStatus: "",
   characters: [], locations: [], items: [], threads: [],
   scenes: [], consentLog: [],
@@ -4179,7 +4198,7 @@ function newStoryState(name){
     femaleCharacterDefinition: "",
     vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
     arcs:[], outlinePlans:[], storyClock:"", directive:"", nextChapterHint:"", nextChapterHintMeta:{targetChapter:0,version:0,status:"unverified"}, autoNextChapterHint:"",
-    difficulty:"vua", mature:false, chapterMatureFocus:"none", storyControl:{schemaVersion:1,maxMainEvents:3,maxNamedCharacters:4,maxNewThreads:3,noRetcon:true,agencyRequired:true,lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"]}, currentStatus:"",
+    difficulty:"vua", mature:false, chapterMatureFocus:"none", storyControl:{schemaVersion:1,maxMainEvents:2,maxNamedCharacters:4,maxNewThreads:3,noRetcon:true,agencyRequired:true,lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"]}, currentStatus:"",
     characters:[], locations:[], items:[], threads:[],
     scenes:[], consentLog:[],
     chapters:[], chapterDrafts:[], currentChapterIndex:-1, chaptersSinceBackup:0,

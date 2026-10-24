@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.2 — Phong cách chậm–sâu: quy tắc mặc định + Quality Gate]
+
+- **Quy tắc nâng cao mặc định (truyện MỚI):** nhịp 1–2 sự kiện trục/chương, cấu trúc 4 phần cho chương 18+, cảnh nóng chậm–dày–có mục đích (chống liệt kê hành động), nhân vật bị thống trị, quyền lực, leo thang không lặp, móc kết. Truyện cũ giữ ô 2.5 đã lưu (dán tay khối mới nếu muốn).
+- **Story Control mặc định mới:** `maxMainEvents` 2 (truyện cũ giữ 3).
+- **Quality Gate:** cách đếm sự kiện (dẫn dắt + cao trào + hậu quả = một sự kiện; ít sự kiện nhưng sâu không bị trừ pacing/stagnation/arcStall); thêm cảnh báo MỀM `listLikeProse` (văn liệt kê hành động) và `weakHook` (kết chương không có móc); nhắc hạ điểm khi lặp chương trước. Không chặn Sync.
+
 ## [V14.1.10 — create-job không phản hồi sau 45 giây]
 
 - Rút gọn văn bản chương cũ ngay từ 1,5MB (trước 3,5MB) để upload nhanh hơn trên mạng di động.

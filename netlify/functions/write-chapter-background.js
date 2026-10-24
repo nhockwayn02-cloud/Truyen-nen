@@ -1476,6 +1476,15 @@ function evaluateReview(obj, opts) {
     hard.push("Nhầm giải phẫu/đặc điểm sinh học giữa các giới theo hồ sơ nhân vật" + (ga ? ": " + ga : "."));
   }
   const timeWarn = [];
+  /* V14.2: văn "liệt kê hành động" và kết chương không có móc chỉ là CẢNH BÁO mềm (không chặn Sync); dùng để gợi ý sửa/viết lại tay. */
+  if (obj.listLikeProse) {
+    const ln = (Array.isArray(obj.listLikeNotes) ? obj.listLikeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Văn như liệt kê hành động nối nhau, thiếu cảm xúc/quyền lực đan xen" + (ln ? ": " + ln : "."));
+  }
+  if (obj.weakHook) {
+    const hn = (Array.isArray(obj.hookNotes) ? obj.hookNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
+    timeWarn.push("Kết chương chưa có móc (lệnh mới/nguy cơ bị phát hiện/ham muốn chưa thỏa/phụ thuộc hơn)" + (hn ? ": " + hn : "."));
+  }
   if (obj.timeStagnation) {
     const tn = (Array.isArray(obj.timeNotes) ? obj.timeNotes : []).slice(0, 2).map(x => typeof x === "string" ? x : (x && (x.description || x.problem)) || "").filter(Boolean).join(" | ");
     timeWarn.push("Thời gian truyện bất nhất hoặc đứng yên" + (tn ? ": " + tn : "."));
@@ -2166,7 +2175,7 @@ function knownNameMentions(text, names) {
 }
 
 // --- Prompt Auditor: phần khung/quy tắc/schema dùng chung; ngữ cảnh do client/worker tự truyền vào ---
-const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"genderAnatomyMismatch":false,"genderAnatomyNotes":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"arcStall":false,"arcNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
+const GATE_REVIEW_SCHEMA = '{"score":0,"verdict":"PASS|SOFT_FAIL|HARD_FAIL","dimensions":{"continuity":0,"characterConsistency":0,"canonConsistency":0,"plotDiscipline":0,"worldRules":0,"outlineCompliance":0,"style":0,"pacing":0,"knowledgeConsistency":0},"mainEventCount":0,"namedCharacterCount":0,"unauthorizedImportantCharacter":false,"knowledgeViolation":false,"retcon":false,"profileViolation":false,"profileViolations":[],"genderAnatomyMismatch":false,"genderAnatomyNotes":[],"stagnation":false,"stagnationNotes":[],"timeStagnation":false,"timeNotes":[],"sceneViolation":false,"sceneNotes":[],"arcStall":false,"arcNotes":[],"appearanceVague":false,"appearanceNotes":[],"outlineDeviation":false,"listLikeProse":false,"listLikeNotes":[],"weakHook":false,"hookNotes":[],"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}';
 // p: { storyControl, contract, contractLabel, context, warnings, draft, hardChecks, knownNames, maxMainEvents, maxNamedCharacters }
 /* V12.32.3: tiết kiệm token cho Review/Rewrite. Trước đây cắt cứng đầu 18000/15000 ký tự -> vừa tốn vừa dễ mất
    Current Status (nằm cuối ngữ cảnh). Nay: bỏ các khối không liên quan tới việc chấm/sửa (văn phong, mức miêu tả,
@@ -2212,6 +2221,11 @@ function buildQualityReviewPrompt(p) {
     p.characterLock ? "- genderAnatomyMismatch=true nếu bản thảo gán cho một nhân vật bộ phận, đặc điểm hoặc phản ứng sinh học không phù hợp giới tính ghi trong HỒ SƠ KHÓA. Ghi đúng tên nhân vật, trích dẫn ngắn và giới tính hồ sơ vào genderAnatomyNotes. Đây là HARD FAILURE, không được chấm PASS." : "",
     p.prevEnding ? "- ĐỊA ĐIỂM MỞ CHƯƠNG: nếu cảnh mở đầu của bản thảo KHÁC địa điểm/thời điểm/người có mặt so với ĐOẠN KẾT CHƯƠNG TRƯỚC mà không có đoạn chuyển cảnh hợp lý (ví dụ chương trước kết ở biệt thự của A nhưng chương này mở ở phòng trọ của B), phải ghi vào hardFailures (nêu rõ kết ở đâu, mở ở đâu) và đặt continuity thấp." : "",
     "- outlineDeviation=true nếu bỏ mốc bắt buộc hoặc mở tuyến lớn ngoài contract.",
+    /* V14.2: chấm theo phong cách "chậm – sâu – ít sự kiện" (1–2 việc chính/chương, một cảnh trọng tâm). */
+    "- CÁCH ĐẾM SỰ KIỆN: phần dẫn dắt + cảnh nóng/cảnh cao trào chính + hậu quả trực tiếp của nó là MỘT sự kiện chính, không tách thành nhiều. Chương chỉ có 1–2 sự kiện nhưng viết chậm, dày, có một bước tiến rõ về quyền lực hoặc tu luyện (cảnh giới, công pháp, thực lực) hay tâm lý là ĐÚNG phong cách mong muốn — KHÔNG trừ điểm pacing, KHÔNG báo arcStall/stagnation chỉ vì ít sự kiện hay một cảnh dài. Chương nhồi nhiều sự kiện/địa điểm/nhiều cảnh nóng mới là lỗi nhịp.",
+    "- listLikeProse=true CHỈ KHI một đoạn dài (từ ~6 câu) chủ yếu là chuỗi hành động nối nhau kiểu 'rồi… rồi… tiếp theo…' mà thiếu phản ứng cảm xúc, cảm giác cơ thể, nội tâm hoặc thế quyền lực đổi qua từng bước; hoặc cảnh nóng chỉ liệt kê tư thế/hành động. Ghi 1–2 trích dẫn ngắn vào listLikeNotes. Chỉ là CẢNH BÁO mềm, không đưa vào hardFailures.",
+    "- weakHook=true nếu câu/đoạn cuối chương KHÔNG để lại móc nào: lệnh mới chưa thực hiện, nghi ngờ/nguy cơ bị phát hiện, ham muốn chưa được thỏa, hoặc nhân vật bắt đầu có ý nghĩ nguy hiểm/phụ thuộc hơn. Ghi 1 dẫn chứng ngắn vào hookNotes. Chỉ là CẢNH BÁO mềm.",
+    "- LẶP: nếu cách hành hạ/tư thế/lời thoại/phản ứng giống hệt chương trước (theo bối cảnh/đoạn kết chương trước), ghi vào warnings và hạ điểm style; không đưa vào hardFailures trừ khi lặp nguyên cảnh.",
     "- hardFailures phải chứa mọi lỗi chặn Sync. Nếu có hard failure thì verdict phải HARD_FAIL dù score cao.",
     "SCHEMA: " + GATE_REVIEW_SCHEMA
   ].filter(x => x !== "").join("\n\n");
