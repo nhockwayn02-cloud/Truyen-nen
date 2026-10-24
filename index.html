@@ -10878,17 +10878,34 @@ async function startBackgroundDraft(){
     model:pick.model||state.model||"deepseek/deepseek-v3.2",
     modelNsfw:state.modelNsfw||"aion-labs/aion-2.0", forceNsfw:false
   };
-  const bodyStr=JSON.stringify(payload);
-  if(bodyStr.length>5000000){ setStatus("Dữ liệu quá lớn ("+Math.round(bodyStr.length/1024)+" KB). Hãy backup và giảm dữ liệu lịch sử trước khi viết nền.",false); return; }
+  /* V14.2.2: như hậu kỳ — đo BYTE (Netlify ~6MB) và rút gọn văn bản chương cũ khi payload nặng (giữ 3 chương cuối đầy đủ); văn bản đầy đủ khôi phục từ bản local khi hợp nhất. */
+  const _bytes=x=>{ try{ return new TextEncoder().encode(x).length; }catch(_){ return x.length*2; } };
+  let bodyStr=JSON.stringify(payload), bodyBytes=_bytes(bodyStr), trimmedN=0;
+  if(bodyBytes>1500000 && Array.isArray(storyBlob.chapters)){
+    const nCh=storyBlob.chapters.length;
+    storyBlob.chapters=storyBlob.chapters.map((c,i)=>{
+      if(!c||typeof c!=="object"||i>=nCh-3) return c;
+      const t=String(c.text||""); if(t.length<=2000) return c;
+      trimmedN++; return Object.assign({},c,{text:t.slice(-1500),_bgTrimmed:true});
+    });
+    bodyStr=JSON.stringify(payload); bodyBytes=_bytes(bodyStr);
+  }
+  if(bodyBytes>5500000){ setStatus("Dữ liệu quá lớn ("+Math.round(bodyBytes/1024)+" KB, giới hạn Netlify ~6MB). Hãy backup và giảm dữ liệu lịch sử (Timeline/Memory/NV) trước khi viết nền.",false); return; }
   const pc=getAppPasscode(); const headers={"Content-Type":"application/json"}; if(pc)headers["X-App-Passcode"]=pc;
   setBgStatus("☁ Đang gửi lệnh viết nháp lên server...",true);
-  const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),45000);
+  const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   try{
     let res;
     try{ res=await fetch(BG_FUNCTIONS_BASE+"/create-job",{method:"POST",headers,body:bodyStr,signal:ac.signal}); }
-    catch(e){ if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 45 giây."); throw e; }
+    catch(e){
+      let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
+      const info=" (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")";
+      if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 90 giây"+info+". Thường do mạng di động yếu khi tải lên hoặc hàm Netlify chạy quá 10 giây — thử Wi-Fi, xem Netlify → Functions → create-job → Logs; job có thể đã được tạo, đợi vài phút rồi mở lại app.");
+      throw new Error(String(e&&e.message||e)+" — request không tới được server"+info+".");
+    }
     const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}
     if(res.status===401) throw new Error("Sai hoặc thiếu Mã truy cập server (mục 🔒).");
+    if(res.status===413) throw new Error("Server từ chối vì dữ liệu quá lớn ("+Math.round(bodyBytes/1024)+" KB). Hãy backup và giảm dữ liệu lịch sử.");
     if(!res.ok || !data.jobId || !data.accessToken) throw new Error(data.error || ("HTTP "+res.status));
     bgWarnText=Array.isArray(data.warnings)&&data.warnings.length ? " ⚠ "+data.warnings.join(" | ") : "";
     const record={jobId:data.jobId,accessToken:data.accessToken,storyId:state.storyId,baseChapterCount:state.chapters.length,createdAt:Date.now(),briefAtStart:String(state.nextChapterHint||""),mode:"write",draftOnly:true,chapterNumber};

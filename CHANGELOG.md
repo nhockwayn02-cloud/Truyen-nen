@@ -1,5 +1,9 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.2.2 — Viết nháp nền: create-job không phản hồi]
+
+- Nút ☁ Viết nháp nền dùng cùng cách gửi như hậu kỳ: đo byte, rút gọn văn bản chương cũ từ 1,5MB (giữ 3 chương cuối), chờ 90 giây, báo dung lượng + phần nặng nhất khi lỗi (bản V14.1.9/10 chỉ sửa đường hậu kỳ).
+
 ## [V14.2 — Phong cách chậm–sâu: quy tắc mặc định + Quality Gate]
 
 - **Quy tắc nâng cao mặc định (truyện MỚI):** nhịp 1–2 sự kiện trục/chương, cấu trúc 4 phần cho chương 18+, cảnh nóng chậm–dày–có mục đích (chống liệt kê hành động), nhân vật bị thống trị, quyền lực, leo thang không lặp, móc kết. Truyện cũ giữ ô 2.5 đã lưu (dán tay khối mới nếu muốn).
