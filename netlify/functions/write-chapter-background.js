@@ -395,6 +395,59 @@ function parseSceneReviewResponse(raw) {
   return { ok: obj.ok !== false && !errors.length, errors, warnings };
 }
 
+/* V14.3: VÁ CỤC BỘ SCENE. Lỗi rà AI kiểu "thiếu chi tiết / thiếu câu chuyển cảnh" (MUST_CHANGE, LOCATION_TIME) sửa được bằng vài câu CHÈN,
+   không cần viết lại cả scene. NEW_THREAD / CAST cần gỡ nội dung nên không thuộc diện vá chèn. */
+const SCENE_FIX_MAX_ADD = 320;
+function sceneErrorsPatchable(errors) {
+  const a = Array.isArray(errors) ? errors : [];
+  return a.length > 0 && a.every(e => /^(MUST_CHANGE|LOCATION_TIME)\b/i.test(String(e)));
+}
+function buildSceneFixPrompt(o) {
+  o = o || {}; const s = o.scene || {}, wc = countWords(o.text || '');
+  return [
+    'VÁ CỤC BỘ MỘT SCENE tiểu thuyết bằng cách CHÈN thêm vài câu/đoạn ngắn. KHÔNG viết lại scene, KHÔNG replace/delete, KHÔNG đổi đoạn kết.',
+    'LỖI CẦN KHẮC PHỤC (từ bước rà scene):\n' + (o.errors || []).map(e => '- ' + e).join('\n'),
+    'SCENE CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
+    'ĐỊNH DẠNG — chỉ trả các khối sau, không giải thích, không markdown:',
+    '>>> SAU: <chép NGUYÊN VĂN 6–20 từ CUỐI của một đoạn có sẵn, đúng từng chữ>',
+    '<1–3 câu hoặc một đoạn ngắn văn xuôi tiếng Việt thuần, nối mượt với đoạn trước/sau>',
+    '>>> TRƯỚC: <chép NGUYÊN VĂN 6–20 từ ĐẦU của một đoạn có sẵn>',
+    '<đoạn chèn>',
+    'QUY TẮC: tối đa 3 chỗ chèn, tổng thêm không quá ' + SCENE_FIX_MAX_ADD + ' từ; mỗi cụm neo khác nhau và duy nhất trong scene; không chèn sau đoạn cuối; không thêm sự kiện lớn, tuyến hay nhân vật mới ngoài kế hoạch; không nhãn, tiêu đề hay ghi chú.',
+    'Với MUST_CHANGE: chèn đúng chi tiết/hành động còn thiếu vào chỗ hợp lý. Với LOCATION_TIME: chèn 1–2 câu cầu nối (rời nơi cũ, đến nơi mới, thời điểm mới).',
+    '===== VĂN BẢN SCENE (' + wc + ' từ) =====\n' + String(o.text || '').slice(0, 12000) + '\n===== HẾT ====='
+  ].join('\n\n');
+}
+// Ghép các khối chèn vào scene. Trả { ok, text, added, reason }.
+function applySceneFixInserts(text, raw) {
+  const blocks = parseInsertBlocks(raw);
+  if (!blocks.length) return { ok: false, reason: 'AI không trả khối chèn hợp lệ' };
+  const base = String(text || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(); // cùng cách chuẩn hóa với applyChapterPatches, để kiểm tra 'không đổi đoạn kết' không lệch vì khoảng trắng thừa
+  const res = applyExpandInserts(base, blocks, countWords(base) + SCENE_FIX_MAX_ADD);
+  if (!res.applied) return { ok: false, reason: 'không ghép được khối chèn nào' + (res.skipped && res.skipped[0] ? ' (' + res.skipped[0].reason + ')' : '') };
+  if (res.added < 8) return { ok: false, reason: 'đoạn chèn quá ít (+' + res.added + ' từ)' };
+  return { ok: true, text: res.text, added: res.added, applied: res.applied };
+}
+// Tóm tắt cảnh báo scene cho người dùng: scene bị "giữ dù AI chê" luôn hiện đầy đủ, rồi tới cảnh báo khác; báo rõ phần bị ẩn.
+function summarizeSceneWarnings(stats, maxOther) {
+  const st = stats || {}, all = Array.isArray(st.sceneWarnings) ? st.sceneWarnings : [], lim = maxOther == null ? 4 : maxOther;
+  const important = all.filter(w => /GIỮ BẢN CUỐI|ĐÃ VÁ/.test(w)), others = all.filter(w => !/GIỮ BẢN CUỐI|ĐÃ VÁ/.test(w));
+  const shown = important.concat(others.slice(0, lim)), hidden = others.length - Math.min(others.length, lim);
+  return { shown, hidden, kept: Array.isArray(st.sceneKept) ? st.sceneKept : [], patched: Array.isArray(st.scenePatched) ? st.scenePatched : [], total: all.length };
+}
+
+// Một dòng tóm tắt cho người dùng (đường viết thường hiển thị ở dòng trạng thái). '' nếu không có gì đáng báo.
+function formatSceneNote(stats) {
+  const st = stats || {}, kept = Array.isArray(st.sceneKept) ? st.sceneKept : [], patched = Array.isArray(st.scenePatched) ? st.scenePatched : [];
+  const warnN = Array.isArray(st.sceneWarnings) ? st.sceneWarnings.length : 0;
+  const parts = [];
+  if (kept.length) parts.push('⚠ scene giữ dù AI rà báo lỗi: ' + kept.join(', ') + ' (nên đọc lại)');
+  if (patched.length) parts.push('đã vá cục bộ: ' + patched.join(', '));
+  const other = warnN - kept.length - patched.length;
+  if (other > 0) parts.push(other + ' cảnh báo scene khác');
+  return parts.join(' · ');
+}
+
 // V14.0.20: quality contract for Vietnamese-native fiction. Keep this shared so
 // normal writing, background writing and adaptive scenes do not drift stylistically.
 function vietnameseNovelWritingPrompt() {
@@ -2709,7 +2762,8 @@ async function runAdaptiveChapterPipeline(o, deps) {
 
   const pieces = [], sceneStates = [];
   let dupDropped = 0, sceneRetries = 0, sceneAiReviews = 0;
-  const sceneRewritten = [], sceneWarnings = [];
+  const sceneRewritten = [], sceneWarnings = [], sceneKept = [], scenePatched = [];
+  const pushSceneWarn = (w, force) => { if (force || sceneWarnings.length < 40) sceneWarnings.push(w); };
   const maxSceneRetries = deps.sceneRetries == null ? 1 : Math.max(0, Math.min(2, Number(deps.sceneRetries) || 0));
   let usedNsfw = !!o.usingNsfw, lastRoute = { model: o.model, nsfw: !!o.usingNsfw }, timedOut = false;
   let previousTail = priorChapters.length
@@ -2723,7 +2777,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     lastRoute = route;
     if (route.nsfw && !usedNsfw) { usedNsfw = true; if (deps.onNsfw) { try { deps.onNsfw(scene, route); } catch (_) {} } }
     // V14.0.16: KIỂM TRA TỪNG SCENE ngay sau khi viết. Lỗi nặng -> viết lại ĐÚNG scene này (tối đa sceneRetries lần), không ghép scene sai vào chương.
-    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false;
+    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
@@ -2768,20 +2822,61 @@ async function runAdaptiveChapterPipeline(o, deps) {
           });
           const parsed = parseSceneReviewResponse(rv && rv.text);
           sceneAiReviews++;
-          if (parsed) { errors = parsed.errors.slice(); warns = warns.concat(parsed.warnings); }
+          if (parsed) {
+            errors = parsed.errors.slice(); warns = warns.concat(parsed.warnings);
+            if (parsed.ok === false && !parsed.errors.length && !parsed.warnings.length) warns.push('rà AI báo ok=false nhưng không nêu lý do — scene được coi là đạt, nên đọc lại');
+          } else warns.push('rà AI trả phản hồi không đọc được (JSON hỏng/rỗng) — scene này CHƯA được rà');
         } catch (e) { if (deps.warn) deps.warn('[AdaptiveScene] scene review failed', scene.id, e && e.message); }
       }
-      if (!errors.length) { accepted = text; warns.forEach(w => { if (sceneWarnings.length < 10) sceneWarnings.push(scene.id + ': ' + w); }); break; }
+      if (!errors.length) { accepted = text; warns.forEach(w => pushSceneWarn(scene.id + ': ' + w)); break; }
       lastErrors = errors;
+      if (lastAiOnly && errors.length) bestAiOnly = { text, errors: errors.slice() }; // bản vượt kiểm tra cứng, chỉ bị AI rà chê: dự phòng nếu lượt viết lại sau đó hỏng kiểm tra cứng
       if (sa < maxSceneRetries) { sceneRetries++; if (!sceneRewritten.includes(scene.id)) sceneRewritten.push(scene.id); }
       correction = errors.join(' | ');
     }
     if (skipScene) continue;
+    /* V14.3: scene hết lượt viết lại mà CHỈ bị AI rà báo lỗi vá-được (MUST_CHANGE / LOCATION_TIME) -> thử VÁ CỤC BỘ (chèn vài câu), rà lại một lần.
+       Vá xong qua rà -> nhận; vá được nhưng AI vẫn chê -> giữ bản đã vá + cảnh báo; không vá được -> giữ bản viết cuối như V14.2.4. */
+    let patchNote = '', rollbackNote = '';
+    // V14.3: lượt viết lại làm scene HỎNG kiểm tra cứng (vd lẫn nhân vật ngoài cast) trong khi bản trước chỉ bị AI rà chê -> quay về bản trước (kèm cảnh báo) thay vì hủy cả job.
+    if (accepted === null && !skipScene && !lastAiOnly && bestAiOnly && deps.keepAiOnlyRejected !== false) {
+      rollbackNote = 'lượt viết lại sau hỏng: ' + String(lastErrors[0] || '').slice(0, 80) + ' → dùng lại bản trước';
+      lastText = bestAiOnly.text; lastErrors = bestAiOnly.errors; lastAiOnly = true;
+    }
+    if (accepted === null && lastText && lastAiOnly && deps.sceneAiPatch !== false && deps.sceneAiReview && countWords(lastText) >= 80 && sceneErrorsPatchable(lastErrors) && timeLeft() > minSceneMs / 2) {
+      try {
+        const pr = await callAI(buildSceneFixPrompt({ scene, text: lastText, errors: lastErrors }), {
+          maxTokens: 900, temperature: 0.3, modelOverride: route.model, streaming: false
+        });
+        const fx = applySceneFixInserts(lastText, stripThinkingOutput(String(pr && pr.text || '')));
+        if (!fx.ok) patchNote = 'vá cục bộ không thành: ' + fx.reason;
+        else {
+          const chk2 = checkSceneQuality(fx.text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
+          if (chk2.errors.length) patchNote = 'bản vá bị loại: ' + chk2.errors[0];
+          else {
+            let errs2 = [];
+            if (timeLeft() > minSceneMs / 2) {
+              try {
+                const rv2 = await callAI(buildSceneReviewPrompt({ scene, text: fx.text, chapterContract, nextScene: graph.scenes[i + 1] }), { maxTokens: 500, temperature: 0.1, modelOverride: deps.sceneReviewModel || route.model, streaming: false });
+                const p2 = parseSceneReviewResponse(rv2 && rv2.text); sceneAiReviews++;
+                if (p2) errs2 = p2.errors.slice();
+              } catch (e) { if (deps.warn) deps.warn('[AdaptiveScene] scene re-review failed', scene.id, e && e.message); }
+            }
+            scenePatched.push(scene.id);
+            if (!errs2.length) { accepted = fx.text; pushSceneWarn(scene.id + ': ĐÃ VÁ CỤC BỘ (+' + fx.added + ' từ) sau ' + sceneTries + ' lượt viết' + (rollbackNote ? ' (' + rollbackNote + ')' : '') + ' — lỗi AI rà: ' + lastErrors.join(' | ').slice(0, 220), true); }
+            else { accepted = fx.text; lastErrors = errs2; patchNote = 'đã vá (+' + fx.added + ' từ) nhưng AI vẫn báo: ' + errs2.join(' | ').slice(0, 220); }
+          }
+        }
+      } catch (e) { patchNote = 'vá cục bộ lỗi: ' + (e && e.message || 'không rõ'); if (deps.warn) deps.warn('[AdaptiveScene] scene patch failed', scene.id, e && e.message); }
+    }
     /* V14.2.4: scene hết lượt viết lại mà CHỈ bị AI rà báo (kiểm tra cứng cục bộ đã qua: đủ độ dài, không lặp, không lẫn ngoại ngữ) -> GIỮ bản viết cuối kèm cảnh báo,
        thay vì hủy cả job nháp (mất mọi scene đã viết). AI rà hay bắt lỗi quá chi tiết (vd thiếu một chi tiết cụ thể trong Contract); người dùng sửa tay hoặc 🔍 Duyệt lại sau. */
-    if (accepted === null && lastText && lastAiOnly && deps.keepAiOnlyRejected !== false && countWords(lastText) >= 80) {
-      accepted = lastText;
-      if (sceneWarnings.length < 10) sceneWarnings.push(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 300));
+    if (accepted !== null && patchNote) {
+      sceneKept.push(scene.id);
+      pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt, ' + patchNote + (rollbackNote ? '; ' + rollbackNote : '') + ')', true);
+    } else if (accepted === null && lastText && lastAiOnly && deps.keepAiOnlyRejected !== false && countWords(lastText) >= 80) {
+      accepted = lastText; sceneKept.push(scene.id);
+      pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 300), true);
     }
     if (accepted === null) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') };
     pieces.push(accepted);
@@ -2839,7 +2934,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     }
   }
   const underTarget = wc < limits.minAccept;
-  const stats = { scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneAiReviews, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
+  const stats = { scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneKept, scenePatched, sceneAiReviews, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
   return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(promptChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut, stats };
 }
 
@@ -4447,7 +4542,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
   }
   const wordCount = countWords(text);
   if (res.underTarget || wordCount < 4500) issues.push("Thiếu từ: " + wordCount + "/4500" + (res.timedOut ? " (hết thời gian job)" : ""));
-  if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene (" + res.stats.wordsBeforeClean + " từ thô → " + res.stats.wordsAfterScenes + " sau dọn), " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + (res.stats.sceneRetries ? "kiểm scene: viết lại " + res.stats.sceneRetries + " lượt (" + (res.stats.sceneRewritten || []).join(", ") + "), " : "") + (res.stats.sceneAiReviews ? res.stats.sceneAiReviews + " lượt rà AI scene, " : "") + (res.stats.sceneWarnings && res.stats.sceneWarnings.length ? "cảnh báo scene: " + res.stats.sceneWarnings.slice(0, 4).join(" · ") + ", " : "") + (res.stats.addedCast && res.stats.addedCast.length ? "nhân vật có trong Outline/chương trước nhưng chưa có trong Character Database: " + res.stats.addedCast.join(", ") + ", " : "") + (res.stats.strippedCast && res.stats.strippedCast.length ? "đã gỡ vai ngoài Story Bible: " + res.stats.strippedCast.join(", ") + ", " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
+  if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene (" + res.stats.wordsBeforeClean + " từ thô → " + res.stats.wordsAfterScenes + " sau dọn), " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + (res.stats.sceneRetries ? "kiểm scene: viết lại " + res.stats.sceneRetries + " lượt (" + (res.stats.sceneRewritten || []).join(", ") + "), " : "") + (res.stats.sceneAiReviews ? res.stats.sceneAiReviews + " lượt rà AI scene, " : "") + (res.stats.sceneWarnings && res.stats.sceneWarnings.length ? (() => { const sw = summarizeSceneWarnings(res.stats, 4); return (sw.patched.length ? "scene đã vá cục bộ: " + sw.patched.join(", ") + ", " : "") + (sw.kept.length ? "⚠ scene GIỮ dù AI rà báo (cần đọc lại): " + sw.kept.join(", ") + ", " : "") + "cảnh báo scene: " + sw.shown.join(" · ") + (sw.hidden > 0 ? " (+" + sw.hidden + " cảnh báo nữa)" : "") + ", "; })() : "") + (res.stats.addedCast && res.stats.addedCast.length ? "nhân vật có trong Outline/chương trước nhưng chưa có trong Character Database: " + res.stats.addedCast.join(", ") + ", " : "") + (res.stats.strippedCast && res.stats.strippedCast.length ? "đã gỡ vai ngoài Story Bible: " + res.stats.strippedCast.join(", ") + ", " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
   const title = String(state.chapterTitle || state.currentChapterTitle || ("Chương " + chapterNumber)).trim() || ("Chương " + chapterNumber);
   const _sc = normalizeStoryControl(state);
   const control = { focus: normalizeChapterMatureFocus(state.chapterMatureFocus), maxMainEvents: _sc.maxMainEvents, maxNamedCharacters: _sc.maxNamedCharacters, noRetcon: _sc.noRetcon };

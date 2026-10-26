@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V14.0.20 Vietnamese Novel Writing + Contract-First Complete Chapter Pipeline.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V14.3.0 Contract-First Complete Chapter Pipeline + Rà AI scene có vá cục bộ.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -35,6 +35,8 @@ V12.47 đổi luồng chính thành **Tạo Chương Hoàn Chỉnh**. Khi bật 
 
 V14.0.16 bổ sung **kiểm tra từng scene** (lỗi nặng → viết lại đúng scene đó, không ghép scene sai vào chương; rà AI từng scene là tùy chọn) và **tự sửa sau chấm nhanh** cho bản nháp nền (sửa → chấm lại → giữ bản tốt hơn; vẫn chưa hậu kỳ/Canon).
 
+V14.3.0: rà AI từng scene nay tự **vá cục bộ** (chèn vài câu) khi lỗi là thiếu chi tiết/chuyển cảnh, và luôn báo rõ scene nào bị giữ dù AI chê (xem CHANGELOG).
+
 V14.0.17–V14.0.20 bổ sung provenance cho gợi ý chương sau, lọc chapter/memory theo accepted canon, bảo vệ Character Database khỏi cập nhật từ chương draft, và một Vietnamese-native prose contract dùng chung cho viết thường, worker nền và adaptive scene (POV, xưng hô, thoại, nhịp câu và bố cục đoạn đọc trên điện thoại).
 
 V12.47.1 đồng bộ parity với Background Worker: worker cũng ép xử lý cảnh báo Canon/continuity/Beat khi chế độ tự sửa được bật, thay vì chỉ làm vậy ở client.
@@ -60,7 +62,7 @@ V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, ha
 | `tests/` | Test đơn vị/tích hợp (Node) và E2E trình duyệt (Playwright, tùy chọn). |
 | `docs/` | `ARCHITECTURE.md` (Memory Engine, lớp dữ liệu, backup, iPhone — README cũ) và `PROMPT_V12.22.md`. |
 
-## Kiến trúc hiện hành V14.0.20
+## Kiến trúc hiện hành V14.3.0
 
 ```text
 index.html / client

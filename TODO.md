@@ -13,7 +13,8 @@
 - [x] Kiểm tra từng scene (code) + viết lại đúng scene lỗi; rà AI từng scene tùy chọn.
 - [x] Tự sửa sau chấm nhanh (nháp nền) với Best Draft Guard.
 - [ ] Kiểm tra từng scene cho đường client "Tạo chương hoàn chỉnh" bằng E2E giao diện (hiện chỉ test logic dùng chung).
-- [ ] Hiển thị `sceneWarnings` riêng trong UI thay vì chỉ nằm trong ghi chú chương.
+- [x] Hiển thị cảnh báo scene: worker (dòng trạng thái, đủ scene bị giữ/đã vá) và đường viết thường (V14.3.0). Còn lại: panel riêng theo scene trong UI thay vì dòng trạng thái.
+- [x] Vá cục bộ scene khi rà AI báo MUST_CHANGE/LOCATION_TIME (V14.3.0).
 
 ## P0 — Độ dài và liên kết chương
 - [x] Chương mặc định đạt khoảng 4.500–5.500 từ; hard cap 5.600 từ.

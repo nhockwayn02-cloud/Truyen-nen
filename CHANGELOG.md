@@ -1,5 +1,15 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.0 — Rà AI scene: vá cục bộ + hiển thị đủ cảnh báo]
+
+- **Vá cục bộ:** scene hết lượt viết lại mà AI rà vẫn báo `MUST_CHANGE` / `LOCATION_TIME` → thay vì chỉ giữ bản cuối, chạy 1 lượt vá CHÈN vài câu (tối đa 3 chỗ, +320 từ, không đụng đoạn kết) rồi rà lại một lần. Qua rà → nhận (`ĐÃ VÁ CỤC BỘ`); AI vẫn chê → giữ bản đã vá + cảnh báo; vá hỏng → giữ bản cuối như V14.2.4. `NEW_THREAD`/`CAST` không vá chèn. Tắt bằng `deps.sceneAiPatch = false`.
+- **Hiển thị:** scene "GIỮ dù AI rà báo" và "ĐÃ VÁ" luôn hiện đủ ở dòng trạng thái (không bị cắt ở 4), cảnh báo thường báo rõ số bị ẩn; giới hạn lưu 10 → 40. Thêm `stats.sceneKept`, `stats.scenePatched`.
+- **Khôi phục thay vì hủy job:** nếu lượt viết lại làm scene HỎNG kiểm tra cứng (vd lẫn nhân vật ngoài cast) trong khi bản trước chỉ bị AI rà chê → dùng lại bản trước (kèm cảnh báo) thay vì `SCENE_REJECTED` cả job.
+- **Rà AI không còn "im lặng":** phản hồi rà AI không đọc được (JSON hỏng/rỗng) hoặc `ok:false` không nêu lý do nay ghi cảnh báo, không còn coi như đạt mà không báo.
+- **Đường viết thường (client):** trước đây bỏ qua toàn bộ `stats` của pipeline scene; nay dòng trạng thái hiện `📝 scene giữ dù AI rà báo lỗi: S2 … · đã vá cục bộ: S3 …`.
+- **Test:** `v14_3_scene_local_patch.test.js`, đã thêm vào `run-all.js`; đăng ký thêm 2 test mồ côi (`v12.31.2`, `v12.32.1`) và sửa `v12.31.2` theo hằng số `AI_MAX_OUTPUT_TOKENS`.
+- **Metadata:** `package.json` / README lên 14.3.0 (trước đó vẫn ghi 14.0.20 dù CHANGELOG đã tới V14.2.4).
+
 ## [V14.2.4 — Viết nháp: không hủy job vì rà AI scene quá chi tiết]
 
 - **Lỗi:** `SCENE_REJECTED S3 … MUST_CHANGE: thiếu chi tiết …` — sau 2 lượt viết, scene chỉ bị bước rà AI từ chối (kiểm tra cứng cục bộ đã qua) nhưng cả job nháp bị hủy, mất các scene đã viết.
