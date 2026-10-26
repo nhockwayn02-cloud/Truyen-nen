@@ -109,6 +109,13 @@ await t('pipeline: rà AI từng scene (tùy chọn) — lỗi MUST_CHANGE → v
   assert.strictEqual(m.calls.filter(c => c === 'sceneReview').length, 0, 'mặc định không rà AI scene');
 });
 
+await t('V14.2.4: scene chỉ bị rà AI từ chối mãi → GIỮ bản cuối + cảnh báo (không hủy cả job)', async () => {
+  const m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k >= 2 && k <= 3 ? '{"ok":false,"issues":[{"code":"MUST_CHANGE","msg":"Thiếu chi tiết cụ thể theo Contract"}]}' : '{"ok":true,"issues":[]}') });
+  const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
+  assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
+  assert.ok(res.stats.sceneWarnings.some(w => /GIỮ BẢN CUỐI/.test(w) && /Thiếu chi tiết/.test(w)), JSON.stringify(res.stats.sceneWarnings));
+});
+
 // ---- Tự sửa sau chấm nhanh ----
 const REV = (verdict, score, hard = [], warn = []) => ({ verdict, score, hardFailures: hard, warnings: warn, rewriteInstructions: [] });
 const mkCh = () => ({ text: prose(5000, 'Bản gốc.'), wordCount: 5000 });

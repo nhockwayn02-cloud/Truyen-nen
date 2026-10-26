@@ -2723,7 +2723,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     lastRoute = route;
     if (route.nsfw && !usedNsfw) { usedNsfw = true; if (deps.onNsfw) { try { deps.onNsfw(scene, route); } catch (_) {} } }
     // V14.0.16: KIỂM TRA TỪNG SCENE ngay sau khi viết. Lỗi nặng -> viết lại ĐÚNG scene này (tối đa sceneRetries lần), không ghép scene sai vào chương.
-    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0;
+    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
@@ -2760,6 +2760,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
+      lastText = text; lastAiOnly = !errors.length;
       if (!errors.length && deps.sceneAiReview && timeLeft() > minSceneMs / 2) {
         try {
           const rv = await callAI(buildSceneReviewPrompt({ scene, text, chapterContract, nextScene: graph.scenes[i + 1] }), {
@@ -2776,6 +2777,12 @@ async function runAdaptiveChapterPipeline(o, deps) {
       correction = errors.join(' | ');
     }
     if (skipScene) continue;
+    /* V14.2.4: scene hết lượt viết lại mà CHỈ bị AI rà báo (kiểm tra cứng cục bộ đã qua: đủ độ dài, không lặp, không lẫn ngoại ngữ) -> GIỮ bản viết cuối kèm cảnh báo,
+       thay vì hủy cả job nháp (mất mọi scene đã viết). AI rà hay bắt lỗi quá chi tiết (vd thiếu một chi tiết cụ thể trong Contract); người dùng sửa tay hoặc 🔍 Duyệt lại sau. */
+    if (accepted === null && lastText && lastAiOnly && deps.keepAiOnlyRejected !== false && countWords(lastText) >= 80) {
+      accepted = lastText;
+      if (sceneWarnings.length < 10) sceneWarnings.push(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 300));
+    }
     if (accepted === null) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') };
     pieces.push(accepted);
     previousTail = accepted.slice(-1200);

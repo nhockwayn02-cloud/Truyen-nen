@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.2.4 — Viết nháp: không hủy job vì rà AI scene quá chi tiết]
+
+- **Lỗi:** `SCENE_REJECTED S3 … MUST_CHANGE: thiếu chi tiết …` — sau 2 lượt viết, scene chỉ bị bước rà AI từ chối (kiểm tra cứng cục bộ đã qua) nhưng cả job nháp bị hủy, mất các scene đã viết.
+- **Sửa:** scene hết lượt viết lại mà chỉ bị rà AI → giữ bản viết cuối (≥80 từ) và ghi cảnh báo `GIỮ BẢN CUỐI dù AI rà báo: …` trong cảnh báo scene. Lỗi cứng cục bộ (quá ngắn, lặp, nhân vật ngoài cast, ngoại ngữ) vẫn từ chối như cũ.
+- **Test:** thêm ca vào `v14_0_16_scene_check_quickfix.test.js`.
+
 ## [V14.2.2 — Viết nháp nền: create-job không phản hồi]
 
 - Nút ☁ Viết nháp nền dùng cùng cách gửi như hậu kỳ: đo byte, rút gọn văn bản chương cũ từ 1,5MB (giữ 3 chương cuối), chờ 90 giây, báo dung lượng + phần nặng nhất khi lỗi (bản V14.1.9/10 chỉ sửa đường hậu kỳ).

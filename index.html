@@ -3383,7 +3383,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     lastRoute = route;
     if (route.nsfw && !usedNsfw) { usedNsfw = true; if (deps.onNsfw) { try { deps.onNsfw(scene, route); } catch (_) {} } }
     // V14.0.16: KIỂM TRA TỪNG SCENE ngay sau khi viết. Lỗi nặng -> viết lại ĐÚNG scene này (tối đa sceneRetries lần), không ghép scene sai vào chương.
-    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0;
+    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
@@ -3420,6 +3420,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
+      lastText = text; lastAiOnly = !errors.length;
       if (!errors.length && deps.sceneAiReview && timeLeft() > minSceneMs / 2) {
         try {
           const rv = await callAI(buildSceneReviewPrompt({ scene, text, chapterContract, nextScene: graph.scenes[i + 1] }), {
@@ -3436,6 +3437,12 @@ async function runAdaptiveChapterPipeline(o, deps) {
       correction = errors.join(' | ');
     }
     if (skipScene) continue;
+    /* V14.2.4: scene hết lượt viết lại mà CHỈ bị AI rà báo (kiểm tra cứng cục bộ đã qua: đủ độ dài, không lặp, không lẫn ngoại ngữ) -> GIỮ bản viết cuối kèm cảnh báo,
+       thay vì hủy cả job nháp (mất mọi scene đã viết). AI rà hay bắt lỗi quá chi tiết (vd thiếu một chi tiết cụ thể trong Contract); người dùng sửa tay hoặc 🔍 Duyệt lại sau. */
+    if (accepted === null && lastText && lastAiOnly && deps.keepAiOnlyRejected !== false && countWords(lastText) >= 80) {
+      accepted = lastText;
+      if (sceneWarnings.length < 10) sceneWarnings.push(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 300));
+    }
     if (accepted === null) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') };
     pieces.push(accepted);
     previousTail = accepted.slice(-1200);
@@ -10548,6 +10555,19 @@ function renderAllCore(){
 /* ========== BACKGROUND JOB (Netlify) ========== */
 const BG_JOB_KEY = "aiStoryWorkshop_bgJobId_v9";
 const BG_FUNCTIONS_BASE = "/.netlify/functions"; // khi deploy Netlify sẽ đúng path
+/* V14.2.3: khi create-job lỗi mạng ("Load failed"/hết giờ), thử gọi một hàm nhẹ (security-status, GET) để phân biệt:
+   mạng/Netlify không tới được hay chỉ riêng create-job (payload/hàm chạy quá lâu/Blobs). Trả chuỗi chẩn đoán ngắn. */
+async function bgDiagnoseServer(){
+  const t0=Date.now(); const ac=new AbortController(); const tm=setTimeout(()=>ac.abort(),8000);
+  try{
+    const r=await fetch(BG_FUNCTIONS_BASE+"/security-status?_="+Date.now(),{cache:"no-store",signal:ac.signal});
+    const ms=Date.now()-t0;
+    if(r.ok) return " Chẩn đoán: server Netlify vẫn tới được ("+ms+"ms) → lỗi nằm ở riêng create-job (hàm chạy quá lâu/Netlify Blobs/kết nối bị ngắt giữa lúc tải lên) — thử lại; nếu lặp lại hãy xem Netlify → Functions → create-job → Logs.";
+    return " Chẩn đoán: server trả HTTP "+r.status+" cho hàm kiểm tra → site/hàm Netlify có vấn đề (hết hạn mức, tạm dừng, hoặc hàm chưa deploy) — kiểm tra Netlify dashboard.";
+  }catch(e){
+    return " Chẩn đoán: KHÔNG gọi được cả hàm kiểm tra nhẹ → mạng của máy/iPhone (Wi-Fi/4G, VPN, chế độ dữ liệu thấp, trình chặn quảng cáo) hoặc site Netlify đang không phản hồi. Thử đổi Wi-Fi↔4G, tắt VPN, mở thẳng trang /.netlify/functions/security-status trên Safari.";
+  }finally{ clearTimeout(tm); }
+}
 // Netlify Background Function tối đa 15 phút (DEADLINE trong write-chapter-background.js = 13.5 phút).
 // Cộng thêm thời gian trigger + polling trễ 12s → coi job là "có thể đã chết" nếu quá ngưỡng này mà vẫn pending/running.
 const BG_JOB_STALE_MS = 18 * 60 * 1000;
@@ -10617,9 +10637,9 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
     if(e&&e.name==="AbortError"){
       /* V14.1.10: kèm phân tích dung lượng để biết phần nào nặng (upload chậm trên mạng di động là nguyên nhân thường gặp). */
       let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
-      throw new Error("create-job không phản hồi sau 90 giây (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+"). Nguyên nhân thường gặp: mạng di động yếu khi tải lên, hoặc hàm Netlify chạy quá 10 giây. Thử Wi-Fi; xem Netlify → Functions → create-job → Logs; job có thể đã được tạo — đợi vài phút rồi mở lại app.");
+      throw new Error("create-job không phản hồi sau 90 giây (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")."+(await bgDiagnoseServer())+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
     }
-    throw new Error(String(e&&e.message||e)+" — request không tới được server (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"). Kiểm tra mạng/Wi-Fi, site Netlify còn hoạt động và đúng địa chỉ; nếu dung lượng gần 6000 KB thì giảm dữ liệu lịch sử rồi thử lại.");
+    throw new Error(String(e&&e.message||e)+" — request không tới được server (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+")."+(await bgDiagnoseServer()));
   }
   finally{ clearTimeout(timer); }
   const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}
@@ -10900,8 +10920,9 @@ async function startBackgroundDraft(){
     catch(e){
       let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
       const info=" (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")";
-      if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 90 giây"+info+". Thường do mạng di động yếu khi tải lên hoặc hàm Netlify chạy quá 10 giây — thử Wi-Fi, xem Netlify → Functions → create-job → Logs; job có thể đã được tạo, đợi vài phút rồi mở lại app.");
-      throw new Error(String(e&&e.message||e)+" — request không tới được server"+info+".");
+      const diag=await bgDiagnoseServer();
+      if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 90 giây"+info+"."+diag+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
+      throw new Error(String(e&&e.message||e)+" — request không tới được server"+info+"."+diag);
     }
     const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}
     if(res.status===401) throw new Error("Sai hoặc thiếu Mã truy cập server (mục 🔒).");
