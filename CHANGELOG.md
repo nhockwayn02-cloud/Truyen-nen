@@ -1,5 +1,13 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.3 — Scene quá ngắn viết lại tại chỗ; rà AI không đòi nội dung scene khác; top-up không lặp outline]
+
+- **Scene quá ngắn:** scene dưới 60% ngân sách từ (vd S2 923/1950) nay được viết lại ngay (mềm: lượt cuối vẫn nhận, không hủy job) thay vì để bước bù từ nối thêm ~2.000 từ SAU câu kết chương — cách đó làm các chi tiết cảnh chính dồn xuống cuối chương, sai thứ tự. Tắt bằng `deps.sceneShortRetry = false`.
+- **Rà AI scene:** `buildSceneReviewPrompt` không còn đưa `mustChange` cả chương (toàn bộ outline) cho từng scene — trước đó S3 bị báo "thiếu lời thoại bắt buộc" của S2 và phải viết lại + vá.
+- **Top-up (bù từ):** không đưa lại requiredBeats/outline cả chương; thay bằng danh sách sự kiện đã kể đủ (không kể lại), chỉ mở rộng phản ứng/nội tâm/hậu quả.
+- **Prompt scene:** mỗi mục checklist có gợi ý số từ (≈ ngân sách/số beat), "dành cho scene sau" cho phép gợi sang bằng 1–2 câu cuối theo handoff.
+- **Test:** `v14_3_3_scene_length.test.js`.
+
 ## [V14.3.2 — Viết nháp: scene không còn kể lại sự kiện của scene khác]
 
 - **Nguyên nhân:** prompt của MỌI scene chứa cả outline chương 3 lần (REQUIRED CHECKLIST, `chapterOutline`/`requiredBeats`/`mustChange` trong CONTRACT COMPACT) + đuôi scene trước, nên model kể lại cả chuỗi sự kiện ở từng scene; bước dọn lặp chỉ bắt lặp gần nguyên văn.

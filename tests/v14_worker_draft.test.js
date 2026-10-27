@@ -38,7 +38,7 @@ global.fetch = async (url, init) => {
   else if (kind === "topup") { topUpCalls++; content = (topUpCalls === 1 && shortScenes) ? "Quá ngắn." : prose(50 + topUpCalls, 700); }
   else if (kind === "scene") {
     const k = calls.filter(c => c === "scene").length;
-    content = prose(k, shortScenes ? 1000 : 1650);
+    content = prose(k, shortScenes ? 1100 : 1650); // V14.3.3: 1100/1700 = 65% (>=60%): scene dưới 60% nay được viết lại tại chỗ (xem v14_3_3_scene_length.test.js), còn ca này kiểm tra bước bù từ
     if (k === 1) scene1Text = content;
     if (k === 2 && restartScene2) content = scene1Text.split("\n\n").slice(0, 8).join("\n\n") + "\n\n" + content; // scene 2 mở đầu lại cảnh 1
   }

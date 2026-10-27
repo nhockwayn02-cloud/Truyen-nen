@@ -33,6 +33,7 @@ const dir = __dirname; const suites = [
   ["V12.32.1 hậu kỳ nền: trần output token", process.execPath, ["v12.32.1-postprocess-token-cap.test.js"]],
   ["V14.3 vá cục bộ scene + hiển thị đủ cảnh báo scene", process.execPath, ["v14_3_scene_local_patch.test.js"]],
   ["V14.3.2 scene: prompt theo scope + chống kể lại sự kiện", process.execPath, ["v14_3_2_scene_scope.test.js"]],
+  ["V14.3.3 scene ngắn viết lại + rà AI + top-up", process.execPath, ["v14_3_3_scene_length.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],
   ["V14.1.6 tự chèn câu chuyển cảnh + gợi ý hành động", process.execPath, ["v14_1_6_transition_fix_advice.test.js"]],
