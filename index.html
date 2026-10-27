@@ -9860,6 +9860,16 @@ async function offerFixStray(idx, stray){
 }
 $ID("reviewChapterBtn").addEventListener("click", ()=>reviewCurrentChapter());
 $ID("autoFixChapterBtn").addEventListener("click", ()=>reviewCurrentChapter({autoFix:true}));
+// V14.3.1: bỏ RIÊNG các đoạn gần như trùng nguyên văn với một đoạn đứng trước (>=80% trigram), giữ mọi đoạn còn lại. Không bao giờ cắt cụt phần đuôi.
+function dropInnerDuplicateParagraphs(text) {
+  const paras = _splitParas(text), seen = [], kept = [];
+  paras.forEach(p => {
+    const w = _normWords(p);
+    if (w.length >= 8) { const g = _grams(w, 3); if (seen.some(x => _sim(g, x) >= 0.8)) return; seen.push(g); }
+    kept.push(p);
+  });
+  return kept.length === paras.length ? String(text || "") : kept.join("\n\n");
+}
 $ID("fmtParaBtn").addEventListener("click", async ()=>{
   const idx = state.currentChapterIndex;
   if(idx < 0){ setStatus("Chưa có chương.", false); return; }
@@ -9868,7 +9878,18 @@ $ID("fmtParaBtn").addEventListener("click", async ()=>{
   /* V12.32.6c: nút này là bước CHUẨN HÓA: dọn ký tự/chữ lạ, markdown/emoji, ghi chú AI, lặp bất thường -> bỏ cảnh viết lặp -> ngắt đoạn. */
   const sanitized = sanitizeChapterText(orig);
   const cleanedChars = Math.max(0, orig.length - sanitized.length);
-  const deduped = dedupeRepeatedScene(sanitized);
+  /* V14.3.1: dedupeRepeatedScene CẮT TỪ CHỖ LẶP ĐẦU TIÊN TRỞ ĐI nên chương 5.000 từ có thể còn ~1.500 từ nếu bị nhận nhầm là "viết lặp từ đầu".
+     Nay: cắt chỉ khi mất ≤ 20% số từ; nếu mất nhiều hơn thì chỉ bỏ riêng các đoạn trùng gần nguyên văn, giữ phần còn lại. */
+  let deduped = dedupeRepeatedScene(sanitized), dupNote = "";
+  {
+    const wBefore = countWords(sanitized), wAfter = countWords(deduped);
+    if(deduped.length < sanitized.length && wAfter < wBefore * 0.8){
+      let lite = dropInnerDuplicateParagraphs(sanitized);
+      if(countWords(lite) < wBefore * 0.8) lite = sanitized; // bỏ đoạn trùng mà vẫn mất >20% => đáng ngờ, không động vào
+      dupNote = " (Phát hiện lặp nhưng cắt hết sẽ mất " + (wBefore - wAfter) + " từ nên KHÔNG cắt cụt; " + (lite.length < sanitized.length ? "chỉ bỏ các đoạn trùng lẻ" : "giữ nguyên, hãy tự kiểm tra") + ".)";
+      deduped = lite;
+    }
+  }
   const cutDup = deduped.length < sanitized.length;
   const next = formatParagraphs(deduped);
   const stray = findStrayWords(next, charNameList());
@@ -9877,11 +9898,11 @@ $ID("fmtParaBtn").addEventListener("click", async ()=>{
   if(next === orig.trim()){ setStatus("Chương này đã sạch và ngắt đoạn ổn rồi." + strayMsg, false); if(stray.length){ await offerFixStray(idx, stray); } return; }
   if(cutDup){
     const ok = await showConfirm("Phát hiện chương bị viết lặp lại từ đầu. Cắt bỏ phần lặp (còn ~" + countWords(next) + " từ)?", { okText: "Cắt phần lặp" });
-    if(!ok){ c.text = formatParagraphs(sanitized); c.wordCount = countWords(c.text); persist(); renderCurrentChapter(); setStatus("Đã chuẩn hóa + ngắt đoạn (giữ nguyên phần lặp)." + cleanMsg + strayMsg, false); return; }
+    if(!ok){ c.text = formatParagraphs(sanitized); c.wordCount = countWords(c.text); persist(); renderCurrentChapter(); setStatus("Đã chuẩn hóa + ngắt đoạn (giữ nguyên phần lặp)." + cleanMsg + strayMsg + dupNote, false); return; }
   }
   c.text = next; c.wordCount = countWords(next);
   persist(); renderCurrentChapter();
-  setStatus((cutDup ? "Đã cắt phần lặp, chuẩn hóa và ngắt đoạn chương " : "Đã chuẩn hóa và ngắt đoạn chương ") + (idx+1) + "." + cleanMsg + strayMsg, false);
+  setStatus((cutDup ? "Đã cắt phần lặp, chuẩn hóa và ngắt đoạn chương " : "Đã chuẩn hóa và ngắt đoạn chương ") + (idx+1) + "." + cleanMsg + strayMsg + dupNote, false);
   if(stray.length){ await offerFixStray(idx, stray); }
 });
 $ID("splitChapterBtn").addEventListener("click", async ()=>{
@@ -10670,6 +10691,7 @@ async function bgDiagnoseServer(){
 // Netlify Background Function tối đa 15 phút (DEADLINE trong write-chapter-background.js = 13.5 phút).
 // Cộng thêm thời gian trigger + polling trễ 12s → coi job là "có thể đã chết" nếu quá ngưỡng này mà vẫn pending/running.
 const BG_JOB_STALE_MS = 18 * 60 * 1000;
+const BG_HEAVY_STATE_KEYS = ["storyMetaData","chapterDrafts"];   // V14.3.1: khóa cấp truyện không gửi lên server (storyMetaData = bản sao dẫn xuất của state; chapterDrafts = nháp chờ duyệt, worker không đọc)
 const BG_HEAVY_CHAPTER_KEYS = ["stateSnapshots","stateSnapshot","versions","briefUsed"];   // lịch sử nặng của từng chương — không gửi lên server (V12.24: gồm briefUsed của chương cũ; chương mới do worker tạo tự mang briefUsed riêng)
 const BG_SOFT_POST_ISSUES = /^(Status|Memory)(?:\b|:)/i; // lỗi hậu kỳ tùy chọn không được biến thành lỗi của chương đã viết/lưu
 
@@ -10692,6 +10714,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
 
   const storyBlob={};
   Object.keys(state).forEach(k=>{if(!GLOBAL_KEYS.includes(k))storyBlob[k]=state[k];});
+  BG_HEAVY_STATE_KEYS.forEach(k=>{ delete storyBlob[k]; }); // V14.3.1: bỏ bản sao thừa (storyMetaData, chapterDrafts) — worker không đọc, giảm ~50% payload
   if(Array.isArray(storyBlob.chapters)) storyBlob.chapters=storyBlob.chapters.map(ch=>{
     if(!ch||typeof ch!=="object") return ch;
     const o=Object.assign({},ch);
@@ -10983,6 +11006,7 @@ async function startBackgroundDraft(){
   const chapterNumber=state.chapters.length+1;
   const storyBlob={};
   Object.keys(state).forEach(k=>{if(!GLOBAL_KEYS.includes(k))storyBlob[k]=state[k];});
+  BG_HEAVY_STATE_KEYS.forEach(k=>{ delete storyBlob[k]; }); // V14.3.1: như hậu kỳ
   if(Array.isArray(storyBlob.chapters)) storyBlob.chapters=storyBlob.chapters.map(ch=>{
     if(!ch||typeof ch!=="object") return ch;
     const o=Object.assign({},ch); BG_HEAVY_CHAPTER_KEYS.forEach(k=>{ delete o[k]; }); return o;

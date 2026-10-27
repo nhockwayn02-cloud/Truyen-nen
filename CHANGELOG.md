@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.1 — create-job nhẹ hơn + nút Chuẩn hóa không cắt cụt chương]
+
+- **Viết nháp / hậu kỳ nền:** không còn gửi `storyMetaData` (bản sao dẫn xuất của state, ~416KB) và `chapterDrafts` (~146KB) lên `create-job` — worker không đọc hai khóa này (đã kiểm tra, 0 tham chiếu). Payload ~1,16MB giảm còn khoảng 0,6MB.
+- **Nút ¶ Chuẩn hóa:** `dedupeRepeatedScene` cắt từ chỗ lặp đầu tiên trở đi nên chương ~5.000 từ có thể còn ~1.500 từ. Nay chỉ cắt khi mất ≤ 20% số từ; nếu hơn thì chỉ bỏ riêng các đoạn trùng lẻ (và không động vào nếu vẫn mất > 20%), kèm thông báo.
+
 ## [V14.3.0 — Rà AI scene: vá cục bộ + hiển thị đủ cảnh báo]
 
 - **Vá cục bộ:** scene hết lượt viết lại mà AI rà vẫn báo `MUST_CHANGE` / `LOCATION_TIME` → thay vì chỉ giữ bản cuối, chạy 1 lượt vá CHÈN vài câu (tối đa 3 chỗ, +320 từ, không đụng đoạn kết) rồi rà lại một lần. Qua rà → nhận (`ĐÃ VÁ CỤC BỘ`); AI vẫn chê → giữ bản đã vá + cảnh báo; vá hỏng → giữ bản cuối như V14.2.4. `NEW_THREAD`/`CAST` không vá chèn. Tắt bằng `deps.sceneAiPatch = false`.
