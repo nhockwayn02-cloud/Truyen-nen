@@ -1123,6 +1123,39 @@ function vietnameseNovelWritingPrompt() {
   ].join('\n');
 }
 
+// V14.3.2: scene prompt CHỈ nhận checklist của chính scene đó (trước đây cả outline chương bị lặp 3 lần trong mọi scene prompt -> model kể lại toàn bộ chuỗi sự kiện ở từng scene).
+function sceneScopeOf(scenes, i) {
+  const list = Array.isArray(scenes) ? scenes : [];
+  const pick = sc => [sc && sc.id, String((sc && sc.mustChange) || '').replace(/\s+/g, ' ').trim().slice(0, 220)].filter(Boolean).join(': ');
+  return { index: i, total: list.length, done: list.slice(0, i).map(pick).filter(Boolean), later: list.slice(i + 1).map(pick).filter(Boolean) };
+}
+function sceneScopedContract(contract) {
+  const c = promptChapterContract(contract);
+  delete c.chapterOutline; delete c.requiredBeats; delete c.mustChange;
+  c.arcGoal = String(c.arcGoal || '').slice(0, 240);
+  return c;
+}
+function sceneScopedChecklistBlock(scene, scope) {
+  const s = scene || {}, sc = scope || {};
+  const mine = [String(s.mustChange || '')].concat(Array.isArray(s.beats) ? s.beats : []).map(x => String(x).replace(/\s+/g, ' ').trim().slice(0, 220)).filter(Boolean);
+  const out = ['CHECKLIST RIÊNG CỦA SCENE ' + (s.id || '') + ' (' + ((sc.index || 0) + 1) + '/' + (sc.total || '?') + ') — chỉ thực hiện các mục này rồi dừng ở handoff:\n- ' + mine.join('\n- ')];
+  if (sc.done && sc.done.length) out.push('ĐÃ KỂ XONG Ở SCENE TRƯỚC — TUYỆT ĐỐI KHÔNG kể lại hay diễn đạt lại (chỉ được nhắc hậu quả bằng một mệnh đề ngắn):\n- ' + sc.done.join('\n- '));
+  if (sc.later && sc.later.length) out.push('DÀNH CHO SCENE SAU — KHÔNG kể ở scene này, không mở đầu các sự kiện này:\n- ' + sc.later.join('\n- '));
+  return out.join('\n\n');
+}
+// V14.3.2: phát hiện scene mới KỂ LẠI sự kiện đã có ở scene trước bằng câu chữ khác (so theo từ đặc trưng của từng đoạn, không cần trùng nguyên văn).
+function sceneParaphraseOverlap(priorText, newText) {
+  const pri = _splitParas(priorText), cur = _splitParas(newText);
+  if (pri.length < 2 || cur.length < 3) return { hit: 0, total: 0 };
+  const all = pri.concat(cur), prof = _paraProfiles(all);
+  let hit = 0, total = 0;
+  for (let k = pri.length; k < all.length; k++) {
+    if (prof[k].size < 5) continue; total++;
+    for (let j = 0; j < pri.length; j++) if (_setSim(prof[k], prof[j]) >= 0.45) { hit++; break; }
+  }
+  return { hit, total };
+}
+
 function buildAdaptiveSceneWritePrompt(o) {
   const s = o.scene || {}, limits = adaptiveChapterWordLimits(o.state || {});
   return [
@@ -1131,8 +1164,8 @@ function buildAdaptiveSceneWritePrompt(o) {
     'Tổng chương ' + limits.minAccept + '–' + limits.maxAccept + ' từ; scene khoảng ' + s.targetWords + ' từ. Ưu tiên nhịp tự nhiên, không độn.',
     'CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
     o.chapterGoal ? 'MỤC TIÊU CHƯƠNG: ' + String(o.chapterGoal).replace(/\s+/g, ' ').slice(0, 300) : '',
-    o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
-    o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(promptChapterContract(o.chapterContract)) : '',
+    o.sceneScope ? sceneScopedChecklistBlock(s, o.sceneScope) : o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
+    o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
@@ -3447,6 +3480,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         isOpeningScene: i === 0 && !!priorChapters.length,
         stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
         requiredBeats,
+        sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i),
         allowedCast: chapterContract.allowedCharacters.join(', '),
         forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract,
         isFinalScene: i === graph.scenes.length - 1,
@@ -3475,6 +3509,13 @@ async function runAdaptiveChapterPipeline(o, deps) {
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
       lastText = text; lastAiOnly = !errors.length;
+      /* V14.3.2: scene kể LẠI sự kiện của scene trước (khác câu chữ) -> viết lại. Không phải lỗi cứng: hết lượt thì giữ bản cuối + cảnh báo (như lỗi chỉ do AI rà), không hủy job. */
+      let overlapErr = '';
+      if (!errors.length && pieces.length && deps.sceneOverlapCheck !== false) {
+        const ov = sceneParaphraseOverlap(pieces.join('\n\n'), text);
+        if (ov.hit >= 3 && ov.hit / Math.max(1, ov.total) >= 0.3) overlapErr = 'LẶP SCENE TRƯỚC: ' + ov.hit + '/' + ov.total + ' đoạn kể lại sự kiện đã có ở scene trước (chỉ khác cách diễn đạt). Viết lại: chỉ làm checklist riêng của scene này và tiến sang diễn biến MỚI, không nhắc lại chi tiết cũ.';
+      }
+      if (overlapErr) errors = [overlapErr];
       if (!errors.length && deps.sceneAiReview && timeLeft() > minSceneMs / 2) {
         try {
           const rv = await callAI(buildSceneReviewPrompt({ scene, text, chapterContract, nextScene: graph.scenes[i + 1] }), {

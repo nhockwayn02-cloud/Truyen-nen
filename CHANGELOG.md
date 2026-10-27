@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.2 — Viết nháp: scene không còn kể lại sự kiện của scene khác]
+
+- **Nguyên nhân:** prompt của MỌI scene chứa cả outline chương 3 lần (REQUIRED CHECKLIST, `chapterOutline`/`requiredBeats`/`mustChange` trong CONTRACT COMPACT) + đuôi scene trước, nên model kể lại cả chuỗi sự kiện ở từng scene; bước dọn lặp chỉ bắt lặp gần nguyên văn.
+- **Sửa prompt:** mỗi scene chỉ nhận checklist riêng (mustChange + beats), danh sách "ĐÃ KỂ XONG ở scene trước — không kể lại" và "dành cho scene sau — không kể ở đây". Contract trong prompt scene bỏ outline/requiredBeats/mustChange. Tắt bằng `deps.sceneScope = false`.
+- **Kiểm tra lặp diễn đạt:** `sceneParaphraseOverlap` so từ đặc trưng từng đoạn; ≥3 đoạn (≥30%) kể lại scene trước → viết lại kèm lý do. Hết lượt thì giữ bản cuối + cảnh báo (không hủy job). Tắt bằng `deps.sceneOverlapCheck = false`.
+- **Test:** `v14_3_2_scene_scope.test.js`.
+
 ## [V14.3.1 — create-job nhẹ hơn + nút Chuẩn hóa không cắt cụt chương]
 
 - **Viết nháp / hậu kỳ nền:** không còn gửi `storyMetaData` (bản sao dẫn xuất của state, ~416KB) và `chapterDrafts` (~146KB) lên `create-job` — worker không đọc hai khóa này (đã kiểm tra, 0 tham chiếu). Payload ~1,16MB giảm còn khoảng 0,6MB.
