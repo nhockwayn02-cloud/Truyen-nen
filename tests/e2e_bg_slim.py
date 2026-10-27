@@ -2,6 +2,13 @@
 Chạy: python3 tests/e2e_bg_slim.py"""
 import http.server, threading, socketserver, os, json, functools
 from playwright.sync_api import sync_playwright
+import gzip
+def body_text(req):
+    # V14.3.4: app nén gzip body create-job (header X-Body-Encoding) -> giải nén trước khi đọc JSON.
+    buf = req.post_data_buffer
+    if buf is None: return "{}"
+    if (req.headers.get("x-body-encoding") or "").lower() == "gzip": buf = gzip.decompress(buf)
+    return buf.decode("utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Q(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -13,7 +20,7 @@ def check(n, c, extra=""):
     results.append(bool(c)); print(("PASS " if c else "FAIL ") + n + (f"  [{extra}]" if extra else ""))
 seen = {"body": None, "raw_len": 0}
 def create_job(route):
-    seen["raw_len"] = len(route.request.post_data or ""); seen["body"] = json.loads(route.request.post_data or "{}")
+    _bt = body_text(route.request); seen["raw_len"] = len(_bt); seen["body"] = json.loads(_bt)
     route.fulfill(status=200, content_type="application/json", body=json.dumps({"success": True, "jobId": "job_slim_123456", "accessToken": "tok"}))
 def job_status(route):
     if "ack=1" in route.request.url:

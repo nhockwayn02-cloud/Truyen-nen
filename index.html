@@ -1476,6 +1476,18 @@ function stripForeign(text) {
   return sanitizeChapterText(text);
 }
 // V12.32.6c: bước làm sạch thuần (không có stripThinkingOutput) — dùng cho nút Chuẩn hóa trên chương đã lưu.
+/* V14.3.5: model (đặc biệt model gốc Trung) rò chữ pinyin "de" (的/得/地) vào văn xuôi: "Sự kiêu hãnh cuối cùng de một tiểu thư". Trước đây không bị bắt vì mọi từ < 4 chữ cái bị bỏ qua.
+   Tự sửa CHỈ ca chắc chắn (de + từ xác định/đại từ/tên riêng = sở hữu -> "của"); ca còn lại (de + động/tính từ) để findStrayWords báo cho bước sửa bằng AI. */
+function fixPinyinDe(text) {
+  const t = String(text || ""); if (!t || t.indexOf("de") < 0) return t;
+  const DET = "(?:một|những|các|mọi|mình|nàng|hắn|cô|anh|chị|tên|kẻ|người|chính|nó|họ|tầng|căn|tòa|chiếc|cái|bản|toàn|từng|trứng|vòng|chủ)";
+  const re = new RegExp("(?<![\\p{L}\\p{N}])de(?=[ \\t]+(?:" + DET + "(?![\\p{L}\\p{N}])|\\p{Lu}))", "gu");
+  return t.replace(re, (m, off) => {
+    const after = t.slice(off + 2).replace(/^[ \t]+/, ""), before = t.slice(0, off);
+    if (/^\p{Lu}/u.test(after) && /(?:^|[ \t])\p{Lu}[\p{L}]*[ \t]+$/u.test(before) && /^[A-Za-z]/.test(after) && /[A-Za-z]$/.test(before.trim())) return m; // "Charles de Gaulle": tên nước ngoài, giữ nguyên
+    return "của";
+  });
+}
 function sanitizeChapterText(text) {
   // V12.10: dọn chữ Hán/Nhật/Hàn/Cyrillic/Thái/Ả Rập/Hindi còn sót (kể cả khi dưới ngưỡng viết lại).
   if (!text) return text;
@@ -1484,6 +1496,7 @@ function sanitizeChapterText(text) {
     .replace(/，/g, ", ").replace(/。/g, ". ").replace(/！/g, "! ").replace(/？/g, "? ").replace(/：/g, ": ").replace(/、/g, ", ")
     .replace(/[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0600-\u06FF\u0900-\u097F]+/g, "");
   t = stripJunkSymbols(t);
+  t = fixPinyinDe(t);
   t = cleanProseArtifacts(t);
   return t.replace(/[ \t]{2,}/g, " ").replace(/ +([,.!?;:])/g, "$1").replace(/\( *\)|“ *”|" *"/g, "");
 }
@@ -2032,6 +2045,17 @@ function findStrayWords(text, allowNames, limit) {
   const allow = new Set(_normWords((allowNames || []).join(" ")).map(w => w.normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const allowExact = new Set(_normWords((allowNames || []).join(" ")));
   const toks = String(text || "").match(/\p{L}+/gu) || [];
+  /* V14.3.5: "de" (pinyin 的/得/地) và "then" (tiếng Anh "rồi/sau đó") rò vào truyện. "de" < 4 chữ cái nên bị bỏ qua; "then" là âm tiết Việt hợp lệ ("then cài") nên bị coi là đúng. */
+  { const src = String(text || "");
+    if (!allow.has("de") && /(?<![\p{L}\p{N}])de(?![\p{L}\p{N}])/u.test(src)) { out.push("de"); seen.add("de"); }
+    if (!allow.has("then") && out.length < max) {
+      for (const m of src.matchAll(/(?<![\p{L}\p{N}])then(?![\p{L}\p{N}])/gu)) {
+        const after = src.slice(m.index + 4, m.index + 24), before = src.slice(Math.max(0, m.index - 14), m.index);
+        if (/^[ \t]+(?:cài|cửa|chốt|ngang|gài|sắt|máy|khóa|gỗ|tre)(?![\p{L}])/u.test(after) || /(?:cái|chiếc|đóng|cài|gài|chốt|cửa|vặn)[ \t]+$/u.test(before)) continue;
+        out.push("then"); seen.add("then"); break;
+      }
+    }
+  }
   for (const t of toks) {
     const low = t.toLowerCase();
     if (seen.has(low)) continue;
@@ -10724,6 +10748,39 @@ const BG_JOB_KEY = "aiStoryWorkshop_bgJobId_v9";
 const BG_FUNCTIONS_BASE = "/.netlify/functions"; // khi deploy Netlify sẽ đúng path
 /* V14.2.3: khi create-job lỗi mạng ("Load failed"/hết giờ), thử gọi một hàm nhẹ (security-status, GET) để phân biệt:
    mạng/Netlify không tới được hay chỉ riêng create-job (payload/hàm chạy quá lâu/Blobs). Trả chuỗi chẩn đoán ngắn. */
+/* V14.3.4: gửi create-job bằng XHR để biết TIẾN ĐỘ UPLOAD (fetch không cho biết) và nén gzip body khi trình duyệt hỗ trợ.
+   Kẹt khi đang tải lên (không tiến thêm 30 giây) -> báo rõ "kẹt ở x%"; tải xong 100% mà server im lặng -> lỗi nằm ở hàm/Blobs. */
+async function bgPostCreateJob(url, headers, bodyStr, timeoutMs){
+  let payload=bodyStr, hdrs=Object.assign({}, headers), gz=false;
+  try{
+    if(typeof CompressionStream!=="undefined" && typeof Response!=="undefined"){
+      const cs=new Blob([bodyStr]).stream().pipeThrough(new CompressionStream("gzip"));
+      const buf=await new Response(cs).arrayBuffer();
+      if(buf.byteLength && buf.byteLength<bodyStr.length){ payload=new Uint8Array(buf); hdrs["Content-Type"]="application/octet-stream"; hdrs["X-Body-Encoding"]="gzip"; gz=true; }
+    }
+  }catch(_){ payload=bodyStr; }
+  const wire=gz?payload.byteLength:new TextEncoder().encode(bodyStr).length;
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest(); const info={gz, wireBytes:wire, sent:0, uploadDone:false};
+    let lastProgress=Date.now(), finished=false;
+    const fail=(name,msg)=>{ if(finished)return; finished=true; clearInterval(iv); clearTimeout(tm); try{xhr.abort();}catch(_){} const e=new Error(msg); e.name=name; e.bgInfo=info; reject(e); };
+    const tm=setTimeout(()=>fail("AbortError","timeout"), timeoutMs);
+    const iv=setInterval(()=>{ if(!info.uploadDone && Date.now()-lastProgress>30000) fail("AbortError","upload stall"); },2000);
+    xhr.open("POST",url);
+    Object.keys(hdrs).forEach(k=>xhr.setRequestHeader(k,hdrs[k]));
+    xhr.upload.onprogress=ev=>{ info.sent=ev.loaded; lastProgress=Date.now(); try{ setBgStatus("☁ Đang tải lên server… "+Math.round(100*ev.loaded/Math.max(1,ev.total||wire))+"% ("+Math.round(ev.loaded/1024)+"/"+Math.round((ev.total||wire)/1024)+" KB"+(gz?", đã nén":"")+")",true); }catch(_){} };
+    xhr.upload.onload=()=>{ info.uploadDone=true; info.sent=wire; lastProgress=Date.now(); try{ setBgStatus("☁ Đã tải lên xong, chờ server tạo job…",true); }catch(_){} };
+    xhr.onerror=()=>fail("NetworkError","Network error");
+    xhr.onload=()=>{ if(finished)return; finished=true; clearInterval(iv); clearTimeout(tm); resolve({status:xhr.status, ok:xhr.status>=200&&xhr.status<300, text:async()=>xhr.responseText||"", bgInfo:info}); };
+    xhr.send(payload);
+  });
+}
+function bgUploadNote(e){
+  const i=e&&e.bgInfo; if(!i) return "";
+  const pct=Math.round(100*i.sent/Math.max(1,i.wireBytes));
+  return i.uploadDone ? " [Tải lên ĐÃ xong 100% ("+Math.round(i.wireBytes/1024)+" KB"+(i.gz?", nén gzip":"")+") nhưng server không trả lời → lỗi ở phía hàm create-job/Netlify Blobs; xem Netlify → Functions → create-job → Logs (có dòng \"received\" không?).]"
+    : " [Tải lên KẸT ở "+pct+"% ("+Math.round(i.sent/1024)+"/"+Math.round(i.wireBytes/1024)+" KB"+(i.gz?", nén gzip":"")+") → lỗi nằm ở đường mạng của máy/iPhone (Wi-Fi/4G, VPN, trình chặn), chưa tới được hàm. Thử đổi Wi-Fi↔4G hoặc tắt VPN.]";
+}
 async function bgDiagnoseServer(){
   const t0=Date.now(); const ac=new AbortController(); const tm=setTimeout(()=>ac.abort(),8000);
   try{
@@ -10801,12 +10858,12 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
   setBgStatus("☁ Đang gửi hậu kỳ lên server...",true);
   const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   let res;
-  try{ res=await fetch(BG_FUNCTIONS_BASE+"/create-job",{method:"POST",headers,body:bodyStr,signal:ac.signal}); }
+  try{ res=await bgPostCreateJob(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000); }
   catch(e){
     if(e&&e.name==="AbortError"){
       /* V14.1.10: kèm phân tích dung lượng để biết phần nào nặng (upload chậm trên mạng di động là nguyên nhân thường gặp). */
       let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
-      throw new Error("create-job không phản hồi sau 90 giây (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")."+(await bgDiagnoseServer())+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
+      throw new Error("create-job không phản hồi sau 90 giây (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")."+bgUploadNote(e)+(await bgDiagnoseServer())+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
     }
     throw new Error(String(e&&e.message||e)+" — request không tới được server (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+")."+(await bgDiagnoseServer()));
   }
@@ -11086,12 +11143,12 @@ async function startBackgroundDraft(){
   const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   try{
     let res;
-    try{ res=await fetch(BG_FUNCTIONS_BASE+"/create-job",{method:"POST",headers,body:bodyStr,signal:ac.signal}); }
+    try{ res=await bgPostCreateJob(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000); }
     catch(e){
       let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
       const info=" (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")";
       const diag=await bgDiagnoseServer();
-      if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 90 giây"+info+"."+diag+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
+      if(e&&e.name==="AbortError") throw new Error("create-job không phản hồi sau 90 giây"+info+"."+bgUploadNote(e)+diag+" Job có thể đã được tạo — đợi vài phút rồi mở lại app trước khi gửi lại.");
       throw new Error(String(e&&e.message||e)+" — request không tới được server"+info+"."+diag);
     }
     const raw=await res.text().catch(()=>""); let data={}; try{data=JSON.parse(raw)||{};}catch(_){}

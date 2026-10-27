@@ -1,5 +1,19 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.5 — Chữ "de" (pinyin 的) và "then" rò vào truyện được bắt và sửa]
+
+- **Nguyên nhân:** model (nhất là model gốc Trung) rò chữ pinyin "de" (的/得/地, nghĩa "của/mà/một cách") vào câu tiếng Việt, và "then" (tiếng Anh "rồi/sau đó"). Nút Chuẩn hóa chỉ xóa chữ Hán thật (汉字) nên không thấy "de"; `findStrayWords` bỏ qua mọi từ < 4 chữ cái; "then" là âm tiết Việt hợp lệ ("then cài") nên bị coi là đúng.
+- **Tự sửa chắc chắn:** `fixPinyinDe` đổi "de" thành "của" khi đứng trước từ xác định/đại từ/tên riêng ("de một tiểu thư", "de nàng thư ký", "de Bùi Lạc"); giữ nguyên tên nước ngoài như "Charles de Gaulle". Chạy trong `sanitizeChapterText` (nút Chuẩn hóa và mọi bước viết).
+- **Phần còn lại báo cho bước sửa AI:** `findStrayWords` nay báo "de" (khi đứng trước động/tính từ — cần AI chọn "mà/để/một cách…") và "then" rò rỉ.
+- **Test:** `v14_3_5_pinyin_de.test.js`; sửa 3 test E2E (`e2e.py`, `e2e_bg.py`, `e2e_bg_slim.py`) để giải nén gzip khi đọc request create-job của V14.3.4 (E2E trong Chromium thật cũng xác nhận đường gửi XHR + gzip chạy đúng).
+
+## [V14.3.4 — create-job: chẩn đoán tiến độ upload, nén gzip, Blobs có timeout]
+
+- **Bối cảnh:** payload giảm 1,16MB → 574KB mà create-job vẫn "không phản hồi sau 90 giây" nên nguyên nhân không phải dung lượng thuần túy. Nghi ngờ đường upload mạng di động hoặc ghi Blobs treo; app chưa phân biệt được hai trường hợp.
+- **Client:** gửi bằng XHR để đo tiến độ upload (fetch không đo được). Thông báo lỗi nay nói rõ: "tải lên KẸT ở x%" (lỗi mạng máy/iPhone, chưa tới hàm) hay "ĐÃ tải xong 100% nhưng server không trả lời" (lỗi hàm/Blobs). Kẹt 30 giây không tiến thêm thì dừng sớm. Body được nén gzip khi trình duyệt hỗ trợ (`CompressionStream`), tự quay về JSON thường nếu không.
+- **Server `create-job`:** giải nén gzip (header `X-Body-Encoding: gzip`); ghi log `[create-job] received` ngay khi nhận request (có/không dòng này trong Netlify Logs cho biết request có tới hàm hay không); ghi Netlify Blobs tối đa 6 giây, quá hạn trả 504 kèm timings thay vì treo.
+- **Test:** `v14_3_4_create_job_gzip.test.js`.
+
 ## [V14.3.3 — Scene quá ngắn viết lại tại chỗ; rà AI không đòi nội dung scene khác; top-up không lặp outline]
 
 - **Scene quá ngắn:** scene dưới 60% ngân sách từ (vd S2 923/1950) nay được viết lại ngay (mềm: lượt cuối vẫn nhận, không hủy job) thay vì để bước bù từ nối thêm ~2.000 từ SAU câu kết chương — cách đó làm các chi tiết cảnh chính dồn xuống cuối chương, sai thứ tự. Tắt bằng `deps.sceneShortRetry = false`.

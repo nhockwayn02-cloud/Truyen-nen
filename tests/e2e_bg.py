@@ -1,6 +1,13 @@
 """E2E luồng job nền (client) với server giả — chạy: python3 tests/e2e_bg.py"""
 import http.server, threading, socketserver, os, sys, json, functools
 from playwright.sync_api import sync_playwright
+import gzip
+def body_text(req):
+    # V14.3.4: app nén gzip body create-job (header X-Body-Encoding) -> giải nén trước khi đọc JSON.
+    buf = req.post_data_buffer
+    if buf is None: return "{}"
+    if (req.headers.get("x-body-encoding") or "").lower() == "gzip": buf = gzip.decompress(buf)
+    return buf.decode("utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 class Q(http.server.SimpleHTTPRequestHandler):
     def log_message(self,*a): pass
@@ -14,7 +21,7 @@ def check(n, c, extra=""):
 seen = {"create_headers": None, "create_body": None, "status_calls": 0, "acks": 0}
 mode = {"create": "ok", "status": "ok"}
 def create_job(route):
-    seen["create_headers"] = route.request.headers; seen["create_body"] = json.loads(route.request.post_data or "{}")
+    seen["create_headers"] = route.request.headers; seen["create_body"] = json.loads(body_text(route.request))
     if mode["create"] == "401":
         route.fulfill(status=401, content_type="application/json", body=json.dumps({"error": "Sai hoặc thiếu mã truy cập", "needPasscode": True})); return
     route.fulfill(status=200, content_type="application/json", body=json.dumps({"success": True, "jobId": "job_abc_123456", "accessToken": "tok", "warnings": ["Chưa đặt JOB_SECRET trên Netlify: test."]}))

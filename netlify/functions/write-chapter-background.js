@@ -816,6 +816,18 @@ function stripForeign(text) {
   return sanitizeChapterText(text);
 }
 // V12.32.6c: bước làm sạch thuần (không có stripThinkingOutput) — dùng cho nút Chuẩn hóa trên chương đã lưu.
+/* V14.3.5: model (đặc biệt model gốc Trung) rò chữ pinyin "de" (的/得/地) vào văn xuôi: "Sự kiêu hãnh cuối cùng de một tiểu thư". Trước đây không bị bắt vì mọi từ < 4 chữ cái bị bỏ qua.
+   Tự sửa CHỈ ca chắc chắn (de + từ xác định/đại từ/tên riêng = sở hữu -> "của"); ca còn lại (de + động/tính từ) để findStrayWords báo cho bước sửa bằng AI. */
+function fixPinyinDe(text) {
+  const t = String(text || ""); if (!t || t.indexOf("de") < 0) return t;
+  const DET = "(?:một|những|các|mọi|mình|nàng|hắn|cô|anh|chị|tên|kẻ|người|chính|nó|họ|tầng|căn|tòa|chiếc|cái|bản|toàn|từng|trứng|vòng|chủ)";
+  const re = new RegExp("(?<![\\p{L}\\p{N}])de(?=[ \\t]+(?:" + DET + "(?![\\p{L}\\p{N}])|\\p{Lu}))", "gu");
+  return t.replace(re, (m, off) => {
+    const after = t.slice(off + 2).replace(/^[ \t]+/, ""), before = t.slice(0, off);
+    if (/^\p{Lu}/u.test(after) && /(?:^|[ \t])\p{Lu}[\p{L}]*[ \t]+$/u.test(before) && /^[A-Za-z]/.test(after) && /[A-Za-z]$/.test(before.trim())) return m; // "Charles de Gaulle": tên nước ngoài, giữ nguyên
+    return "của";
+  });
+}
 function sanitizeChapterText(text) {
   // V12.10: dọn chữ Hán/Nhật/Hàn/Cyrillic/Thái/Ả Rập/Hindi còn sót (kể cả khi dưới ngưỡng viết lại).
   if (!text) return text;
@@ -824,6 +836,7 @@ function sanitizeChapterText(text) {
     .replace(/，/g, ", ").replace(/。/g, ". ").replace(/！/g, "! ").replace(/？/g, "? ").replace(/：/g, ": ").replace(/、/g, ", ")
     .replace(/[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0600-\u06FF\u0900-\u097F]+/g, "");
   t = stripJunkSymbols(t);
+  t = fixPinyinDe(t);
   t = cleanProseArtifacts(t);
   return t.replace(/[ \t]{2,}/g, " ").replace(/ +([,.!?;:])/g, "$1").replace(/\( *\)|“ *”|" *"/g, "");
 }
@@ -1372,6 +1385,17 @@ function findStrayWords(text, allowNames, limit) {
   const allow = new Set(_normWords((allowNames || []).join(" ")).map(w => w.normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const allowExact = new Set(_normWords((allowNames || []).join(" ")));
   const toks = String(text || "").match(/\p{L}+/gu) || [];
+  /* V14.3.5: "de" (pinyin 的/得/地) và "then" (tiếng Anh "rồi/sau đó") rò vào truyện. "de" < 4 chữ cái nên bị bỏ qua; "then" là âm tiết Việt hợp lệ ("then cài") nên bị coi là đúng. */
+  { const src = String(text || "");
+    if (!allow.has("de") && /(?<![\p{L}\p{N}])de(?![\p{L}\p{N}])/u.test(src)) { out.push("de"); seen.add("de"); }
+    if (!allow.has("then") && out.length < max) {
+      for (const m of src.matchAll(/(?<![\p{L}\p{N}])then(?![\p{L}\p{N}])/gu)) {
+        const after = src.slice(m.index + 4, m.index + 24), before = src.slice(Math.max(0, m.index - 14), m.index);
+        if (/^[ \t]+(?:cài|cửa|chốt|ngang|gài|sắt|máy|khóa|gỗ|tre)(?![\p{L}])/u.test(after) || /(?:cái|chiếc|đóng|cài|gài|chốt|cửa|vặn)[ \t]+$/u.test(before)) continue;
+        out.push("then"); seen.add("then"); break;
+      }
+    }
+  }
   for (const t of toks) {
     const low = t.toLowerCase();
     if (seen.has(low)) continue;

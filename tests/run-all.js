@@ -34,6 +34,8 @@ const dir = __dirname; const suites = [
   ["V14.3 vá cục bộ scene + hiển thị đủ cảnh báo scene", process.execPath, ["v14_3_scene_local_patch.test.js"]],
   ["V14.3.2 scene: prompt theo scope + chống kể lại sự kiện", process.execPath, ["v14_3_2_scene_scope.test.js"]],
   ["V14.3.3 scene ngắn viết lại + rà AI + top-up", process.execPath, ["v14_3_3_scene_length.test.js"]],
+  ["V14.3.4 create-job gzip + timeout Blobs", process.execPath, ["v14_3_4_create_job_gzip.test.js"]],
+  ["V14.3.5 chữ pinyin de / then rò rỉ", process.execPath, ["v14_3_5_pinyin_de.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],
   ["V14.1.6 tự chèn câu chuyển cảnh + gợi ý hành động", process.execPath, ["v14_1_6_transition_fix_advice.test.js"]],

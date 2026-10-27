@@ -1,5 +1,6 @@
 const { getStore, connectLambda } = require("@netlify/blobs");
 const crypto = require("crypto");
+const zlib = require("zlib");
 const sec = require("../../lib/security");
 
 const DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -16,7 +17,7 @@ function getJobStore(event) {
 function hashSecret(v) { return crypto.createHash("sha256").update(String(v || "")).digest("hex"); }
 function jsonResponse(statusCode, obj) {
   // ALLOWED_ORIGIN (tuỳ chọn): đặt đúng địa chỉ site của bạn để chặn trang lạ gọi API từ trình duyệt.
-  return { statusCode, headers: { "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*", "Access-Control-Allow-Methods":"POST, OPTIONS", "Access-Control-Allow-Headers":"Content-Type, X-App-Passcode", "Content-Type":"application/json" }, body: JSON.stringify(obj) };
+  return { statusCode, headers: { "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*", "Access-Control-Allow-Methods":"POST, OPTIONS", "Access-Control-Allow-Headers":"Content-Type, X-App-Passcode, X-Body-Encoding", "Content-Type":"application/json" }, body: JSON.stringify(obj) };
 }
 function encryptApiKey(apiKey) {
   const secret = process.env.JOB_SECRET || process.env.NETLIFY_JOB_SECRET || process.env.NETLIFY_API_TOKEN || "";
@@ -29,12 +30,28 @@ function encryptApiKey(apiKey) {
 }
 function genSecret(){ return crypto.randomBytes(32).toString("base64url"); }
 
+/* V14.3.4: app có thể nén gzip body (Content-Type octet-stream + X-Body-Encoding: gzip) để upload nhẹ hơn ~4 lần trên mạng di động. */
+function decodeBody(event) {
+  const h = event.headers || {};
+  const enc = String(h["x-body-encoding"] || h["X-Body-Encoding"] || "").toLowerCase();
+  if (enc === "gzip") {
+    const buf = Buffer.from(event.body || "", event.isBase64Encoded ? "base64" : "latin1");
+    return zlib.gunzipSync(buf, { maxOutputLength: 40 * 1024 * 1024 }).toString("utf8");
+  }
+  return event.isBase64Encoded ? Buffer.from(event.body || "", "base64").toString("utf8") : (event.body || "{}");
+}
+/* V14.3.4: ghi Blobs không được treo vô hạn — báo lỗi rõ trong vài giây thay vì để app chờ 90 giây. */
+function withTimeout(promise, ms, label) {
+  let t; return Promise.race([promise, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(label + " quá chậm (> " + Math.round(ms / 1000) + " giây)")), ms); })]).finally(() => clearTimeout(t));
+}
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return jsonResponse(204, {});
   if (event.httpMethod !== "POST") return jsonResponse(405, { error:"Method not allowed" });
 
+  const tStart = Date.now();
+  console.log("[create-job] received", JSON.stringify({ wireKB: Math.round(String(event.body || "").length / 1024), gz: String((event.headers || {})["x-body-encoding"] || "") === "gzip" }));
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = JSON.parse(decodeBody(event));
     const storyState = body.storyState;
     const apiKey = String(body.apiKey || "").trim().replace(/^bearer\s+/i, "").replace(/^["']|["']$/g, "");
     const pass = sec.checkPasscode(event, body);
@@ -90,7 +107,8 @@ exports.handler = async (event) => {
     };
     timings.purgeMs = Date.now() - T0;
     const T1 = Date.now();
-    await store.setJSON(jobId, job);
+    try { await withTimeout(store.setJSON(jobId, job), 6000, "Ghi Netlify Blobs"); }
+    catch (e) { timings.saveMs = Date.now() - T1; console.error("[create-job] save failed", JSON.stringify(timings), e && e.message); return jsonResponse(504, { error: (e && e.message) + ". Kiểm tra Netlify Blobs (cấu hình, hạn mức) rồi thử lại.", timings }); }
     timings.saveMs = Date.now() - T1;
 
     // V12.23: thử URL site (env) trước; nếu 404 thì thử đúng host đã nhận request này (domain tùy chỉnh/branch deploy có thể khác env.URL).
@@ -143,7 +161,8 @@ exports.handler = async (event) => {
       message:"Job đã được tạo. Có thể đóng/tắt iPhone; khi mở lại app sẽ tự kiểm tra và đồng bộ."
     });
   } catch (err) {
-    console.error("create-job v9:", err);
+    console.error("create-job v9:", err, "after ms:", Date.now() - tStart);
     return jsonResponse(500, { error:err.message || "Lỗi server" });
   }
 };
+exports._decodeBody = decodeBody;
