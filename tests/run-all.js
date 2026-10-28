@@ -39,6 +39,7 @@ const dir = __dirname; const suites = [
   ["V14.3.6 gợi ý chương sau bám dàn ý", process.execPath, ["v14_3_6_hint_outline.test.js"]],
   ["V14.3.7 vá trước viết lại sau + rà MUST_CHANGE chặt hơn", process.execPath, ["v14_3_7_patch_first.test.js"]],
   ["V14.3.8 vệ sinh scene: câu cụt, cầu nối, HANDOFF, từ vay mượn", process.execPath, ["v14_3_8_scene_hygiene.test.js"]],
+  ["V14.4.0 kiểm tra Outline trước khi viết", process.execPath, ["v14_4_0_outline_lint.test.js"]],
   ["V14.3.6 hướng sửa của AI duyệt phải bám Outline", process.execPath, ["v14_3_6_review_outline_priority.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],

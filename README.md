@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V14.3.8 Contract-First Complete Chapter Pipeline + Rà AI scene có vá cục bộ.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V14.4.0 Contract-First Complete Chapter Pipeline + Rà AI scene có vá cục bộ.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V12.34 bổ sung sửa beat mục tiêu: khi thiếu một sự kiện bắt buộc, AI có thể chèn cảnh ngay trước đoạn kết mà không cần viết lại toàn bộ chương dài.
 
@@ -62,7 +62,7 @@ V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, ha
 | `tests/` | Test đơn vị/tích hợp (Node) và E2E trình duyệt (Playwright, tùy chọn). |
 | `docs/` | `ARCHITECTURE.md` (Memory Engine, lớp dữ liệu, backup, iPhone — README cũ) và `PROMPT_V12.22.md`. |
 
-## Kiến trúc hiện hành V14.3.8
+## Kiến trúc hiện hành V14.4.0
 
 ```text
 index.html / client

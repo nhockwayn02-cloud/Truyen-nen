@@ -2201,6 +2201,42 @@ function arcProgressPrompt(st, nOverride) {
   }
   return lines.join("\n");
 }
+
+// --- V14.4.0: KIỂM TRA OUTLINE TRƯỚC KHI VIẾT ---
+// Mỗi chi tiết ép buộc trong Outline thành một beat [R] cần "bằng chứng" trong văn bản; Outline quá dài còn bị cắt khi đưa vào hợp đồng chương.
+// Hàm thuần cấu trúc (không đánh giá nội dung): đo độ dài, số mục nhỏ, câu thoại bắt buộc, ràng buộc số lần/thứ tự, chuỗi bước nối tiếp.
+function lintChapterOutline(text) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  const out = { level: 'ok', chars: t.length, findings: [] };
+  if (!t) return out;
+  const add = (sev, code, short, msg) => out.findings.push({ sev, code, short, msg });
+  if (t.length > 1100) add('high', 'LENGTH', 'dài ' + t.length + ' ký tự', 'Outline dài ' + t.length + ' ký tự: phần cuối có thể bị cắt khi đưa vào hợp đồng chương nên không được kiểm tra. Nên gọn còn khoảng 500–700 ký tự.');
+  else if (t.length > 700) add('warn', 'LENGTH', 'dài ' + t.length + ' ký tự', 'Outline dài ' + t.length + ' ký tự (khuyến nghị 500–700). Càng dài càng nhiều chi tiết bị coi là bắt buộc.');
+  const labels = (t.match(/(?:^|[\s.;])(?:Sự kiện|Cảnh nóng|Cảnh chính|Cảnh|Kháng cự|Hậu quả|Móc kết|Mục tiêu|Bối cảnh|Kết quả|Lưu ý|Yêu cầu|Phản ứng|Kết)\s*:/gu) || []).length;
+  if (labels >= 6) add('high', 'SECTIONS', labels + ' mục nhỏ', 'Outline chia ' + labels + ' mục nhỏ (Sự kiện/Hậu quả/Móc kết…). Mỗi mục là một beat riêng cần bằng chứng; thiếu một mục là bị báo lỗi nặng. Gộp còn 3–5 ý chính.');
+  else if (labels >= 4) add('warn', 'SECTIONS', labels + ' mục nhỏ', 'Outline có ' + labels + ' mục nhỏ; mỗi mục là một beat cần bằng chứng. Cân nhắc gộp bớt.');
+  const quotes = (t.match(/[“"«][^”"»]{10,}[”"»]/gu) || []).length;
+  if (quotes >= 3) add('high', 'QUOTES', quotes + ' câu thoại bắt buộc', quotes + ' câu thoại/chuỗi chữ cụ thể bị buộc phải xuất hiện đúng nguyên văn. Chỉ giữ câu thật sự then chốt, còn lại mô tả ý.');
+  else if (quotes >= 2) add('warn', 'QUOTES', quotes + ' câu thoại bắt buộc', quotes + ' câu thoại cụ thể bị buộc phải xuất hiện; nên giữ 1 câu then chốt.');
+  const forced = (t.match(/(?<![\p{L}])(?:liên tục|từng câu|từng chút một|lần\s*\d|lần thứ|\d+\s*lần|một lần|hai lần|ba lần|bốn lần|vài vòng|nhiều lần|đúng\s+\d+|lặp lại)(?![\p{L}])/giu) || []).length;
+  if (forced >= 5) add('high', 'FORCED', forced + ' ràng buộc số lần/thứ tự', 'Có ' + forced + ' ràng buộc về số lần hoặc thứ tự (liên tục, lần 1/lần 2, từng câu…). Model hay làm thiếu một chỗ và AI duyệt báo lỗi nặng. Chỉ ghi kết quả cần đạt, để AI tự quyết số lần.');
+  else if (forced >= 3) add('warn', 'FORCED', forced + ' ràng buộc số lần/thứ tự', 'Có ' + forced + ' ràng buộc về số lần hoặc thứ tự; hãy giữ những cái thật sự bắt buộc.');
+  const seq = (t.match(/(?<![\p{L}])(?:sau đó|rồi|tiếp theo|tiếp đến|sau khi|xong|cuối cùng|kế đó|trong khi|đồng thời)(?![\p{L}])/giu) || []).length;
+  if (seq >= 7) add('high', 'SEQ', seq + ' bước nối tiếp', 'Outline là chuỗi ' + seq + ' bước nối tiếp (sau đó, rồi, xong…). Nên viết thành 1–2 sự kiện chính kèm kết quả, không liệt kê từng thao tác.');
+  else if (seq >= 4) add('warn', 'SEQ', seq + ' bước nối tiếp', 'Outline có ' + seq + ' bước nối tiếp; nên gom thành ít sự kiện hơn.');
+  const steps = t.split(/(?<=[.!?;])\s+|\s+\+\s+|\s*→\s*/u).filter(x => x.trim().length >= 6).length;
+  if (steps >= 14) add('high', 'STEPS', steps + ' ý', 'Outline có ' + steps + ' ý/câu; chương chỉ nên 1–2 sự kiện chính (3–6 beat).');
+  else if (steps >= 9) add('warn', 'STEPS', steps + ' ý', 'Outline có ' + steps + ' ý/câu; khuyến nghị 3–6 beat.');
+  const highs = out.findings.filter(f => f.sev === 'high').length, warns = out.findings.length - highs;
+  out.level = (highs || warns >= 3) ? 'high' : (warns >= 1 ? 'warn' : 'ok');
+  return out;
+}
+function outlineLintShort(rep) { return ((rep && rep.findings) || []).map(f => f.short).join(' · '); }
+function formatOutlineLint(rep, chapterNumber) {
+  if (!rep || !rep.findings || !rep.findings.length) return '';
+  const head = 'Outline chương ' + (chapterNumber || '?') + ' ' + (rep.level === 'high' ? 'có vẻ QUÁ CHI TIẾT / quá dài' : 'hơi nhiều ràng buộc') + ' — dễ bị báo thiếu beat, lặp cảnh hoặc Hard failure khi duyệt:';
+  return head + '\n' + rep.findings.map(f => '• ' + f.msg).join('\n') + '\n\nGợi ý: mỗi chương 1–2 sự kiện chính, 3–6 beat, mỗi beat một ý; chỉ ghi số lần/thứ tự/câu thoại khi thật sự bắt buộc; chi tiết phụ để AI tự bổ sung.';
+}
 // Trạng thái Outline cho giao diện: còn bao nhiêu chương có Outline phủ.
 function outlineCoverageLeft(st) {
   const n = ((st && st.chapters) || []).length + 1;

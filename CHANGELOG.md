@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.4.0 — Kiểm tra Outline trước khi viết]
+
+- **Vấn đề:** Outline có quá nhiều chi tiết ép buộc (số lần, thứ tự, câu thoại nguyên văn, nhiều mục nhỏ) biến thành nhiều beat `[R]` mà model hay làm thiếu một chỗ, dẫn tới Hard failure/lặp cảnh khi duyệt; Outline quá dài còn bị cắt khi đưa vào hợp đồng chương.
+- **Mới:** `lintChapterOutline` (thuần cấu trúc, không đánh giá nội dung) đo độ dài, số mục nhỏ (Sự kiện/Hậu quả/Móc kết…), câu thoại bắt buộc, ràng buộc số lần/thứ tự, chuỗi bước nối tiếp, tổng số ý. Mức: ok / warn / high.
+- **Trong app:** trước khi viết chương (✦ Tạo Chương Hoàn Chỉnh, ☁ viết nháp nền, ↻ viết lại): mức `high` hiện hộp thoại "Vẫn viết / Sửa Outline" kèm gợi ý; mức `warn` chỉ nhắc ở dòng trạng thái; chương đã chọn "Vẫn viết" không bị hỏi lại cho tới khi Outline đổi. Nút mới **🔎 Kiểm tra Outline** ở phần Outline liệt kê các chương chưa viết cần gọn lại.
+- **Test:** `v14_4_0_outline_lint.test.js`. Bước kiểm tra bị bỏ qua trong môi trường test E2E (`__XTA_TEST__`).
+
 ## [V14.3.8 — Dọn các cảnh báo lặp lại qua nhiều chương]
 
 Rà 7 chương đầu (ảnh chụp thẻ chương) thấy 5 nhóm cảnh báo lặp lại; sửa từ gốc:
