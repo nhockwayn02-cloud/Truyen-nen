@@ -1,5 +1,36 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.3.8 — Dọn các cảnh báo lặp lại qua nhiều chương]
+
+Rà 7 chương đầu (ảnh chụp thẻ chương) thấy 5 nhóm cảnh báo lặp lại; sửa từ gốc:
+- **"scene kết thúc giữa câu"** (thật sự bị cắt vì hết token, câu cụt nằm giữa chương): scene nay được lùi về câu hoàn chỉnh gần nhất ngay khi nhận (chỉ cắt phần dở ≤ 60 từ). Thẻ ghi "đã bỏ câu dở cuối scene: S2".
+- **HANDOFF "scene sau ở tầng hầm buổi tối nhưng scene này kết ở hành lang buổi sáng":** gốc là scene sau không mở bằng câu chuyển cảnh. Prompt scene nay có khối CẦU NỐI BẮT BUỘC khi khác địa điểm/thời điểm so với scene trước (`deps.sceneBridge=false` để tắt); rà AI không còn báo HANDOFF chỉ vì khác nơi/giờ; các HANDOFF còn lại gộp một dòng "gợi ý nối scene (HANDOFF, không phải lỗi): S2, S3".
+- **"Từ lạ cần kiểm tra: mini, notebook, micro, router, switch, robot, analog, decibel, drap, vest":** từ vay mượn thông dụng, không còn bị báo. Chữ rò thật (crazy, second, hand, runtime...) vẫn được báo.
+- **Bù từ lặp lại ở mọi chương (3.868–4.441 từ thô so với tối thiểu 4.500):** model viết scene chỉ ~75–90% ngân sách. Prompt các scene sau nâng mục tiêu theo tỉ lệ đạt được của các scene trước (tối đa ×1,35; kiểm tra vẫn dùng mục tiêu gốc; `deps.sceneTargetBoost=false` để tắt) để bớt phải nối thêm sau câu kết.
+- **Test:** `v14_3_8_scene_hygiene.test.js`.
+
+## [V14.3.7 — Rà scene bớt khắt khe, vá trước rồi mới viết lại]
+
+- **Vấn đề:** AI rà scene hay tự nghĩ thêm yêu cầu ngoài kế hoạch (vd đòi "yêu cầu kiểm tra / đe dọa kỷ luật" khi mustChange chỉ nói nghi ngờ tăng lên), kéo theo vòng viết lại → vá → rà lại → vẫn báo, mất 5–6 lời gọi/scene và cuối cùng chỉ "GIỮ BẢN CUỐI".
+- **Prompt rà scene:** MUST_CHANGE chỉ báo khi thay đổi cốt lõi HOÀN TOÀN vắng; thực hiện một phần hoặc bằng hành động khác vẫn là ĐẠT; cấm đòi hành động/kết quả cụ thể mà mustChange không nêu; ví dụ AI hình dung không phải yêu cầu.
+- **Vá trước:** lỗi chỉ do AI rà và vá-được (MUST_CHANGE/LOCATION_TIME) → vá cục bộ ngay (1 lời gọi, chèn ≤ 320 từ) thay vì viết lại cả scene. Tắt bằng `deps.scenePatchFirst = false` (quay về luồng cũ).
+- **Cảnh báo dài hơn:** cắt ở 360–480 ký tự thay vì 220–300 để không bị cụt giữa câu.
+- **Test:** `v14_3_7_patch_first.test.js`; hai test cũ (`v14_3_scene_local_patch`, `v14_0_16_scene_check_quickfix`) đặt `scenePatchFirst:false` vì chúng kiểm tra luồng viết-lại-rồi-vá.
+
+## [V14.3.6 — Gợi ý/hướng sửa của AI duyệt không được đi lệch Outline]
+
+- **Vấn đề:** prompt duyệt chỉ yêu cầu so bản thảo với Outline, còn phần "Hướng sửa"/gợi ý do AI tự đề xuất không bị ràng buộc bám Outline (vd khuyên xoá cảnh lặp rồi "thay bằng cảnh phụ đời thường"). Prompt tự sửa/vá lại coi "HƯỚNG SỬA ƯU TIÊN" là ưu tiên cao nhất nên có thể kéo chương lệch khỏi Outline.
+- **Prompt duyệt:** hướng sửa PHẢI bám Chapter Contract/Outline: không đề xuất xoá/thay/làm nhẹ beat [R], không thêm cảnh ngoài Outline; có đoạn lặp thì giữ một bản đầy đủ nhất và bổ sung phần Outline còn thiếu; mỗi hướng sửa ghi rõ phục vụ [R#] nào.
+- **Prompt viết lại và vá cục bộ:** thêm "OUTLINE/CONTRACT luôn thắng HƯỚNG SỬA"; nhãn hướng sửa ghi rõ chỉ áp dụng phần không mâu thuẫn Outline.
+- **Test:** `v14_3_6_review_outline_priority.test.js`.
+
+## [V14.3.6 — Gợi ý chương sau bám Chapter Outline]
+
+- **Vấn đề:** `generateNextChapterHint` không nhận dàn ý chương sau một cách tường minh (chỉ lọt trong khối ngữ cảnh, bị cắt khi > 7000 ký tự) và bảng ưu tiên không có dàn ý, nên gợi ý hay lệch Outline.
+- **Sửa:** đưa dàn ý/việc bắt buộc của chương N+1 (`arcProgressPrompt`) vào prompt gợi ý như nguồn chuẩn, thêm bậc ưu tiên (0). Ý tưởng người dùng vẫn cao hơn.
+- Khi viết chương, thứ tự ưu tiên vẫn: canon > mệnh lệnh người dùng > dòng Outline đúng chương > gợi ý đã xác minh > đề xuất AI (Outline luôn thắng gợi ý).
+- **Test:** `v14_3_6_hint_outline.test.js`.
+
 ## [V14.3.5 — Chữ "de" (pinyin 的) và "then" rò vào truyện được bắt và sửa]
 
 - **Nguyên nhân:** model (nhất là model gốc Trung) rò chữ pinyin "de" (的/得/地, nghĩa "của/mà/một cách") vào câu tiếng Việt, và "then" (tiếng Anh "rồi/sau đó"). Nút Chuẩn hóa chỉ xóa chữ Hán thật (汉字) nên không thấy "de"; `findStrayWords` bỏ qua mọi từ < 4 chữ cái; "then" là âm tiết Việt hợp lệ ("then cài") nên bị coi là đúng.

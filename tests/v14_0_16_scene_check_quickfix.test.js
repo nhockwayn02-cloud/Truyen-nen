@@ -100,7 +100,7 @@ await t('pipeline: cảnh báo mềm không tốn lượt viết lại; chỉ v�
 });
 
 await t('pipeline: rà AI từng scene (tùy chọn) — lỗi MUST_CHANGE → viết lại scene; tắt thì không gọi', async () => {
-  let m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 2 ? '{"ok":false,"issues":[{"code":"MUST_CHANGE","msg":"Lan chưa biết thêm điều 2"}]}' : '{"ok":true,"issues":[]}') });
+  let m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 2 ? '{"ok":false,"issues":[{"code":"MUST_CHANGE","msg":"Lan chưa biết thêm điều 2"}]}' : '{"ok":true,"issues":[]}') });
   let res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.deepStrictEqual(Array.from(res.stats.sceneRewritten), ['S2']); assert.strictEqual(m.calls.filter(c => c === 'sceneReview').length, 4, JSON.stringify(m.calls));
@@ -110,7 +110,7 @@ await t('pipeline: rà AI từng scene (tùy chọn) — lỗi MUST_CHANGE → v
 });
 
 await t('V14.2.4: scene chỉ bị rà AI từ chối mãi → GIỮ bản cuối + cảnh báo (không hủy cả job)', async () => {
-  const m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k >= 2 && k <= 3 ? '{"ok":false,"issues":[{"code":"MUST_CHANGE","msg":"Thiếu chi tiết cụ thể theo Contract"}]}' : '{"ok":true,"issues":[]}') });
+  const m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k >= 2 && k <= 3 ? '{"ok":false,"issues":[{"code":"MUST_CHANGE","msg":"Thiếu chi tiết cụ thể theo Contract"}]}' : '{"ok":true,"issues":[]}') });
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.ok(res.stats.sceneWarnings.some(w => /GIỮ BẢN CUỐI/.test(w) && /Thiếu chi tiết/.test(w)), JSON.stringify(res.stats.sceneWarnings));

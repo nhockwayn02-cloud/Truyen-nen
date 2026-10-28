@@ -66,7 +66,7 @@ await t('helper: applySceneFixInserts chèn đúng neo; rác / neo sai / chèn q
 });
 
 await t('pipeline: AI rà báo MUST_CHANGE 2 lượt → VÁ CỤC BỘ (không viết lại lần 3), rà lại qua → nhận bản vá', async () => {
-  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
+  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.strictEqual(m.fixCalls, 1); assert.deepStrictEqual(Array.from(res.stats.scenePatched), ['S2']); assert.strictEqual(res.stats.sceneKept.length, 0, 'đã vá xong thì không còn là scene bị giữ');
@@ -76,7 +76,7 @@ await t('pipeline: AI rà báo MUST_CHANGE 2 lượt → VÁ CỤC BỘ (không 
 });
 
 await t('pipeline: đã vá nhưng AI vẫn chê → giữ bản đã vá + cảnh báo GIỮ BẢN CUỐI (liệt kê trong sceneKept)', async () => {
-  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k >= 2 && k <= 4 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
+  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k >= 2 && k <= 4 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.deepStrictEqual(Array.from(res.stats.sceneKept), ['S2']); assert.deepStrictEqual(Array.from(res.stats.scenePatched), ['S2']);
@@ -85,7 +85,7 @@ await t('pipeline: đã vá nhưng AI vẫn chê → giữ bản đã vá + cả
 });
 
 await t('pipeline: AI vá trả rác → fallback V14.2.4 (giữ bản cuối + cảnh báo), không hủy job', async () => {
-  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), 'xin lỗi tôi không làm được');
+  const m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), 'xin lỗi tôi không làm được');
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.strictEqual(res.stats.scenePatched.length, 0); assert.deepStrictEqual(Array.from(res.stats.sceneKept), ['S2']);
@@ -93,10 +93,10 @@ await t('pipeline: AI vá trả rác → fallback V14.2.4 (giữ bản cuối + 
 });
 
 await t('pipeline: lỗi CAST / NEW_THREAD (cần gỡ nội dung) → KHÔNG vá chèn, giữ như V14.2.4; sceneAiPatch:false cũng tắt vá', async () => {
-  let m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? '{"ok":false,"issues":[{"code":"NEW_THREAD","msg":"tự mở tuyến mới"}]}' : '{"ok":true,"issues":[]}') }), INSERT);
+  let m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 2 || k === 3 ? '{"ok":false,"issues":[{"code":"NEW_THREAD","msg":"tự mở tuyến mới"}]}' : '{"ok":true,"issues":[]}') }), INSERT);
   let res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.strictEqual(m.fixCalls, 0); assert.deepStrictEqual(Array.from(res.stats.sceneKept), ['S2']);
-  m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true, sceneAiPatch: false }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
+  m = withFix(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true, sceneAiPatch: false }, reviewReply: (k) => (k === 2 || k === 3 ? FAIL : '{"ok":true,"issues":[]}') }), INSERT);
   res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.strictEqual(m.fixCalls, 0); assert.deepStrictEqual(Array.from(res.stats.sceneKept), ['S2']);
 });
@@ -119,7 +119,7 @@ await t('summarizeSceneWarnings: scene GIỮ/ĐÃ VÁ luôn hiện đủ, cảnh
 await t('khôi phục: AI rà chê lượt 1, lượt viết lại làm HỎNG kiểm tra cứng → dùng lại bản lượt 1 (KHÔNG SCENE_REJECTED)', async () => {
   // S2: lượt 1 sạch nhưng AI chê; lượt 2 lẫn Kim Chi (ngoài cast) → trước V14.3 là SCENE_REJECTED cả job.
   let s2 = 0;
-  const m = mkDeps((n, prompt) => { if (/BỊ TỪ CHỐI/.test(prompt)) return prose(1650, 'Lan nhìn Kim Chi bước vào.'); return prose(1650, 'Lan đứng đó.'); }, { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 2 ? FAIL : '{"ok":true,"issues":[]}') });
+  const m = mkDeps((n, prompt) => { if (/BỊ TỪ CHỐI/.test(prompt)) return prose(1650, 'Lan nhìn Kim Chi bước vào.'); return prose(1650, 'Lan đứng đó.'); }, { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 2 ? FAIL : '{"ok":true,"issues":[]}') });
   m.deps.sceneAiPatch = false;
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
@@ -129,13 +129,13 @@ await t('khôi phục: AI rà chê lượt 1, lượt viết lại làm HỎNG k
 });
 
 await t('khôi phục: lỗi cứng ngay lượt 1 (không có bản dự phòng) vẫn SCENE_REJECTED như cũ', async () => {
-  const m = mkDeps((n) => (n === 1 ? prose(1650, 'Lan đứng đó.') : prose(1650, 'Lan nhìn Kim Chi.')), { deps: { sceneAiReview: true } });
+  const m = mkDeps((n) => (n === 1 ? prose(1650, 'Lan đứng đó.') : prose(1650, 'Lan nhìn Kim Chi.')), { deps: { scenePatchFirst: false, sceneAiReview: true } });
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && res.rejected && /SCENE_REJECTED S2/.test(res.reason), JSON.stringify(res));
 });
 
 await t('rà AI không đọc được / ok:false không lý do → có cảnh báo, không im lặng coi như đạt', async () => {
-  let m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { sceneAiReview: true }, reviewReply: (k) => (k === 1 ? 'xin lỗi, không phải JSON' : '{"ok":false,"issues":[]}') });
+  let m = mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { scenePatchFirst: false, sceneAiReview: true }, reviewReply: (k) => (k === 1 ? 'xin lỗi, không phải JSON' : '{"ok":false,"issues":[]}') });
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected);
   assert.ok(res.stats.sceneWarnings.some(w => /^S1:.*không đọc được/.test(w)), JSON.stringify(res.stats.sceneWarnings));
