@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.4.1 — Outline nhiều dòng: gạch đầu dòng thuộc về chương]
+
+- **Lỗi:** `outlineChapterLines` chỉ lấy đúng DÒNG có số chương. Với Outline dạng "Chương 3 — Tiêu đề Sự kiện: …" rồi các dòng "• …" bên dưới (kèm Kháng cự/Hậu quả/Móc kết), prompt chỉ nhận dòng tiêu đề; mọi gạch đầu dòng (cảnh chính, kháng cự, hậu quả, móc kết) KHÔNG vào prompt, hợp đồng chương hay chấm AI.
+- **Sửa:** các dòng bắt đầu bằng •, -, *, –, ·… nằm ngay dưới tiêu đề chương được nối vào khối của chương đó (ngăn bằng `;` nếu câu trước chưa kết). Dòng không có gạch đầu dòng và dòng mồ côi trước chương đầu vẫn bị bỏ qua; định dạng một dòng cũ ("Ch3: …") giữ nguyên.
+- Prompt tiến độ Outline cho chương hiện tại nâng giới hạn 500 → 900 ký tự để không cắt mất phần gạch đầu dòng.
+- **Test:** `v14_4_1_outline_multiline.test.js`.
+
 ## [V14.4.0 — Kiểm tra Outline trước khi viết]
 
 - **Vấn đề:** Outline có quá nhiều chi tiết ép buộc (số lần, thứ tự, câu thoại nguyên văn, nhiều mục nhỏ) biến thành nhiều beat `[R]` mà model hay làm thiếu một chỗ, dẫn tới Hard failure/lặp cảnh khi duyệt; Outline quá dài còn bị cắt khi đưa vào hợp đồng chương.

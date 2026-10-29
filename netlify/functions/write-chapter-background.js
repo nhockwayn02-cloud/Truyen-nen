@@ -2165,10 +2165,16 @@ function activeArcOf(st) { return ((st && st.arcs) || []).find(a => a && a.statu
 function outlineOf(st, n) { return ((st && st.outlinePlans) || []).find(o => o && n >= o.from && n <= o.to) || null; }
 // Tách nội dung outline thành dòng theo chương: "Ch12: ...", "Chương 12: ...", "12. ...", "12) ...", "12 - ...".
 function outlineChapterLines(content) {
-  const map = {};
+  const map = {}; let cur = 0;
   String(content || "").split(/\n+/).forEach(l => {
-    const m = l.trim().match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
-    if (m && m[2] && m[2].trim().length >= 8) map[Number(m[1])] = m[2].trim();
+    const line = l.trim();
+    const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
+    if (m && m[2] && m[2].trim().length >= 8) { cur = Number(m[1]); map[cur] = m[2].trim(); return; }
+    /* V14.4.1: dòng gạch đầu dòng (•, -, *, –, ·) nằm dưới tiêu đề chương là PHẦN CỦA chương đó. Trước đây chỉ lấy đúng dòng tiêu đề nên mọi gạch đầu dòng (cảnh chính, Kháng cự, Hậu quả, Móc kết…) không vào prompt. */
+    if (cur && /^[•\-*–·▪◦●]\s*\S/.test(line)) {
+      const piece = line.replace(/^[•\-*–·▪◦●]\s*/, "").trim();
+      map[cur] += (/[.!?…;:]$/.test(map[cur]) ? " " : "; ") + piece;
+    }
   });
   return map;
 }
@@ -2194,7 +2200,7 @@ function arcProgressPrompt(st, nOverride) {
     const per = outlineChapterLines(ol.content), total = ol.to - ol.from + 1, idx = n - ol.from + 1;
     lines.push("OUTLINE \"" + ol.name + "\" (chương " + ol.from + "–" + ol.to + "), chương này là " + idx + "/" + total + ":");
     if (per[n]) {
-      lines.push("- VIỆC BẮT BUỘC CỦA CHƯƠNG " + n + " THEO OUTLINE: " + cut(per[n], 500));
+      lines.push("- VIỆC BẮT BUỘC CỦA CHƯƠNG " + n + " THEO OUTLINE: " + cut(per[n], 900));
       if (per[n + 1]) lines.push("- (Chương " + (n + 1) + " sẽ làm, CHƯA làm ở chương này; chỉ cài móc nối): " + cut(per[n + 1], 300));
     } else lines.push(cut(ol.content, 1500));
     if (ol.to - n <= 1) lines.push("- Giai đoạn Outline sắp kết: chương này phải tiến tới mốc kết giai đoạn.");
