@@ -1,5 +1,34 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.0 — Cách 3: mỗi cảnh gắn với mục Outline, kiểm tra kế hoạch TRƯỚC khi viết]
+
+- **Vấn đề:** AI tự chia cảnh rồi mới đối chiếu Outline sau khi đã viết, nên kế hoạch chia lệch (bỏ mục, dồn mục, lặp cảnh) chỉ bị phát hiện muộn.
+- **Tách mục Outline:** `outlineChapterItems` tách "Chương N — Tiêu đề Sự kiện: … " + các dòng gạch đầu dòng thành các MỤC đánh số; Kháng cự/Hậu quả/Móc kết tách thành ghi chú kết quả (Móc kết = endingAnchor). Chỉ áp dụng khi chương có 3–10 mục; chương Outline một dòng/trống chạy như cũ.
+- **Kế hoạch phải gắn mục:** prompt lập kế hoạch thêm khối "OUTLINE ĐÁNH SỐ"; mỗi scene khai báo `outlineItems`.
+- **App kiểm tra (0 token):** `validateOutlineMapping` — mọi mục đều có đúng một scene, đúng thứ tự, mỗi scene 1–3 mục liền kề, tối đa 1 scene nối không có mục. Sai thì lập lại (kèm lý do "OUTLINE: …").
+- **Đường lùi:** sau 2 lượt vẫn sai (chỉ sai ánh xạ), `buildOutlineGraph` dựng cảnh theo từng mục Outline (1 mục = 1 cảnh; >6 mục thì gom) từ chính kế hoạch AI (nhân vật, nơi, giờ), `endingAnchor` = Móc kết. Thẻ chương ghi "kế hoạch cảnh của AI không khớp các mục Outline nên đã dựng cảnh theo từng mục Outline". Tắt bằng `deps.outlineMap=false`.
+- **Test:** `v14_5_0_outline_mapping.test.js`.
+
+## [V14.4.4 — Sự kiện chính của Outline phải có và đầy đủ; vẫn được thêm tình tiết]
+
+- **Theo yêu cầu:** thay vì cấm thêm tuyến/nhân vật, quy tắc nay là: MỌI sự kiện chính của Outline phải có mặt và viết ĐẦY ĐỦ trong chính chương đó (không bỏ, không tóm tắt, không dời sang chương sau); yếu tố mới/xung đột nên nằm bên trong hoặc xen kẽ sự kiện Outline; vẫn được thêm chi tiết/tình tiết phụ miễn không chiếm chỗ hay làm thiếu sự kiện chính. Cập nhật prompt lập kế hoạch cảnh và dòng "LƯU Ý ƯU TIÊN" của THREADS/FORESHADOWING.
+- **Ép thật sự (không chỉ nhắc):** sau khi viết xong các scene, nếu đối chiếu từ khóa thấy beat của Outline còn thiếu thì chạy tối đa 2 lượt bù RIÊNG cho các beat đó, kể cả khi chương đã đủ số từ (chỉ khi còn chỗ dưới số từ tối đa; bỏ lượt bù nếu đoạn mới lặp lại nội dung đã có). Bật qua `deps.outlineComplete === true` (client và worker đều bật; mặc định tắt trong core).
+- **Giới hạn:** đối chiếu bằng từ khóa nên có thể bỏ sót hoặc báo thừa; lượt bù nối vào cuối chương chứ không chèn đúng vị trí.
+- **Test:** `v14_4_4_outline_complete.test.js`; cập nhật câu chữ trong `v14_4_2_outline_adherence.test.js`.
+
+## [V14.4.3 — THREADS/FORESHADOWING không còn kéo truyện khỏi Outline]
+
+- **Phát hiện:** khi Gợi ý chương sau để trống và Mệnh lệnh chỉ có quy tắc, truyện vẫn đi sang tuyến điều tra ("ân nhân", Hoàng Minh) không có trong Outline. Ngữ cảnh gửi model còn có THREADS (≤6), FORESHADOWING CHƯA GIẢI (≤8), TIMELINE, KIẾN THỨC nhân vật mà KHÔNG có nhãn ưu tiên nên bị coi là việc phải đẩy tiến ở mỗi chương; các quy tắc chung (yếu tố mới, xung đột, thất bại, bước tiến) cũng khuyến khích thêm tuyến mới.
+- **Sửa:** `buildContextBlock` (client + bản mirror worker) thêm dòng "LƯU Ý ƯU TIÊN" trước các khối đó: chỉ là bối cảnh nhất quán, không phải đẩy tiến, không mở tuyến/nhân vật/bí mật/địa điểm mới vì chúng; Outline quyết định việc chính. Prompt lập kế hoạch cảnh thêm: các quy tắc chung chỉ áp dụng BÊN TRONG sự kiện Outline giao.
+- **Test:** thêm 2 kiểm tra vào `v14_4_2_outline_adherence.test.js`.
+
+## [V14.4.2 — Truyện bám Outline hơn: Outline đứng cuối prompt + đối chiếu beat]
+
+- **Nguyên nhân truyện lệch Outline (ví dụ chương 6):** (1) trước V14.4.1 các dòng gạch đầu dòng của chương không vào prompt; (2) trong prompt lập kế hoạch scene, Outline nằm GIỮA, còn "Gợi ý chương sau" của AI (mang nhãn "Gợi ý người dùng", tới 6000 ký tự) và đoạn gần nhất đứng SAU nên lấn át; (3) AI duyệt chấm `outlineCompliance` cao dù truyện lệch.
+- **Sửa prompt kế hoạch:** thứ tự mới = hợp đồng → bối cảnh → đoạn gần nhất → mệnh lệnh → gợi ý chương sau (nhãn "THAM KHẢO — THẤP HƠN Outline", cắt 2500 ký tự) → quy tắc ưu tiên khi mâu thuẫn → ARC/OUTLINE LOCK → REQUIRED BEAT CHECKLIST ở CUỐI.
+- **Đối chiếu beat (0 token):** `outlineMissingBeats` tách Outline chương thành các beat (Sự kiện/Kháng cự/Hậu quả/Móc kết, dấu `;`, `+`, câu), so từ khóa có dấu với văn bản cuối (bỏ tên nhân vật); beat phủ dưới 40% được liệt kê trên thẻ chương: "⚠ Outline: chưa thấy trong truyện: «…»". Chỉ cảnh báo, không chặn. `deps.outlineCheck=false` để tắt.
+- **Test:** `v14_4_2_outline_adherence.test.js`.
+
 ## [V14.4.1 — Outline nhiều dòng: gạch đầu dòng thuộc về chương]
 
 - **Lỗi:** `outlineChapterLines` chỉ lấy đúng DÒNG có số chương. Với Outline dạng "Chương 3 — Tiêu đề Sự kiện: …" rồi các dòng "• …" bên dưới (kèm Kháng cự/Hậu quả/Móc kết), prompt chỉ nhận dòng tiêu đề; mọi gạch đầu dòng (cảnh chính, kháng cự, hậu quả, móc kết) KHÔNG vào prompt, hợp đồng chương hay chấm AI.
