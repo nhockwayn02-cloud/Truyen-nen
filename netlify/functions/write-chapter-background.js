@@ -122,19 +122,33 @@ function outlineBeatSegments(line) {
     .map(x => x.replace(/^(?:Sự kiện|Kháng cự|Hậu quả|Móc kết|Cảnh nóng|Cảnh chính)\s*:\s*/u, '').replace(/[.;\s]+$/u, '').trim())
     .filter(x => x.length >= 8);
 }
-function outlineMissingBeats(outlineLine, chapterText, names) {
-  const segs = outlineBeatSegments(outlineLine); if (!segs.length) return [];
+function outlineBeatCoverage(outlineLine, chapterText, names) {
+  const segs = outlineBeatSegments(outlineLine); if (!segs.length) return { total: 0, missing: [] };
   const excl = new Set();
   (names || []).forEach(n => normalizeName(n).split(/[^a-z0-9đ]+/).forEach(w => { if (w.length >= 2) excl.add(w); }));
   const words = w => (String(w || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
-  const have = new Set(words(chapterText)), miss = [];
+  const have = new Set(words(chapterText)), miss = []; let total = 0;
   segs.forEach(seg => {
     const toks = Array.from(new Set(words(seg).filter(w => w.length >= 2 && !SCENE_STOP_TOKENS.has(normalizeName(w)) && !excl.has(normalizeName(w)))));
     if (toks.length < 3) return;
-    const cov = toks.filter(w => have.has(w)).length / toks.length;
-    if (cov < 0.4) miss.push(seg.slice(0, 90));
+    total++;
+    if (toks.filter(w => have.has(w)).length / toks.length < 0.4) miss.push(seg.slice(0, 90));
   });
-  return miss.slice(0, 6);
+  return { total, missing: miss };
+}
+function outlineMissingBeats(outlineLine, chapterText, names) { return outlineBeatCoverage(outlineLine, chapterText, names).missing.slice(0, 6); }
+/* V14.5.1: QUALITY GATE chặn khi chương thiếu nhiều ý của Outline. Thiếu >= 40% số ý đánh giá được (và có từ 2 ý trở lên) -> lỗi NẶNG (HARD_FAIL, kích hoạt tự vá);
+   thiếu ít hơn -> chỉ cảnh báo. Đối chiếu bằng từ khóa nên có thể báo thừa: thông báo nói rõ và vẫn cho duyệt thủ công. Tắt bằng state.outlineBeatGate === false. */
+function outlineGateCheck(st, n, text, names) {
+  const out = { hard: [], warn: [] };
+  if (!st || st.outlineBeatGate === false) return out;
+  const ol = outlineOf(st, n); if (!ol) return out;
+  const line = outlineChapterLines(ol.content)[n]; if (!line) return out;
+  const cov = outlineBeatCoverage(line, text, names);
+  if (!cov.total || !cov.missing.length) return out;
+  const msg = 'Outline chương ' + n + ' chưa thực hiện đủ (đối chiếu từ khóa): chưa thấy ' + cov.missing.length + '/' + cov.total + ' ý — ' + cov.missing.slice(0, 4).map(x => '«' + x.slice(0, 80) + '»').join(' · ') + '. Cần viết đủ các ý này trong chương; nếu truyện thật ra đã viết chúng bằng câu chữ khác thì có thể duyệt thủ công.';
+  if (cov.total >= 2 && cov.missing.length >= Math.max(1, Math.ceil(cov.total * 0.4))) out.hard.push(msg); else out.warn.push(msg);
+  return out;
 }
 function buildAdaptiveScenePlanPrompt(o) {
   const limits = adaptiveChapterWordLimits(o.state || {});
@@ -6005,7 +6019,8 @@ async function qualityReviewWorker(job, chapter, n) {
     }, 1);
     const parsed = parseJsonLoose(r.text, "{");
     const sc = normalizeStoryControl(job.storyState || {});
-    const review = evaluateReview(parsed.value, { maxMainEvents: sc.maxMainEvents, maxNamedCharacters: sc.maxNamedCharacters, passScore: job.storyState.qualityPassScore, softFailScore: job.storyState.qualitySoftFailScore, extraHard: gateHardChecks(chapter).filter(x => !x.ok).map(x => x.message) });
+    const og = outlineGateCheck(job.storyState, n, chapter.text, gateKnownNames(job.storyState));
+    const review = evaluateReview(parsed.value, { maxMainEvents: sc.maxMainEvents, maxNamedCharacters: sc.maxNamedCharacters, passScore: job.storyState.qualityPassScore, softFailScore: job.storyState.qualitySoftFailScore, extraHard: gateHardChecks(chapter).filter(x => !x.ok).map(x => x.message).concat(og.hard), extraWarnings: og.warn });
     if (!review) return { ok: false, reason: "review_parse" };
     return { ok: true, review };
   } catch (e) { return { ok: false, reason: e.message }; }

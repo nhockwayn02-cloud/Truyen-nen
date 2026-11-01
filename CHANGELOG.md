@@ -1,5 +1,13 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.1 — Quality Gate chặn khi chương thiếu ý của Outline]
+
+- **Vấn đề:** điểm `outlineCompliance` của AI chấm chỉ để hiển thị và `outlineDeviation` không đổi verdict, nên chương lệch Outline vẫn được 85–100 điểm.
+- **Mới:** `outlineGateCheck` đối chiếu từ khóa (0 token) từng ý của Outline chương với văn bản khi duyệt. Thiếu từ 40% số ý đánh giá được (và có từ 2 ý) → **lỗi nặng** (HARD_FAIL, kích hoạt vòng tự vá để bổ sung đúng các ý thiếu); thiếu ít hơn → chỉ cảnh báo. Thông báo nêu rõ các ý chưa thấy và nhắc có thể duyệt thủ công nếu truyện đã viết bằng câu chữ khác.
+- **Áp dụng:** cả Quality Gate chạy trên máy và trên server (worker). Công tắc mới "📋 Chặn khi thiếu ý của Outline" ở phần cài đặt Quality Gate (`state.outlineBeatGate`, mặc định bật).
+- **Giới hạn:** đối chiếu bằng từ khóa nên có thể báo thừa hoặc bỏ sót; khác với "Chặn thiếu Required Beat [R]" (dựa trên danh sách beat AI chấm) và vẫn cho Manual Override.
+- **Test:** `v14_5_1_outline_gate.test.js`.
+
 ## [V14.5.0 — Cách 3: mỗi cảnh gắn với mục Outline, kiểm tra kế hoạch TRƯỚC khi viết]
 
 - **Vấn đề:** AI tự chia cảnh rồi mới đối chiếu Outline sau khi đã viết, nên kế hoạch chia lệch (bỏ mục, dồn mục, lặp cảnh) chỉ bị phát hiện muộn.

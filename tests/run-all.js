@@ -44,6 +44,7 @@ const dir = __dirname; const suites = [
   ["V14.4.2 Outline cuối prompt + đối chiếu beat với truyện", process.execPath, ["v14_4_2_outline_adherence.test.js"]],
   ["V14.4.4 sự kiện chính Outline phải đủ (bù beat thiếu)", process.execPath, ["v14_4_4_outline_complete.test.js"]],
   ["V14.5.0 cách 3: mỗi cảnh gắn mục Outline, kiểm tra kế hoạch trước khi viết", process.execPath, ["v14_5_0_outline_mapping.test.js"]],
+  ["V14.5.1 Quality Gate chặn khi thiếu ý Outline", process.execPath, ["v14_5_1_outline_gate.test.js"]],
   ["V14.3.6 hướng sửa của AI duyệt phải bám Outline", process.execPath, ["v14_3_6_review_outline_priority.test.js"]],
   ["V14.0.16 worker: tự sửa sau chấm nhanh", process.execPath, ["v14_0_16_worker_quickfix.test.js"]],
   ["V14.0.6 viết nháp nền (adaptive worker, không Gate/hậu kỳ)", process.execPath, ["v14_worker_draft.test.js"]],

@@ -458,6 +458,7 @@
 <div class="toggle-row"><span title="Tự động sửa các cảnh báo Canon/continuity/Beat rồi chấm lại trước khi ghi Canon">✦ Tạo chương hoàn chỉnh (tự sửa)</span><label class="switch"><input checked id="autoRepairOnCreateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Mỗi scene viết xong được AI rà thêm một lần nhỏ (thay đổi bắt buộc, địa điểm/thời gian, tuyến mới). Tốn thêm 1 lượt gọi ngắn/scene. Kiểm tra bằng code luôn bật, không tốn token.">🔬 Rà AI từng scene (tốn thêm token)</span><label class="switch"><input id="sceneAiReviewToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Tắt để chương SOFT_FAIL phải sửa đạt PASS trước khi viết chương tiếp">🚧 Chặn điểm thấp vào Canon</span><label class="switch"><input id="qualityAcceptSoftToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
+<div class="toggle-row"><span title="Khi duyệt: nếu chương thiếu từ 40% số ý của Outline (đối chiếu từ khóa) thì tính là lỗi nặng và tự vá; thiếu ít hơn chỉ cảnh báo. Vẫn có thể duyệt thủ công.">📋 Chặn khi thiếu ý của Outline</span><label class="switch"><input checked id="outlineBeatGateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Khóa cứng: còn Required Beat [R] thiếu thì không Manual Override, không Sync Canon, không xuất bản">🧱 Chặn thiếu Required Beat [R]</span><label class="switch"><input checked id="requiredBeatBarrierToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>📝 Rà chính tả + xưng hô</span><label class="switch"><input checked="" id="spellCheckToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span>🔄 Auto-continue</span><label class="switch"><input checked="" id="autoContinueToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
@@ -782,19 +783,33 @@ function outlineBeatSegments(line) {
     .map(x => x.replace(/^(?:Sự kiện|Kháng cự|Hậu quả|Móc kết|Cảnh nóng|Cảnh chính)\s*:\s*/u, '').replace(/[.;\s]+$/u, '').trim())
     .filter(x => x.length >= 8);
 }
-function outlineMissingBeats(outlineLine, chapterText, names) {
-  const segs = outlineBeatSegments(outlineLine); if (!segs.length) return [];
+function outlineBeatCoverage(outlineLine, chapterText, names) {
+  const segs = outlineBeatSegments(outlineLine); if (!segs.length) return { total: 0, missing: [] };
   const excl = new Set();
   (names || []).forEach(n => normalizeName(n).split(/[^a-z0-9đ]+/).forEach(w => { if (w.length >= 2) excl.add(w); }));
   const words = w => (String(w || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
-  const have = new Set(words(chapterText)), miss = [];
+  const have = new Set(words(chapterText)), miss = []; let total = 0;
   segs.forEach(seg => {
     const toks = Array.from(new Set(words(seg).filter(w => w.length >= 2 && !SCENE_STOP_TOKENS.has(normalizeName(w)) && !excl.has(normalizeName(w)))));
     if (toks.length < 3) return;
-    const cov = toks.filter(w => have.has(w)).length / toks.length;
-    if (cov < 0.4) miss.push(seg.slice(0, 90));
+    total++;
+    if (toks.filter(w => have.has(w)).length / toks.length < 0.4) miss.push(seg.slice(0, 90));
   });
-  return miss.slice(0, 6);
+  return { total, missing: miss };
+}
+function outlineMissingBeats(outlineLine, chapterText, names) { return outlineBeatCoverage(outlineLine, chapterText, names).missing.slice(0, 6); }
+/* V14.5.1: QUALITY GATE chặn khi chương thiếu nhiều ý của Outline. Thiếu >= 40% số ý đánh giá được (và có từ 2 ý trở lên) -> lỗi NẶNG (HARD_FAIL, kích hoạt tự vá);
+   thiếu ít hơn -> chỉ cảnh báo. Đối chiếu bằng từ khóa nên có thể báo thừa: thông báo nói rõ và vẫn cho duyệt thủ công. Tắt bằng state.outlineBeatGate === false. */
+function outlineGateCheck(st, n, text, names) {
+  const out = { hard: [], warn: [] };
+  if (!st || st.outlineBeatGate === false) return out;
+  const ol = outlineOf(st, n); if (!ol) return out;
+  const line = outlineChapterLines(ol.content)[n]; if (!line) return out;
+  const cov = outlineBeatCoverage(line, text, names);
+  if (!cov.total || !cov.missing.length) return out;
+  const msg = 'Outline chương ' + n + ' chưa thực hiện đủ (đối chiếu từ khóa): chưa thấy ' + cov.missing.length + '/' + cov.total + ' ý — ' + cov.missing.slice(0, 4).map(x => '«' + x.slice(0, 80) + '»').join(' · ') + '. Cần viết đủ các ý này trong chương; nếu truyện thật ra đã viết chúng bằng câu chữ khác thì có thể duyệt thủ công.';
+  if (cov.total >= 2 && cov.missing.length >= Math.max(1, Math.ceil(cov.total * 0.4))) out.hard.push(msg); else out.warn.push(msg);
+  return out;
 }
 function buildAdaptiveScenePlanPrompt(o) {
   const limits = adaptiveChapterWordLimits(o.state || {});
@@ -6386,6 +6401,7 @@ $ID("autoRepairOnCreateToggle").addEventListener("change", ()=>{ state.autoRepai
 $ID("sceneAiReviewToggle").addEventListener("change", ()=>{ state.sceneAiReview = $ID("sceneAiReviewToggle").checked; persist(); });
 $ID("qualityAcceptSoftToggle").addEventListener("change", ()=>{ state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked; persist(); });
 $ID("requiredBeatBarrierToggle").addEventListener("change", ()=>{ state.requiredBeatBarrier = $ID("requiredBeatBarrierToggle").checked; persist(); });
+$ID("outlineBeatGateToggle").addEventListener("change", ()=>{ state.outlineBeatGate = $ID("outlineBeatGateToggle").checked; persist(); });
 autoContinueToggle.addEventListener("change", ()=>{ state.autoContinueEnabled = autoContinueToggle.checked; persist(); });
 autoSummaryToggle.addEventListener("change", ()=>{ state.autoSummaryEnabled = autoSummaryToggle.checked; persist(); });
 autoSceneToggle.addEventListener("change", ()=>{ state.autoSceneEnabled = autoSceneToggle.checked; persist(); });
@@ -9219,7 +9235,8 @@ async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
   try{
     const r=await callAI(prompt,{maxTokens:2200,temperature:0.1,modelOverride:chapter.modelUsed||state.model});
     const obj=safeJsonParse(r.text);
-    const review=evaluateReview(obj,{maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters,passScore:state.qualityPassScore,softFailScore:state.qualitySoftFailScore,extraHard:hardChecks.filter(x=>!x.ok).map(x=>x.message)});
+    const og=outlineGateCheck(state,chapterNumber,chapter.text,gateKnownNames(state));
+    const review=evaluateReview(obj,{maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters,passScore:state.qualityPassScore,softFailScore:state.qualitySoftFailScore,extraHard:hardChecks.filter(x=>!x.ok).map(x=>x.message).concat(og.hard),extraWarnings:og.warn});
     if(!review) return {ok:false,reason:"review_parse"};
     return {ok:true,review};
   }catch(e){ return {ok:false,reason:e.message}; }
@@ -10752,6 +10769,7 @@ function hydrateFormFromState(){
   $ID("sceneAiReviewToggle").checked = state.sceneAiReview === true;
   $ID("qualityAcceptSoftToggle").checked = state.qualityAcceptSoft === false;
   $ID("requiredBeatBarrierToggle").checked = state.requiredBeatBarrier !== false;
+  $ID("outlineBeatGateToggle").checked = state.outlineBeatGate !== false;
   autoContinueToggle.checked = state.autoContinueEnabled !== false;
   autoSummaryToggle.checked = state.autoSummaryEnabled !== false;
   autoSceneToggle.checked = state.autoSceneEnabled !== false;
