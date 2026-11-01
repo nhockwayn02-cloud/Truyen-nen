@@ -1,5 +1,9 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.2] — Sửa PLAN_REJECTED với model lớn/thinking (deepseek-v4.x)
+- Scene Graph: chấp nhận khóa đặt tên khác (must_change, hand_off, ending_anchor…); thiếu `mustChange`/`handoff`/`endingAnchor`/`chapterGoal` thì tự suy ra từ purpose/beats/scene kế thay vì PLAN_REJECTED.
+- Bước plan: ngân sách token 5000 (lượt 1) / 7800 (lượt sửa); `callExtract` leo thang x2 rồi x4 (bậc sau phải lớn hơn bậc trước, trần AI_MAX_OUTPUT_TOKENS); nếu content rỗng mà reasoning đã chứa JSON `"scenes"` thì vớt ra (cả stream và không stream).
+
 ## [V14.5.1 — Quality Gate chặn khi chương thiếu ý của Outline]
 
 - **Vấn đề:** điểm `outlineCompliance` của AI chấm chỉ để hiển thị và `outlineDeviation` không đổi verdict, nên chương lệch Outline vẫn được 85–100 điểm.

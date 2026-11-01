@@ -2920,7 +2920,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   for (let planAttempt = 1; planAttempt <= 2 && !graph; planAttempt++) {
     try {
       const correction = planAttempt > 1 ? "\nPLAN BỊ TỪ CHỐI. Sửa đúng lỗi Contract sau, không mở tuyến mới:\n" + planError : "";
-      const planRes = await callAI(planPrompt + correction, { maxTokens: planAttempt > 1 ? 3600 : 2600, temperature: planAttempt > 1 ? 0.15 : 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
+      const planRes = await callAI(planPrompt + correction, { maxTokens: planAttempt > 1 ? 7800 : 5000, temperature: planAttempt > 1 ? 0.15 : 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
       const rawPlan = String(planRes && planRes.text || '');
       const candidate = normalizeAdaptiveScenePlan(rawPlan, st);
       if (!candidate) {

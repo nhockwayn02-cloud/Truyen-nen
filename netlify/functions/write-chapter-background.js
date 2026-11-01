@@ -2983,7 +2983,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   for (let planAttempt = 1; planAttempt <= 2 && !graph; planAttempt++) {
     try {
       const correction = planAttempt > 1 ? "\nPLAN BỊ TỪ CHỐI. Sửa đúng lỗi Contract sau, không mở tuyến mới:\n" + planError : "";
-      const planRes = await callAI(planPrompt + correction, { maxTokens: planAttempt > 1 ? 3600 : 2600, temperature: planAttempt > 1 ? 0.15 : 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
+      const planRes = await callAI(planPrompt + correction, { maxTokens: planAttempt > 1 ? 7800 : 5000, temperature: planAttempt > 1 ? 0.15 : 0.25, modelOverride: o.model, systemPrompt: SCENE_PLAN_SYSTEM_PROMPT });
       const rawPlan = String(planRes && planRes.text || '');
       const candidate = normalizeAdaptiveScenePlan(rawPlan, st);
       if (!candidate) {
@@ -3863,7 +3863,8 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
       // Provider không hỗ trợ stream -> đọc JSON thường
       const data = await res.json();
       const choice = data.choices?.[0];
-      return { text: choice?.message?.content || choice?.text || (creative ? (choice?.message?.reasoning || choice?.message?.reasoning_content) : "") || "", finishReason: choice?.finish_reason || null, reasoningLen: String(choice?.message?.reasoning || choice?.message?.reasoning_content || "").length };
+      const _rs = String(choice?.message?.reasoning || choice?.message?.reasoning_content || "");
+      return { text: choice?.message?.content || choice?.text || (creative ? _rs : (/"scenes"\s*:/.test(_rs) ? _rs : "")) || "", finishReason: choice?.finish_reason || null, reasoningLen: String(choice?.message?.reasoning || choice?.message?.reasoning_content || "").length };
     }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -3895,6 +3896,8 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
       }
     }
     if (creative && !text.trim() && reasoning.trim()) text = reasoning; // chỉ khi viết văn
+    // V14.5.2: model thinking ăn hết token nhưng JSON Scene Graph đã nằm trong phần reasoning -> vớt ra (parser tự tìm JSON giữa lời dẫn).
+    else if (!creative && !text.trim() && /"scenes"\s*:/.test(reasoning)) text = reasoning;
     return { text, finishReason, reasoningLen: reasoning.length };
   } catch (e) {
     const aborted = e.name === "AbortError" || /aborted/i.test(e.message || "");
@@ -3937,15 +3940,19 @@ async function callWithRetry(args, tries = 3) {
 /* Gọi trích xuất: nếu content rỗng (thường do reasoning ăn hết token) thì gọi lại với ngân sách gấp đôi. */
 async function callExtract(args, tries = 2) {
   let r = await callWithRetry(args, tries);
-  const empty = !String(r.text || "").trim();
-  const base = args.maxTokens || 3000;
-  // Rỗng hoặc bị cắt (finish=length) -> gọi lại với ngân sách gấp đôi (tối đa 16000)
-  if ((empty || r.finishReason === "length") && base < 16000 && timeLeft() > 120000) {
+  let empty = !String(r.text || "").trim();
+  let used = Math.min(AI_MAX_OUTPUT_TOKENS, args.maxTokens || 3000);
+  // V14.5.2: rỗng/bị cắt (finish=length) -> thử lại với ngân sách x2 rồi x4, mỗi bậc phải LỚN HƠN bậc trước (trần AI_MAX_OUTPUT_TOKENS); model thinking hay cần bậc 2.
+  for (const mult of [2, 4]) {
+    if (!(empty || r.finishReason === "length") || timeLeft() < 120000) break;
+    const next = Math.min(AI_MAX_OUTPUT_TOKENS, (args.maxTokens || 3000) * mult);
+    if (next <= used) continue;
+    used = next;
     try {
-      const r2 = await callWithRetry({ ...args, maxTokens: Math.min(AI_MAX_OUTPUT_TOKENS, base * 2) }, tries);
+      const r2 = await callWithRetry({ ...args, maxTokens: next }, tries);
       const has2 = String(r2.text || "").trim();
-      if (has2 && (empty || r2.finishReason !== "length" || r2.text.length > r.text.length)) r = { ...r2, retriedBigger: true };
-    } catch (e) { if (empty) throw e; }
+      if (has2 && (empty || r2.finishReason !== "length" || r2.text.length > r.text.length)) { r = { ...r2, retriedBigger: true }; empty = false; }
+    } catch (e) { if (empty && next >= AI_MAX_OUTPUT_TOKENS) throw e; }
   }
   return r;
 }
