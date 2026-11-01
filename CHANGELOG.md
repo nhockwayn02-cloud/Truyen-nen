@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.3] — Model thinking viết scene ngắn/cụt, rà AI trả JSON rỗng
+- **Nguyên nhân:** mọi lệnh viết scene / bù từ / rà AI / vá scene gọi với `creative:true` nên KHÔNG bao giờ gửi lệnh tắt thinking (chỉ bước plan có). Model thinking (deepseek-v4.x) dùng chung `max_tokens` cho reasoning → scene 800 từ chỉ ra ~250 từ và dừng giữa câu; rà AI (500 token) hết sạch cho reasoning → "JSON hỏng/rỗng".
+- **Sửa (worker `callAI`):** luôn gửi lệnh tắt thinking (`noReasoning`), giữ nguyên lấy mẫu/penalty; endpoint phớt lờ lệnh thì đo reasoning thực tế và cộng "đệm suy nghĩ" (tối đa 4000 token) vào mọi lệnh sau; lệnh ngắn hoặc content rỗng bị reasoning ăn sạch → gọi lại ngay một lần với đệm. Đường gọi lại sau lỗi 400 không còn làm mất frequency/presence penalty.
+- Test: `v14_5_3_scene_thinking.test.js`.
+
 ## [V14.5.2] — Sửa PLAN_REJECTED với model lớn/thinking (deepseek-v4.x)
 - Scene Graph: chấp nhận khóa đặt tên khác (must_change, hand_off, ending_anchor…); thiếu `mustChange`/`handoff`/`endingAnchor`/`chapterGoal` thì tự suy ra từ purpose/beats/scene kế thay vì PLAN_REJECTED.
 - Bước plan: ngân sách token 5000 (lượt 1) / 7800 (lượt sửa); `callExtract` leo thang x2 rồi x4 (bậc sau phải lớn hơn bậc trước, trần AI_MAX_OUTPUT_TOKENS); nếu content rỗng mà reasoning đã chứa JSON `"scenes"` thì vớt ra (cả stream và không stream).

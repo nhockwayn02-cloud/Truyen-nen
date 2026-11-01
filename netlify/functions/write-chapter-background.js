@@ -3848,11 +3848,11 @@ async function callOpenRouter({ endpoint, apiKey, model, messages, maxTokens = 4
       const err = await res.text();
       if (res.status === 400 && noReasoning && !_noReasoningParam && /reasoning/i.test(err)) {
         clearTimeout(timer);
-        return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, noReasoning, _noReasoningParam: true });
+        return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, frequencyPenalty, presencePenalty, noReasoning, _noReasoningParam: true });
       }
       if (res.status === 400 && noReasoning && !_noThinkingParam && !/openrouter\.ai/i.test(endpoint || DEFAULT_ENDPOINT)) {
         clearTimeout(timer);
-        return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, noReasoning, _noReasoningParam, _noThinkingParam: true });
+        return callOpenRouter({ endpoint, apiKey, model, messages, maxTokens, temperature, totalMs, firstTokenMs, idleMs, creative, frequencyPenalty, presencePenalty, noReasoning, _noReasoningParam, _noThinkingParam: true });
       }
       const e = new Error(`API ${res.status}: ${err.slice(0, 500)}`);
       e.status = res.status;
@@ -4803,16 +4803,30 @@ async function generateAdaptiveWorkerChapter(job, c) {
   const draft = !!job.draftOnly;
   const left = () => draft ? (timeLeft() - 30000) : writeTimeLeft(isNsfw);
   const routingNsfwModel = String(job.modelNsfw || state.modelNsfw || "").trim();
+  /* V14.5.3: model thinking (deepseek-v4.x...) dùng chung max_tokens cho reasoning -> scene bị cắt ngắn giữa câu, rà AI trả JSON rỗng.
+     (1) luôn gửi lệnh TẮT thinking (kể cả lệnh viết văn; creative chỉ ảnh hưởng lấy mẫu); (2) endpoint phớt lờ lệnh -> đo reasoning thực tế và
+     cộng "đệm suy nghĩ" vào MỌI lệnh sau; (3) lệnh ngắn (rà/vá JSON) hoặc content rỗng bị reasoning ăn sạch -> gọi lại ngay một lần với đệm. */
+  let thinkMargin = 0;
   const callAI = async (prompt, opts) => {
     const planCall = opts.systemPrompt === SCENE_PLAN_SYSTEM_PROMPT;
-    // Plan: callExtract — rỗng/bị cắt (finish=length) thì tự gọi lại với ngân sách token gấp đôi.
-    const r = await (planCall ? callExtract : callWithRetry)({
+    const baseTokens = opts.maxTokens || 3000;
+    const run = () => (planCall ? callExtract : callWithRetry)({
       endpoint: job.apiEndpoint, apiKey: job.apiKey, model: opts.modelOverride || model,
       messages: [{ role: "system", content: opts.systemPrompt || SYSTEM_PROMPT }, { role: "user", content: prompt }],
-      maxTokens: opts.maxTokens || 3000, temperature: opts.temperature,
+      maxTokens: Math.min(AI_MAX_OUTPUT_TOKENS, baseTokens + thinkMargin), temperature: opts.temperature,
       frequencyPenalty: opts.frequency_penalty, presencePenalty: opts.presence_penalty,
-      totalMs: Math.max(45000, Math.min(240000, left() - 8000)), creative: !planCall
+      totalMs: Math.max(45000, Math.min(240000, left() - 8000)), creative: !planCall, noReasoning: true
     }, 2);
+    let r = await run();
+    const rl = Number(r.reasoningLen) || 0;
+    if (rl > 0) {
+      const before = thinkMargin;
+      thinkMargin = Math.min(4000, Math.max(thinkMargin, Math.ceil(rl / 3) + 200));
+      const contentLost = String(r.text || "").length <= rl + 20; // content rỗng (text chỉ là phần reasoning được vớt lại)
+      if (!planCall && r.finishReason === "length" && thinkMargin > before && (contentLost || baseTokens <= 1000) && left() > 60000) {
+        try { const r2 = await run(); if (String(r2.text || "").trim()) r = r2; } catch (_) {}
+      }
+    }
     return { text: r.text, finishReason: r.finishReason };
   };
   // Cùng quy tắc với adaptiveSceneRoute của client, nhưng model 18+ lấy từ cấu hình job (state của job không giữ modelNsfw).
