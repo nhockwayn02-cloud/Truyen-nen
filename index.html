@@ -899,12 +899,33 @@ function normalizeAdaptiveScenePlan(raw, st) {
     location: String(s.location || '').slice(0, 180),
     time: String(s.time || '').slice(0, 180),
     targetWords: Math.max(350, Math.min(2200, Number(s.targetWords) || Math.round(limits.target / Math.max(1, obj.scenes.length)))),
-    mustChange: String(s.mustChange || '').slice(0, 400),
-    handoff: String(s.handoff || '').slice(0, 400),
+    mustChange: String(_planField(s, ['mustChange', 'must_change', 'mustchange', 'must-change', 'change', 'keyChange', 'sceneChange', 'outcome'])).slice(0, 400),
+    handoff: String(_planField(s, ['handoff', 'hand_off', 'hand-off', 'handOff', 'transition', 'nextHook', 'bridge'])).slice(0, 400),
     ...(Array.isArray(s.outlineItems) ? { outlineItems: s.outlineItems.map(Number).filter(x => Number.isInteger(x) && x > 0 && x <= 20) } : {})
   }));
   if (!scenes.length) return null;
-  return { chapterGoal: String(obj.chapterGoal || '').slice(0, 600), endingAnchor: String(obj.endingAnchor || '').slice(0, 600), scenes };
+  const one = x => String(x || '').replace(/\s+/g, ' ').trim();
+  const lastSc = scenes[scenes.length - 1];
+  // V14.5.2: model lớn hay bỏ trống mustChange/handoff/endingAnchor -> tự suy ra từ purpose/beats và scene kế, thay vì PLAN_REJECTED.
+  const chapterGoal = String(_planField(obj, ['chapterGoal', 'chapter_goal', 'goal'])).slice(0, 600)
+    || one(scenes[0].purpose || (scenes[0].beats && scenes[0].beats[0])).slice(0, 600);
+  const endingAnchor = String(_planField(obj, ['endingAnchor', 'ending_anchor', 'endingHook', 'ending'])).slice(0, 600)
+    || one((lastSc.beats && lastSc.beats[lastSc.beats.length - 1]) || lastSc.mustChange || lastSc.purpose).slice(0, 600);
+  scenes.forEach((sc, i) => {
+    const next = scenes[i + 1];
+    if (!sc.mustChange.trim()) sc.mustChange = one(sc.purpose || (sc.beats && sc.beats[0]) || chapterGoal || ('Diễn biến chính của ' + sc.id)).slice(0, 400);
+    if (!sc.handoff.trim()) {
+      sc.handoff = (next
+        ? 'Dẫn sang ' + next.id + ': ' + one(next.purpose || (next.beats && next.beats[0]) || next.location || 'scene kế tiếp')
+        : 'Kết chương: ' + one(endingAnchor || 'theo Outline')).slice(0, 400);
+    }
+  });
+  return { chapterGoal, endingAnchor, scenes };
+}
+
+function _planField(o, keys) {
+  for (const k of keys) { const v = o && o[k]; if (v == null) continue; const t = Array.isArray(v) ? v.join('; ') : (typeof v === 'object' ? '' : String(v)); if (t.trim()) return t; }
+  return '';
 }
 
 // V14: Contract-First — kế hoạch AI không được tự thay đổi các trường này.

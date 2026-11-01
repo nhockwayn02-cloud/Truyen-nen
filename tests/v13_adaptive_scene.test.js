@@ -146,6 +146,17 @@ test('fallback ngắn cũng bị ép chạy hàng rào Top-up cuối', () => {
   assert(indexSrc.includes('if(countWords(rawText) < adaptiveChapterWordLimits(state).minAccept){'), 'hard minimum không được phụ thuộc cờ pipeline cũ');
 });
 
+test('V14.5.2 model lớn bỏ trống/đổi tên mustChange, handoff, endingAnchor -> tự bù, không PLAN_REJECTED', () => {
+  const p = T.normalizeAdaptiveScenePlan({ chapterGoal: 'g', scenes: [
+    { id: 'S1', purpose: 'mở cảnh', beats: ['a'], must_change: 'A biết sự thật' },
+    { id: 'S2', purpose: 'hậu quả', beats: ['b'] }
+  ] }, { minChapterWords: 5000 });
+  assert.strictEqual(p.scenes[0].mustChange, 'A biết sự thật');
+  assert(/S2/.test(p.scenes[0].handoff));
+  assert(p.scenes[1].mustChange && p.scenes[1].handoff && p.endingAnchor);
+  assert.strictEqual(T.validateAdaptiveScenePlan(p, {}).ok, true);
+});
+
 console.log(`\n${pass}/17 PASS`);
 
 test('V14.0.6 forbidden drift theo cụm chủ đề, không chặn nhầm "bảo vệ"/"bác sĩ"/"khách"', () => {
