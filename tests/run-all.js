@@ -8,6 +8,7 @@ const dir = __dirname; const suites = [
   ["V14.1.1 nút hậu kỳ tự duyệt nháp", process.execPath, ["v14_1_1_postprocess_approve.test.js"]],
   ["V14.1.4 tắt thinking cho lệnh JSON (AnonRouter)", process.execPath, ["v14_1_4_thinking_off.test.js"]],
   ["V14.5.2 plan: model thinking + mustChange/handoff", process.execPath, ["v14_5_2_plan_thinking.test.js"]],
+  ["V14.5.4 gỡ tiêu đề/nhãn lộ trong scene", process.execPath, ["v14_5_4_scene_leak.test.js"]],
   ["V14.5.3 viết scene với model thinking", process.execPath, ["v14_5_3_scene_thinking.test.js"]],
   ["Unit worker", process.execPath, ["worker.test.js"]],
   ["V12.20 từ lỗi/câu cụt/bám gợi ý", process.execPath, ["v12_20.test.js"]],

@@ -1,5 +1,8 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.4] — SCENE_REJECTED "scene lộ chỉ dẫn/tiêu đề"
+- Model lớn hay tự thêm tiêu đề `Scene 2:` / `**Cảnh 2.**` hoặc nhắc tên khối chỉ dẫn (STATE DELTA, STYLE LOCK…). Nay `stripSceneLeaks` gỡ các dòng đó (giữ phần văn xuôi nếu nhãn nằm đầu câu) trước khi kiểm tra, cho cả scene lẫn bù từ; chỉ báo lỗi nếu sau khi gỡ vẫn còn. Test: `v14_5_4_scene_leak.test.js`.
+
 ## [V14.5.3] — Model thinking viết scene ngắn/cụt, rà AI trả JSON rỗng
 - **Nguyên nhân:** mọi lệnh viết scene / bù từ / rà AI / vá scene gọi với `creative:true` nên KHÔNG bao giờ gửi lệnh tắt thinking (chỉ bước plan có). Model thinking (deepseek-v4.x) dùng chung `max_tokens` cho reasoning → scene 800 từ chỉ ra ~250 từ và dừng giữa câu; rà AI (500 token) hết sạch cho reasoning → "JSON hỏng/rỗng".
 - **Sửa (worker `callAI`):** luôn gửi lệnh tắt thinking (`noReasoning`), giữ nguyên lấy mẫu/penalty; endpoint phớt lờ lệnh thì đo reasoning thực tế và cộng "đệm suy nghĩ" (tối đa 4000 token) vào mọi lệnh sau; lệnh ngắn hoặc content rỗng bị reasoning ăn sạch → gọi lại ngay một lần với đệm. Đường gọi lại sau lỗi 400 không còn làm mất frequency/presence penalty.

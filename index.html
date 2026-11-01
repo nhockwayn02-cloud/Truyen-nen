@@ -1047,6 +1047,19 @@ function validateSceneTextAgainstContract(text, contract) {
    Cảnh báo (warnings) -> chỉ ghi telemetry, không tốn thêm lượt gọi AI. */
 const SCENE_STOP_TOKENS = new Set(['va','la','cua','mot','cac','nhung','trong','khi','cho','voi','duoc','nay','kia','the','nao','thi','den','tu','ra','vao','len','xuong','nhu','nen','ma','cung','da','dang','se','con','chi','rat','hon','nhieu','khong','co','nguoi','viec','dieu','luc','sau','truoc','nhau','lai','roi','ve','di','de','tren','duoi','giua','ngoai','minh','ho','no','anh','chi','em','ong','ba','cau','phai','biet','thay','muon','can','moi','van','vua','cung','hay','hoac','neu','vi','nen','boi','tai','theo','sang','qua']);
 const SCENE_LEAK_RE = /(^|\n)\s*(?:\*\*|#{1,4}\s*)?(?:scene|cảnh|canh)\s*\d+\s*[:.\-—)]|\b(?:CONTRACT COMPACT|STATE DELTA|ALLOWED CAST|STYLE LOCK|REQUIRED CHECKLIST|ĐIỂM KẾT BẮT BUỘC|RÀO_CHẮN_TUỔI)\b/i;
+// V14.5.4: model lớn hay tự thêm tiêu đề "Scene 2:" / "**Cảnh 2.**" hoặc nhắc tên khối chỉ dẫn -> gỡ các dòng đó thay vì loại cả scene.
+const SCENE_LEAK_KW_RE = /\b(?:CONTRACT COMPACT|STATE DELTA|ALLOWED CAST|STYLE LOCK|REQUIRED CHECKLIST|ĐIỂM KẾT BẮT BUỘC|RÀO_CHẮN_TUỔI)\b/i;
+const SCENE_HEAD_RE = /^\s*(?:\*\*|__|#{1,4}\s*)?\s*(?:scene|cảnh|canh)\s*\d+\s*(?:\*\*|__)?\s*[:.\-—–)]\s*(?:\*\*|__)?\s*/i;
+function stripSceneLeaks(text) {
+  const out = [];
+  String(text || '').split('\n').forEach(line => {
+    if (SCENE_LEAK_KW_RE.test(line)) return;                        // dòng nhắc khối chỉ dẫn -> bỏ
+    const m = line.match(SCENE_HEAD_RE);
+    if (m) { const rest = line.slice(m[0].length).replace(/^\s*(?:\*\*|__)\s*/, '').trim(); if (rest.length < 25) return; line = rest; } // tiêu đề trơ -> bỏ; "Scene 2: văn xuôi…" -> giữ phần văn xuôi
+    out.push(line);
+  });
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 function _sceneTokens(text) {
   return normalizeName(text).split(/[^a-z0-9đ]+/).filter(t => t.length >= 3 && !SCENE_STOP_TOKENS.has(t));
 }
@@ -3745,7 +3758,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
           presence_penalty: 0.18,
           streaming: false
         });
-        text = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+        text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
         if (detectNonVietnamese(text)) text = stripForeign(text);
         // V14.0.8: scene viết LẠI đoạn đã có (model mở đầu lại cùng một cảnh) -> cắt phần lặp, giống đường viết tiếp của writer cũ.
         if (pieces.length) { const d = dropRepeatedParagraphs(pieces.join('\n\n'), text); if (d.length < text.length) { dupDropped++; text = d.trim(); if (countWords(text) < 80) { skipScene = true; break; } } }
@@ -3879,7 +3892,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         temperature: lastRoute.nsfw ? 0.76 : 0.70, modelOverride: lastRoute.model,
         frequency_penalty: 0.22, presence_penalty: 0.18, streaming: false
       });
-      let extra = formatParagraphs(stripForeign(stripThinkingOutput(String(r && r.text || '')))).trim();
+      let extra = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
       if (detectNonVietnamese(extra)) extra = stripForeign(extra);
       { const d = dropRepeatedParagraphs(text, extra); if (d.length < extra.length) { dupDropped++; extra = d.trim(); } }
       if (countWords(extra) < 80) { topUpFails++; continue; }
