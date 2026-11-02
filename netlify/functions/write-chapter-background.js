@@ -74,15 +74,18 @@ function normalizeName(s) {
 function chapterWordLimits(st) {
   // Client gọi không tham số (dùng state toàn cục); worker truyền state của job.
   if (!st && typeof state !== "undefined") st = state;
+  // V14.5.8: độ dài chương theo ĐÚNG số người dùng nhập ở "Độ dài mục tiêu": chấp nhận mục tiêu ±500 từ
+  // (5000 -> 4500–5500; 4500 -> 4000–5000). Không nhập/không hợp lệ -> mặc định 5000.
+  const requested = Number(st && st.minChapterWords);
+  if (requested >= 500 && requested <= 12000) {
+    const t = Math.round(requested / 100) * 100;
+    return { target: t, minAccept: Math.max(300, t - 500), maxAccept: t + 500, hardMax: t + 600 };
+  }
   return { target: 5000, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
 }
 
 // V13: số scene và chức năng scene do diễn biến quyết định, không gán vai trò cố định.
 function adaptiveChapterWordLimits(st) {
-  const requested = Number(st && st.minChapterWords);
-  if (requested >= 4500 && requested <= 5500) {
-    return { target: Math.round(requested / 100) * 100, minAccept: 4500, maxAccept: 5500, hardMax: 5600 };
-  }
   return chapterWordLimits(st);
 }
 
@@ -143,7 +146,7 @@ function outlineGateCheck(st, n, text, names) {
   const out = { hard: [], warn: [] };
   if (!st || st.outlineBeatGate === false) return out;
   const ol = outlineOf(st, n); if (!ol) return out;
-  const line = outlineChapterLines(ol.content)[n]; if (!line) return out;
+  const line = outlineChapterLines(ol.content, ol)[n]; if (!line) return out;
   const cov = outlineBeatCoverage(line, text, names);
   if (!cov.total || !cov.missing.length) return out;
   const msg = 'Outline chương ' + n + ' chưa thực hiện đủ (đối chiếu từ khóa): chưa thấy ' + cov.missing.length + '/' + cov.total + ' ý — ' + cov.missing.slice(0, 4).map(x => '«' + x.slice(0, 80) + '»').join(' · ') + '. Cần viết đủ các ý này trong chương; nếu truyện thật ra đã viết chúng bằng câu chữ khác thì có thể duyệt thủ công.';
@@ -282,8 +285,8 @@ function compactChapterContract(contract) {
     nameSource: String(c.nameSource || '').replace(/\s+/g, ' ').slice(0, 30000),
     openingContinuity: String(c.openingContinuity || '').replace(/\s+/g, ' ').slice(-1200),
     mustChange: String(c.mustChange || '').replace(/\s+/g, ' ').slice(0, 600),
-    minWords: Number(c.minWords) || 4500,
-    maxWords: Number(c.maxWords) || 5500
+    minWords: Number(c.minWords) || chapterWordLimits().minAccept,
+    maxWords: Number(c.maxWords) || chapterWordLimits().maxAccept
   };
 }
 
@@ -2238,9 +2241,22 @@ function characterLockPrompt(mc, chars, short) {
 function activeArcOf(st) { return ((st && st.arcs) || []).find(a => a && a.status === "active") || null; }
 function outlineOf(st, n) { return ((st && st.outlinePlans) || []).find(o => o && n >= o.from && n <= o.to) || null; }
 // Tách nội dung outline thành dòng theo chương: "Ch12: ...", "Chương 12: ...", "12. ...", "12) ...", "12 - ...".
-function outlineChapterLines(content) {
+// V14.5.7: outline dán từ Word/Google Docs hay chứa ngắt dòng mềm U+2028/U+2029/U+0085 (Shift+Enter) trước "Sự kiện:/Kháng cự:/Hậu quả:/Móc kết:".
+// JS không coi chúng là xuống dòng thường và `.` không khớp chúng -> toàn bộ outline "không có chương nào". Đổi thành khoảng trắng (giữ nhãn cùng dòng như định dạng chuẩn).
+function outlineNormalizeText(s) { return String(s || "").replace(/\r\n?/g, "\n").replace(/[\u2028\u2029\u0085\u000b\u000c]/g, " "); }
+// V14.5.6: outline đánh số lại từ 1 trong từng gói (gói áp dụng cho chương 7–12 nhưng viết Ch1…Ch6) -> đổi về số chương tuyệt đối để chương 9 không rơi vào dòng của chương khác.
+function _outlineRemapLocal(map, ol) {
+  if (!ol) return map;
+  const from = Number(ol.from) || 1, to = Number(ol.to) || from, keys = Object.keys(map).map(Number);
+  if (from <= 1 || !keys.length) return map;
+  const mn = Math.min.apply(null, keys), mx = Math.max.apply(null, keys);
+  if (!(mn < from && mx <= to - from + 1)) return map; // có khóa tuyệt đối hợp lệ -> giữ nguyên
+  const out = {}; keys.forEach(k => { out[k + from - 1] = map[k]; });
+  return out;
+}
+function outlineChapterLines(content, ol) {
   const map = {}; let cur = 0;
-  String(content || "").split(/\n+/).forEach(l => {
+  outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim();
     const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
     if (m && m[2] && m[2].trim().length >= 8) { cur = Number(m[1]); map[cur] = m[2].trim(); return; }
@@ -2250,7 +2266,7 @@ function outlineChapterLines(content) {
       map[cur] += (/[.!?…;:]$/.test(map[cur]) ? " " : "; ") + piece;
     }
   });
-  return map;
+  return _outlineRemapLocal(map, ol);
 }
 function arcProgressPrompt(st, nOverride) {
   const chapters = (st && Array.isArray(st.chapters)) ? st.chapters : [];
@@ -2271,7 +2287,7 @@ function arcProgressPrompt(st, nOverride) {
   }
   const ol = outlineOf(st, n);
   if (ol) {
-    const per = outlineChapterLines(ol.content), total = ol.to - ol.from + 1, idx = n - ol.from + 1;
+    const per = outlineChapterLines(ol.content, ol), total = ol.to - ol.from + 1, idx = n - ol.from + 1;
     lines.push("OUTLINE \"" + ol.name + "\" (chương " + ol.from + "–" + ol.to + "), chương này là " + idx + "/" + total + ":");
     if (per[n]) {
       lines.push("- VIỆC BẮT BUỘC CỦA CHƯƠNG " + n + " THEO OUTLINE: " + cut(per[n], 900));
@@ -2406,10 +2422,10 @@ function storyControlPrompt(st) {
 function gateHardChecks(chapter) {
   const text = String((chapter && chapter.text) || "");
   const warns = (chapter && chapter.continuityWarnings) || [];
-  const lengthLimits = chapterWordLimits();
+  // V14.5.9: Quality Gate KHÔNG chấm số từ — độ dài do bước viết/bù từ lo; Gate chỉ chặn bản rỗng.
   return [
     { id: "language", ok: !detectNonVietnamese(text), message: "Ngôn ngữ: tiếng Việt" },
-    { id: "text_nonempty", ok: countWords(text) >= lengthLimits.minAccept, message: "Bản thảo có đủ nội dung và đạt tối thiểu " + lengthLimits.minAccept + " từ" },
+    { id: "text_nonempty", ok: text.trim().length > 0, message: "Bản thảo có nội dung" },
     { id: "duplicate", ok: !warns.some(x => x && (x.severity === "high" || x.severity === "critical")), message: "Không có lỗi continuity mức cao đã phát hiện" }
   ];
 }
@@ -2901,7 +2917,7 @@ const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt t�
    Outline dạng "Chương N — Tiêu đề Sự kiện: …" + các dòng gạch đầu dòng (+ Kháng cự/Hậu quả/Móc kết) được tách thành các MỤC đánh số.
    AI lập kế hoạch cảnh phải khai báo scene nào thực hiện mục nào; app kiểm tra (0 token) mọi mục đều có cảnh, đúng thứ tự, không dồn/trùng.
    Sai -> lập lại; vẫn sai -> dựng cảnh theo từng mục Outline (1 mục = 1 cảnh) từ chính kế hoạch AI (nhân vật/nơi/giờ). Chỉ áp dụng khi chương có 3–10 mục. */
-function outlineChapterItems(content) {
+function outlineChapterItems(content, ol) {
   const out = {}; let cur = 0;
   const META_RE = /(?=(?:Kháng cự|Hậu quả|Móc kết)\s*:)/u;
   const parseMeta = (txt, meta) => {
@@ -2909,7 +2925,7 @@ function outlineChapterItems(content) {
     if (!m) return;
     meta[m[1] === 'Kháng cự' ? 'resistance' : (m[1] === 'Hậu quả' ? 'consequence' : 'hook')] = m[2].trim().replace(/[.;\s]+$/u, '');
   };
-  String(content || '').split(/\n+/).forEach(l => {
+  outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim(); if (!line) return;
     const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
     if (m && m[2] && m[2].trim().length >= 8) {
@@ -2929,7 +2945,7 @@ function outlineChapterItems(content) {
       pieces.slice(1).forEach(x => parseMeta(x, out[cur].meta));
     }
   });
-  return out;
+  return _outlineRemapLocal(out, ol);
 }
 function validateOutlineMapping(plan, items) {
   const errs = [], N = Array.isArray(items) ? items.length : 0, scenes = (plan && plan.scenes) || [];
@@ -3104,6 +3120,9 @@ async function runAdaptiveChapterPipeline(o, deps) {
         { const tr = trimDanglingSceneEnd(text); if (tr !== text && countWords(tr) >= 80) { if (!danglingTrimmed.includes(scene.id)) danglingTrimmed.push(scene.id); text = tr; } }
       } catch (e) {
         if (deps.warn) deps.warn('[AdaptiveScene] scene failed', scene.id, e && e.message);
+        // V14.5.5: giữ thông báo lỗi API thật; lỗi tạm thời (timeout/5xx/429...) -> thử lại CHÍNH scene này thay vì hủy cả job.
+        if (deps.onSceneError) { try { deps.onSceneError(scene.id, e && e.message); } catch (_) {} }
+        if (sa < maxSceneRetries && timeLeft() > minSceneMs) continue;
         return null;
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
@@ -4641,9 +4660,10 @@ function buildMainWritePrompt(o){
 
 function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
   const n = Number(chapterNumber) || (((st && st.chapters) || []).length + 1);
-  const arc = activeArcOf(st), ol = outlineOf(st, n), per = ol ? outlineChapterLines(ol.content) : {};
+  const arc = activeArcOf(st), ol = outlineOf(st, n), per = ol ? outlineChapterLines(ol.content, ol) : {};
   const arcGoal = arc ? String(arc.goal || arc.name || "").trim() : "";
-  const outlineLine = per[n] || (ol ? String(ol.content || "").slice(0, 900) : "");
+  // V14.5.6: chỉ lùi về 900 ký tự đầu khi outline KHÔNG đánh số chương; nếu có đánh số mà thiếu chương này thì để trống (không được lấy dòng của chương khác).
+  const outlineLine = per[n] || (ol && !Object.keys(per).length ? String(ol.content || "").slice(0, 900) : "");
   // Dùng toàn bộ outline/arc làm nguồn cast: một nhân vật canon có thể được
   // nhắc ở phần setup hoặc consequence chứ không xuất hiện ngay trong dòng Ch[n].
   const arcSource = arc ? JSON.stringify(arc) : "";
@@ -4654,7 +4674,7 @@ function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
   const add = (arr, v) => { const s = String(v || "").replace(/\s+/g, " ").trim(); if(s && !arr.some(x => normalizeName(x) === normalizeName(s))) arr.push(s); };
   if(st && st.mainCharProfile){ add(allowed, st.mainCharProfile.name); add(known, st.mainCharProfile.name); (st.mainCharProfile.aliases||[]).forEach(a => { add(allowed, a); add(known, a); }); }
   ((st && st.characters) || []).forEach(c => { const name = c && (c.name || c.fullName); if(!name) return; add(known, name); (c.aliases||[]).forEach(a => add(known, a)); if(source.includes(String(name).toLowerCase())) add(allowed, name); });
-  const itemsInfo = ol ? outlineChapterItems(ol.content)[n] : null;
+  const itemsInfo = ol ? outlineChapterItems(ol.content, ol)[n] : null;
   const required = [];
   if(outlineLine) required.push("[OUTLINE Ch" + n + "] " + outlineLine);
   if(arcGoal) required.push("[ARC] " + arcGoal);
@@ -4667,7 +4687,7 @@ function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
     // Nhân vật đã có tên trong Outline/chương trước nhưng chưa được hậu kỳ thêm vào Character Database vẫn hợp lệ.
     nameSource:[arcGoal, arcSource, outlineSource, st && st.directive, st && st.nextChapterHint].concat((priorChapters||[]).slice(-2).map(c => String(c && c.text || "").slice(-6000))).filter(Boolean).join(" ").slice(0, 30000),
     openingContinuity:priorChapters && priorChapters.length ? priorChapters[priorChapters.length-1].text.slice(-1500) : "",
-    mustChange:outlineLine || arcGoal || "Chương phải tạo một bước tiến không thể đảo ngược.", minWords:4500, maxWords:5500 };
+    mustChange:outlineLine || arcGoal || "Chương phải tạo một bước tiến không thể đảo ngược.", minWords:adaptiveChapterWordLimits(st).minAccept, maxWords:adaptiveChapterWordLimits(st).maxAccept };
 }
 
 function adaptiveRequiredBeatBlock(st, chapterNumber){
@@ -4675,7 +4695,7 @@ function adaptiveRequiredBeatBlock(st, chapterNumber){
   const ol = outlineOf(st, n);
   let hasOutlineBeat = false;
   if(ol){
-    const per = outlineChapterLines(ol.content);
+    const per = outlineChapterLines(ol.content, ol);
     if(per[n]) { hasOutlineBeat = true; lines.push("[OUTLINE Ch" + n + "] " + String(per[n]).replace(/\s+/g, " ").slice(0, 1000)); }
   }
   // buildAdaptiveScenePlanPrompt đã nhận brief/hint riêng; chỉ lặp chúng vào từng scene khi không có Outline.
@@ -4820,6 +4840,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
      (1) luôn gửi lệnh TẮT thinking (kể cả lệnh viết văn; creative chỉ ảnh hưởng lấy mẫu); (2) endpoint phớt lờ lệnh -> đo reasoning thực tế và
      cộng "đệm suy nghĩ" vào MỌI lệnh sau; (3) lệnh ngắn (rà/vá JSON) hoặc content rỗng bị reasoning ăn sạch -> gọi lại ngay một lần với đệm. */
   let thinkMargin = 0;
+  let sceneApiError = "";
   const callAI = async (prompt, opts) => {
     const planCall = opts.systemPrompt === SCENE_PLAN_SYSTEM_PROMPT;
     const baseTokens = opts.maxTokens || 3000;
@@ -4857,6 +4878,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
     { context: mirrorContext, priorChapters: chapters, model, usingNsfw: isNsfw },
     {
       state, callAI, route,
+      onSceneError: (id, msg) => { sceneApiError = String(id || "") + ": " + String(msg || "").replace(/\s+/g, " ").slice(0, 300); },
       buildContract: buildChapterContractForGeneration,
       requiredBeats: adaptiveRequiredBeatBlock,
       style: compactSceneStyleLock,
@@ -4868,7 +4890,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
       onNsfw: () => {}, warn: (...a) => console.warn(...a)
     }
   );
-  if (!res) throw new Error("SCENE_FAILED: lỗi API khi viết scene — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.");
+  if (!res) throw new Error("SCENE_FAILED: lỗi API khi viết scene" + (sceneApiError ? " (" + sceneApiError + ")" : "") + " — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.");
   if (res.rejected) throw new Error(res.reason);
   const issues = [];
   let text = formatParagraphs(stripForeign(stripThinkingOutput(String(res.text || ""))));
@@ -4884,7 +4906,8 @@ async function generateAdaptiveWorkerChapter(job, c) {
     issues.push(ce.how === "ai" ? "Câu cuối bị cụt — đã nhờ AI khép chương" : "Câu cuối bị cụt — đã lùi về câu hoàn chỉnh gần nhất");
   }
   const wordCount = countWords(text);
-  if (res.underTarget || wordCount < 4500) issues.push("Thiếu từ: " + wordCount + "/4500" + (res.timedOut ? " (hết thời gian job)" : ""));
+  const _minW = adaptiveChapterWordLimits(state).minAccept;
+  if (res.underTarget || wordCount < _minW) issues.push("Thiếu từ: " + wordCount + "/" + _minW + (res.timedOut ? " (hết thời gian job)" : ""));
   if (res.stats) issues.push("Adaptive: " + res.stats.scenes + "/" + res.stats.plannedScenes + " scene (" + res.stats.wordsBeforeClean + " từ thô → " + res.stats.wordsAfterScenes + " sau dọn), " + res.stats.topUpAttempts + " lượt bù từ, " + (res.stats.dupDropped ? "đã cắt " + res.stats.dupDropped + " đoạn viết lặp, " : "") + (res.stats.sceneRetries ? "kiểm scene: viết lại " + res.stats.sceneRetries + " lượt (" + (res.stats.sceneRewritten || []).join(", ") + "), " : "") + (res.stats.sceneAiReviews ? res.stats.sceneAiReviews + " lượt rà AI scene, " : "") + (res.stats.sceneWarnings && res.stats.sceneWarnings.length ? (() => { const sw = summarizeSceneWarnings(res.stats, 4); return (sw.patched.length ? "scene đã vá cục bộ: " + sw.patched.join(", ") + ", " : "") + (sw.kept.length ? "⚠ scene GIỮ dù AI rà báo (cần đọc lại): " + sw.kept.join(", ") + ", " : "") + "cảnh báo scene: " + sw.shown.join(" · ") + (sw.hidden > 0 ? " (+" + sw.hidden + " cảnh báo nữa)" : "") + ", "; })() : "") + (res.stats.addedCast && res.stats.addedCast.length ? "nhân vật có trong Outline/chương trước nhưng chưa có trong Character Database: " + res.stats.addedCast.join(", ") + ", " : "") + (res.stats.strippedCast && res.stats.strippedCast.length ? "đã gỡ vai ngoài Story Bible: " + res.stats.strippedCast.join(", ") + ", " : "") + (res.stats.outlineMap === "fallback" ? "kế hoạch cảnh của AI không khớp các mục Outline nên đã dựng cảnh theo từng mục Outline, " : "") + (res.stats.outlineMissing && res.stats.outlineMissing.length ? "⚠ Outline: chưa thấy trong truyện: " + res.stats.outlineMissing.slice(0, 4).map(x => "«" + String(x).slice(0, 70) + "»").join(" · ") + ", " : "") + (res.stats.danglingTrimmed && res.stats.danglingTrimmed.length ? "đã bỏ câu dở cuối scene: " + res.stats.danglingTrimmed.join(", ") + ", " : "") + res.stats.seconds + "s viết" + (res.timedOut ? " — DỪNG SỚM vì sắp hết thời gian job" : ""));
   const title = String(state.chapterTitle || state.currentChapterTitle || ("Chương " + chapterNumber)).trim() || ("Chương " + chapterNumber);
   const _sc = normalizeStoryControl(state);
@@ -6337,7 +6360,7 @@ exports.handler = async (event) => {
                 review: () => qualityReviewWorker(job, chapter, n),
                 timeLeft: () => timeLeft() - 30000,
                 onStatus: (m) => { job.progress = m; }
-              }, { maxRounds: Number(job.quickFixRounds) || 1, minRoundMs: 120000, minWords: adaptiveChapterWordLimits(job.storyState).minAccept });
+              }, { maxRounds: Number(job.quickFixRounds) || 1, minRoundMs: 120000 });
               if (fx.attempted) {
                 chapter.review = Object.assign({}, chapter.review, fx.review, { status: "completed", attempt: 1 + fx.rounds, reviewedAt: Date.now(), quickCheck: true, quickFixed: true });
                 chapter.quickCheck = { ok: true, verdict: fx.after.verdict, score: fx.after.score, hard: fx.after.hard, warn: fx.after.warn, at: Date.now(),

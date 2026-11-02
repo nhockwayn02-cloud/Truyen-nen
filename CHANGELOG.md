@@ -1,5 +1,22 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.5.8] — Độ dài chương theo số người dùng nhập (±500) + Quality Gate mặc định TẮT
+- **Độ dài:** `chapterWordLimits/adaptiveChapterWordLimits` lấy "Độ dài mục tiêu" làm chuẩn: chấp nhận mục tiêu ±500 từ (5000 → 4500–5500; 4500 → 4000–5000; 3000 → 2500–3500), hardMax = mục tiêu + 600. Không còn kẹt cứng 4500–5500: hợp đồng chương, báo "Thiếu từ x/y", kiểm tra Gate, bù từ đều dùng cùng giới hạn. Chưa nhập → mặc định 5000.
+- **Quality Gate (chấm + tự sửa):** mặc định TẮT; truyện cũ được chuyển sang tắt MỘT lần (cờ `qgOffV1458`), sau đó công tắc 🛡 vẫn bật lại được. Tắt Gate: chương được duyệt/ghi Canon ngay, không chấm điểm, không tự sửa.
+- Test: cập nhật `v13_adaptive_scene` và `e2e.py` (bật Gate rõ ràng cho nhóm test Gate).
+
+## [V14.5.7] — Outline dán từ Word/Docs không đọc được → chương 9 bị gán beat của chương 3 (nguyên nhân thật)
+- Outline có ngắt dòng mềm U+2028 (Shift+Enter) trước "Sự kiện:/Kháng cự:/Hậu quả:/Móc kết:". `.` của JS không khớp U+2028 nên `outlineChapterLines` trả RỖNG: app không thấy chương nào trong Outline, lùi về 900 ký tự đầu của cả Outline (= chương đứng đầu, "Chương 3") và đòi AI/Gate bám theo.
+- `outlineNormalizeText` đổi U+2028/U+2029/U+0085/VT/FF thành khoảng trắng (và CRLF→LF) trước khi tách; áp dụng cho `outlineChapterLines` và `outlineChapterItems`. Test: `v14_5_7_outline_soft_linebreak.test.js` (kiểm trên outline thật 21 chương 3–23: trước 0 chương, nay đủ).
+
+## [V14.5.6] — Viết chương 9 nhưng Gate đòi beat của "Chương 3"
+- Outline đánh số lại từ 1 trong từng gói (gói áp dụng chương 7–12 viết Ch1…Ch6) làm chương 9 không có dòng nào; code lại lấy 900 ký tự đầu của CẢ outline (= beat chương đứng đầu) thay cho chương này.
+- `outlineChapterLines/Items(content, ol)` đổi số cục bộ về số tuyệt đối khi gói có from>1; thiếu dòng của chương thì để trống thay vì lấy 900 ký tự đầu (chỉ lùi về khi outline hoàn toàn không đánh số chương). Test: `v14_5_6_outline_local_numbering.test.js`.
+
+## [V14.5.5] — SCENE_FAILED không rõ nguyên nhân
+- Lỗi API khi viết scene nay kèm thông báo thật (`SCENE_FAILED: … (S2: API 400: …)`), trước đây bị nuốt.
+- Lỗi API ở một scene được thử lại CHÍNH scene đó (theo `sceneRetries`) thay vì hủy cả job. Test: `v14_5_5_scene_api_error.test.js`.
+
 ## [V14.5.4] — SCENE_REJECTED "scene lộ chỉ dẫn/tiêu đề"
 - Model lớn hay tự thêm tiêu đề `Scene 2:` / `**Cảnh 2.**` hoặc nhắc tên khối chỉ dẫn (STATE DELTA, STYLE LOCK…). Nay `stripSceneLeaks` gỡ các dòng đó (giữ phần văn xuôi nếu nhãn nằm đầu câu) trước khi kiểm tra, cho cả scene lẫn bù từ; chỉ báo lỗi nếu sau khi gỡ vẫn còn. Test: `v14_5_4_scene_leak.test.js`.
 

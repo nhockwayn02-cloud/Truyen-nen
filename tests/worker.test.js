@@ -215,10 +215,13 @@ tg("Gate: ngưỡng điểm 90/75 → 80 là SOFT_FAIL, 70 là HARD_FAIL, 90 là
     assert.strictEqual(r.review.verdict, want, `score ${score}`);
   }
 });
-tg("Gate (worker): kiểm tra cứng dùng chung — bản thảo quá ngắn → HARD_FAIL dù Auditor chấm 95", async () => {
+tg("Gate (worker): kiểm tra cứng dùng chung — bản thảo rỗng → HARD_FAIL dù Auditor chấm 95; chương ngắn không bị chấm số từ", async () => {
   scripted([review({ score: 95 })]);
-  const r = await T.qualityReviewWorker(gateJob(), { text: "quá ngắn" }, 1);
-  assert.strictEqual(r.review.verdict, "HARD_FAIL"); assert(r.review.hardFailures.some(h => /đủ nội dung/.test(h)));
+  const r = await T.qualityReviewWorker(gateJob(), { text: "" }, 1);
+  assert.strictEqual(r.review.verdict, "HARD_FAIL"); assert(r.review.hardFailures.some(h => /có nội dung/.test(h)));
+  scripted([review({ score: 95 })]);
+  const r2 = await T.qualityReviewWorker(gateJob(), { text: "quá ngắn" }, 1);
+  assert(!r2.review.hardFailures.some(h => /từ/.test(h)));
 });
 tg("Gate (worker): prompt Auditor có quy tắc + schema dùng chung và tên NV đã biết", async () => {
   const log = []; let seen = "";

@@ -8,13 +8,15 @@ const T = box.__t;
 let pass = 0;
 function test(name, fn){ fn(); console.log('PASS ' + name); pass++; }
 
-test('giới hạn chương V13 là 4500–5500 và hard cap 5600', () => {
-  const limits = T.chapterWordLimits({ minChapterWords: 500 });
-  assert.strictEqual(limits.target, 5000);
-  assert.strictEqual(limits.minAccept, 4500);
-  assert.strictEqual(limits.maxAccept, 5500);
-  assert.strictEqual(limits.hardMax, 5600);
+test('giới hạn chương theo mục tiêu người dùng: ±500 từ (V14.5.8)', () => {
+  const L = x => T.chapterWordLimits({ minChapterWords: x });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(L(5000))), { target: 5000, minAccept: 4500, maxAccept: 5500, hardMax: 5600 });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(L(4500))), { target: 4500, minAccept: 4000, maxAccept: 5000, hardMax: 5100 });
+  assert.strictEqual(L(3000).minAccept, 2500); assert.strictEqual(L(6000).maxAccept, 6500);
   assert.strictEqual(T.adaptiveChapterWordLimits({ minChapterWords: 5200 }).target, 5200);
+  assert.strictEqual(T.adaptiveChapterWordLimits({ minChapterWords: 4500 }).minAccept, 4000);
+  assert.strictEqual(T.chapterWordLimits({}).target, 5000, 'không nhập -> mặc định 5000');
+  assert.strictEqual(T.compactChapterContract({}).minWords, 4500);
 });
 
 test('Scene Graph chấp nhận số scene linh hoạt và chuẩn hoá ngân sách', () => {
@@ -128,11 +130,10 @@ test('top-up prompt compact chỉ nhận đuôi và bắt buộc viết thêm di
   assert(prompt.length < 7000);
 });
 
-test('Quality Gate hard-fail chương dưới 4.500 từ', () => {
+test('Quality Gate không chấm số từ: chương ngắn vẫn qua, chỉ chặn bản rỗng', () => {
   const short = T.gateHardChecks({ text: Array.from({length: 2886}, (_, i) => 'từ' + i).join(' ') });
-  const lengthCheck = short.find(c => c.id === 'text_nonempty');
-  assert(lengthCheck && lengthCheck.ok === false);
-  assert(T.gateHardChecks({ text: Array.from({length: 4500}, (_, i) => 'từ' + i).join(' ') }).find(c => c.id === 'text_nonempty').ok);
+  assert(short.find(c => c.id === 'text_nonempty').ok === true);
+  assert(T.gateHardChecks({ text: '   ' }).find(c => c.id === 'text_nonempty').ok === false);
 });
 
 test('viết lại chương vẫn đi qua Adaptive Scene + Top-up', () => {

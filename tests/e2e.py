@@ -201,6 +201,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(2500); page.reload(); page.wait_for_timeout(1500)
     persisted = page.evaluate("()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return !!(c&&c.text&&c.text.length>100)}")
     check("19. Bản chương được lưu bền sau reload", persisted)
+    page.evaluate("()=>{__xta.state.qualityGateEnabled=true;}")  # V14.5.8: Gate mặc định TẮT -> bật rõ ràng cho các test dùng Gate
     # chế độ tuần tự cũ (tắt Song song)
     page.evaluate("()=>{const s=__xta.state; s.apiEndpoint=document.getElementById('apiEndpoint').value||s.apiEndpoint; s.apiKey='test-key'; s.minChapterWords=40; s.nsfwMode='off'; s.mature=false; s.autoContinueEnabled=false; s.spellCheckEnabled=true; s.parallelEnabled=false; s.queueEnabled=false;}")
     page.evaluate("()=>document.getElementById('writeChapterBtn').click()")
@@ -210,6 +211,7 @@ with sync_playwright() as p:
     page.evaluate("()=>{const s=__xta.state; s.parallelEnabled=true; s.queueEnabled=true;}")
     # ---- v12.16b: Quality Gate + Canon pipeline ----
     SET = "()=>{const s=__xta.state; s.apiEndpoint=document.getElementById('apiEndpoint').value||s.apiEndpoint; s.apiKey='test-key'; s.minChapterWords=40; s.nsfwMode='off'; s.mature=false; s.autoContinueEnabled=false; s.spellCheckEnabled=false; s.parallelEnabled=true; s.queueEnabled=true;}"
+    page.evaluate("()=>{__xta.state.qualityGateEnabled=true;}")  # V14.5.8: Gate mặc định TẮT -> bật rõ ràng cho nhóm test Gate
     def write_chapter(timeout=90):
         page.evaluate(SET)
         page.evaluate("()=>document.getElementById('writeChapterBtn').click()")
