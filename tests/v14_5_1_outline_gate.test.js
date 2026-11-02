@@ -5,7 +5,7 @@ const ctx = { console, Date, Math, JSON }; vm.createContext(ctx);
 vm.runInContext(src + '\n;this.__t={outlineGateCheck,outlineBeatCoverage,evaluateReview};', ctx);
 const T = ctx.__t; let pass = 0; const t = (n, f) => { f(); console.log('PASS ' + n); pass++; };
 const CONTENT = ['Chương 6 — Theo dõi kho hàngSự kiện: Hà quan sát nhà kho Song Hành từ xa.', '•\tĐêm về, gọi Lan xuống tầng hầm B2.', '•\tBắt Lan ký biên bản giả, đứng yên giữa phòng.', '•\tBắt Lan đọc to câu cam kết trung thành.Kháng cự: Im lặng.Hậu quả: Bị buộc nghe theo.Móc kết: Hà đưa cô về.'].join('\n');
-const st = (extra) => Object.assign({ chapters: new Array(5).fill({}), outlinePlans: [{ name: 'GĐ1', from: 6, to: 8, content: CONTENT }] }, extra || {});
+const st = (extra) => Object.assign({ outlineBeatGate: 'strict', chapters: new Array(5).fill({}), outlinePlans: [{ name: 'GĐ1', from: 6, to: 8, content: CONTENT }] }, extra || {});
 const FULL = 'Hà đứng nhìn nhà kho Song Hành từ xa suốt buổi tối. Đêm về, Hà gọi Lan xuống tầng hầm B2. Hà bắt Lan ký biên bản giả rồi đứng yên giữa phòng. Hà bắt Lan đọc to câu cam kết trung thành. Lan im lặng, bị buộc nghe theo. Hà đưa cô về.';
 const OFFTOPIC = 'Hà ngồi trong quán cà phê mở máy tính, đọc thư mục quỹ đen và gọi điện hỏi mật khẩu của tập tin mã hóa.';
 const names = ['Hà', 'Lan'];
@@ -26,6 +26,14 @@ t('tắt bằng state.outlineBeatGate=false; không có Outline chương -> khô
   assert.strictEqual(JSON.stringify(T.outlineGateCheck(st({ outlineBeatGate: false }), 6, OFFTOPIC, names)), '{"hard":[],"warn":[]}');
   assert.strictEqual(JSON.stringify(T.outlineGateCheck({ chapters: [], outlinePlans: [] }, 6, OFFTOPIC, names)), '{"hard":[],"warn":[]}');
   assert.strictEqual(T.outlineGateCheck(st(), 12, OFFTOPIC, names).hard.length, 0);
+});
+t('V14.5.9: mặc định (không strict) thiếu ý Outline chỉ CẢNH BÁO; AI Auditor báo thiếu sự kiện bắt buộc cũng bị hạ xuống cảnh báo', () => {
+  const og = T.outlineGateCheck(st({ outlineBeatGate: true }), 6, OFFTOPIC, names);
+  assert.strictEqual(og.hard.length, 0); assert.strictEqual(og.warn.length, 1);
+  const rv = T.evaluateReview({ score: 95, dimensions: {}, hardFailures: ['Thiếu sự kiện bắt buộc [R2]: Lan ký biên bản'] }, {});
+  assert.strictEqual(rv.verdict, 'PASS'); assert.strictEqual(rv.hardFailures.length, 0); assert.ok(rv.warnings.some(x => /Thiếu sự kiện bắt buộc/.test(x)));
+  const rs = T.evaluateReview({ score: 95, dimensions: {}, hardFailures: ['Thiếu sự kiện bắt buộc [R2]'] }, { strictBeats: true });
+  assert.strictEqual(rs.verdict, 'HARD_FAIL');
 });
 t('đi qua evaluateReview: lỗi nặng của Outline làm verdict HARD_FAIL dù điểm cao; cảnh báo thì không', () => {
   const og = T.outlineGateCheck(st(), 6, OFFTOPIC, names);

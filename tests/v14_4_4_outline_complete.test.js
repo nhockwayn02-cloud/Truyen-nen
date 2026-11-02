@@ -42,7 +42,7 @@ const withOutline = (m, text) => { m.deps.buildContract = () => Object.assign(JS
 const spyTop = (m) => { const tops = []; const orig = m.deps.callAI; m.deps.callAI = async (p, o) => { if (/VIẾT BỔ SUNG/.test(p)) tops.push(p); return orig(p, o); }; return tops; };
 (async () => {
 await t('chương đủ từ nhưng thiếu sự kiện Outline -> bù RIÊNG sự kiện còn thiếu (tối đa 2 lượt)', async () => {
-  const m = withOutline(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { outlineComplete: true } })); const tops = spyTop(m);
+  const m = withOutline(mkDeps(() => prose(1650, 'Lan đứng đó.'), { deps: { outlineComplete: true, beatLedger: false } })); const tops = spyTop(m);
   const res = await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.ok(res && !res.rejected, JSON.stringify(res && res.reason));
   assert.ok(tops.length >= 1 && tops.length <= 2, 'số lượt bù: ' + tops.length);
@@ -54,7 +54,7 @@ await t('mặc định (không bật outlineComplete) -> không bù thêm khi đ
   assert.strictEqual(tops.length, 0);
 });
 await t('Outline đã được phủ trong truyện -> không bù', async () => {
-  const m = withOutline(mkDeps(() => prose(1650, 'Lan khóa két số bảy rồi giấu chìa khóa dưới chậu cây xương rồng.'), { deps: { outlineComplete: true } })); const tops = spyTop(m);
+  const m = withOutline(mkDeps(() => prose(1650, 'Lan khóa két số bảy rồi giấu chìa khóa dưới chậu cây xương rồng.'), { deps: { outlineComplete: true, beatLedger: false } })); const tops = spyTop(m);
   await T.runAdaptiveChapterPipeline(OPTS, m.deps);
   assert.strictEqual(tops.length, 0, 'không được bù khi beat đã có');
 });
