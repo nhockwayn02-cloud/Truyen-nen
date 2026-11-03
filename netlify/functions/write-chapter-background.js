@@ -74,6 +74,15 @@ function normalizeName(s) {
 function chapterWordLimits(st) {
   // Client gọi không tham số (dùng state toàn cục); worker truyền state của job.
   if (!st && typeof state !== "undefined") st = state;
+  // V14.6: min/max tường minh được ưu tiên; truyện cũ không có hai trường này vẫn dùng target ±500.
+  const explicitMin = Number(st && st.chapterWordMin), explicitMax = Number(st && st.chapterWordMax);
+  if (Number.isFinite(explicitMin) && Number.isFinite(explicitMax) && explicitMin >= 300 && explicitMax >= explicitMin && explicitMax <= 12000) {
+    const minAccept = Math.floor(explicitMin), maxAccept = Math.floor(explicitMax);
+    const requestedTarget = Number(st && st.minChapterWords);
+    const target = Number.isFinite(requestedTarget) && requestedTarget >= minAccept && requestedTarget <= maxAccept
+      ? Math.round(requestedTarget) : Math.round((minAccept + maxAccept) / 2);
+    return { target, minAccept, maxAccept, hardMax: maxAccept };
+  }
   // V14.5.8: độ dài chương theo ĐÚNG số người dùng nhập ở "Độ dài mục tiêu": chấp nhận mục tiêu ±500 từ
   // (5000 -> 4500–5500; 4500 -> 4000–5000). Không nhập/không hợp lệ -> mặc định 5000.
   const requested = Number(st && st.minChapterWords);
@@ -87,6 +96,14 @@ function chapterWordLimits(st) {
 // V13: số scene và chức năng scene do diễn biến quyết định, không gán vai trò cố định.
 function adaptiveChapterWordLimits(st) {
   return chapterWordLimits(st);
+}
+function chapterLengthAction(st, wordCount) {
+  const limits = chapterWordLimits(st), words = Math.max(0, Math.floor(Number(wordCount) || 0));
+  const hasExplicitBounds = Number.isFinite(Number(st && st.chapterWordMin)) && Number.isFinite(Number(st && st.chapterWordMax)) && Number(st.chapterWordMin) >= 300 && Number(st.chapterWordMax) >= Number(st.chapterWordMin) && Number(st.chapterWordMax) <= 12000;
+  if (words < limits.minAccept) return { action: "expand", deficit: limits.minAccept - words, target: limits.target, minAccept: limits.minAccept, maxAccept: limits.maxAccept };
+  const maxForAction = hasExplicitBounds ? limits.maxAccept : limits.hardMax;
+  if (words > maxForAction) return { action: "condense", excess: words - maxForAction, target: limits.target, minAccept: limits.minAccept, maxAccept: maxForAction };
+  return { action: "within", target: limits.target, minAccept: limits.minAccept, maxAccept: limits.maxAccept, hardMax: limits.hardMax };
 }
 
 function compactSceneTail(text, maxChars) {
@@ -646,13 +663,28 @@ function beatEvidenceInText(evidence, text) {
   const et = e.split(' ').filter(w => w.length >= 2), tt = new Set(t.split(' '));
   return et.length >= 4 && et.filter(w => tt.has(w)).length / et.length >= 0.7;
 }
+/* V14.5.14: MỤC OUTLINE GHÉP (liệt kê >= 3 hành động: "Còng tay, đeo vòng cổ, bắt quỳ và …") được tách thành Ý CON.
+   Trước đây chỉ cần một câu trích cho cả mục là qua kiểm tra, nên chỉ một ý con xuất hiện (đâu đó trong cảnh) vẫn "done"; bộ chấm cuối chương mới bắt lỗi -> viết xong mới biết thiếu. */
+function outlineItemParts(text) {
+  const parts = String(text || '').replace(/\s+/g, ' ').trim()
+    .split(/\s*(?:,|;|\s\+\s|\s+và\s+|\.\s+(?=\p{Lu}))\s*/u)
+    .map(s => s.replace(/[.\s]+$/u, '').trim()).filter(s => s.length >= 4);
+  return parts.length >= 3 && parts.length <= 7 ? parts : [];
+}
+function outlineItemIsCompound(text) { return outlineItemParts(text).length >= 3; }
 function buildBeatEvidencePrompt(o) {
   o = o || {}; const items = Array.isArray(o.items) ? o.items : [];
+  const itemLine = x => {
+    const t = String(x.text || '').replace(/\s+/g, ' ').slice(0, 300), parts = outlineItemParts(t);
+    return x.n + '. ' + t + (parts.length ? '  [GỒM ' + parts.length + ' Ý CON, phải có ĐỦ TẤT CẢ: ' + parts.map((p, k) => (k + 1) + ') ' + p).join(' · ') + ']' : '');
+  };
+  const hasParts = items.some(x => outlineItemParts(x.text).length);
   return [
     'KIỂM TRA SỰ KIỆN BẮT BUỘC của ' + (o.scope === 'chapter' ? 'CHƯƠNG' : 'MỘT SCENE') + ' tiểu thuyết. Với MỖI sự kiện dưới đây, quyết định văn bản đã THỰC HIỆN nó chưa.',
     'Chỉ trả JSON: {"items":[{"n":1,"done":true,"evidence":"trích NGUYÊN VĂN 6–25 từ liên tục từ văn bản"}]} — evidence để rỗng nếu done=false.',
     'QUY TẮC: done=true khi sự kiện thực sự DIỄN RA trong truyện (hành động/lời thoại/thông tin/hậu quả cụ thể), kể cả viết bằng câu chữ khác hay thứ tự khác. done=false khi hoàn toàn vắng, chỉ được nhắc thoáng qua/tóm tắt một câu, hoặc diễn ra ngược lại. Không đòi chi tiết mà sự kiện không nêu. evidence PHẢI chép đúng từng chữ từ văn bản, không viết lại.',
-    'SỰ KIỆN CẦN KIỂM TRA:\n' + items.map(x => x.n + '. ' + String(x.text || '').replace(/\s+/g, ' ').slice(0, 300)).join('\n'),
+    hasParts ? 'MỤC CÓ Ý CON: done=true CHỈ KHI TẤT CẢ các ý con đều thực sự diễn ra (không đòi từng chữ), và chúng thuộc MỘT đoạn cảnh liền mạch chứ không rải ở những cảnh/đoạn xa nhau. Thiếu dù một ý con -> done=false.' : '',
+    'SỰ KIỆN CẦN KIỂM TRA:\n' + items.map(itemLine).join('\n'),
     'VĂN BẢN:\n' + String(o.text || '').slice(0, o.scope === 'chapter' ? 42000 : 12000)
   ].join('\n\n');
 }
@@ -678,6 +710,9 @@ function parseBeatEvidence(raw, ns, text) {
   return { results, missing, unknown };
 }
 function beatMissingError(texts) {
+  /* V14.5.14: mục ghép thiếu ý con -> KHÔNG vá chèn (chèn rải ý con ra nhiều chỗ, gây cảnh rời rạc/lặp); lỗi này không thuộc diện "vá được" nên scene được VIẾT LẠI liền mạch. */
+  const compound = (texts || []).filter(outlineItemIsCompound);
+  if (compound.length) return 'THIẾU TRÌNH TỰ BẮT BUỘC (SỰ KIỆN BẮT BUỘC chưa đủ ý con): ' + compound.map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 200) + '»').join(' · ') + ' — viết lại scene thành MỘT cảnh liên tục: các ý theo đúng thứ tự, mỗi ý có hành động/lời thoại/phản ứng riêng, kể mỗi ý đúng MỘT lần, không rải sang đoạn khác và không tóm tắt.' + ((texts || []).length > compound.length ? ' Đồng thời còn thiếu: ' + (texts || []).filter(x => !outlineItemIsCompound(x)).map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 160) + '»').join(' · ') : '');
   return 'MUST_CHANGE: thiếu SỰ KIỆN BẮT BUỘC (chưa thấy diễn ra trong văn bản): ' + texts.map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 160) + '»').join(' · ') + ' — chèn hành động/lời thoại cụ thể cho sự kiện này, không tóm tắt một câu.';
 }
 
@@ -756,10 +791,47 @@ function vietnameseNovelWritingPrompt() {
 }
 
 // V14.3.2: scene prompt CHỈ nhận checklist của chính scene đó (trước đây cả outline chương bị lặp 3 lần trong mọi scene prompt -> model kể lại toàn bộ chuỗi sự kiện ở từng scene).
-function sceneScopeOf(scenes, i) {
+/* V14.5.14: meta = ghi chú Kháng cự/Hậu quả của Outline chương; items = các mục Outline đánh số. Trước đây prompt VIẾT scene không thấy "Kháng cự" (chỉ prompt lập kế hoạch thấy)
+   nên writer tước dao ngay dù Outline đòi "chống trả quyết liệt"; mục ghép cũng không có "trình tự liên tục" để writer giữ trong MỘT cảnh. */
+function sceneScopeOf(scenes, i, meta, items) {
   const list = Array.isArray(scenes) ? scenes : [];
   const pick = sc => [sc && sc.id, String((sc && sc.mustChange) || '').replace(/\s+/g, ' ').trim().slice(0, 220)].filter(Boolean).join(': ');
-  return { index: i, total: list.length, done: list.slice(0, i).map(pick).filter(Boolean), later: list.slice(i + 1).map(pick).filter(Boolean) };
+  const scope = { index: i, total: list.length, done: list.slice(0, i).map(pick).filter(Boolean), later: list.slice(i + 1).map(pick).filter(Boolean), notes: [], sequences: [] };
+  const cur = list[i], own = cur && Array.isArray(cur.outlineItems) ? cur.outlineItems.map(Number).filter(n => n >= 1) : [];
+  if (!own.length) return scope;
+  const m = meta || {}, clean = v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+  if (clean(m.resistance)) scope.notes.push('KHÁNG CỰ CỦA CHƯƠNG (diễn tiến xuyên suốt các scene; scene này chỉ thể hiện phần hợp với vị trí của nó, không kể lại phần đã có, không rút ngắn thành một câu. Nếu mục của scene là kháng cự rồi bị khống chế/tước vũ khí thì phải viết cuộc giằng co thật — nhiều nhịp đòn/đỡ/phản ứng — TRƯỚC khi bị khống chế, không tước ngay): ' + clean(m.resistance));
+  if (clean(m.consequence)) {
+    const idxs = []; list.forEach((sc, k) => { if (sc && Array.isArray(sc.outlineItems) && sc.outlineItems.length) idxs.push(k); });
+    let owner = idxs.length ? idxs[idxs.length - 1] : -1, best = 0;
+    const ct = _beatToks(m.consequence);
+    idxs.forEach(k => {
+      const pool = new Set(); list[k].outlineItems.forEach(n => _beatToks((items || [])[n - 1] || '').forEach(w => pool.add(w)));
+      const hit = ct.filter(w => pool.has(w)).length;
+      if (hit > best) { best = hit; owner = k; }
+    });
+    if (owner === i) scope.notes.push('HẬU QUẢ CẦN THỂ HIỆN (một lần, ở scene này): ' + clean(m.consequence));
+  }
+  own.forEach(n => {
+    const parts = outlineItemParts((items || [])[n - 1] || '');
+    if (parts.length >= 3) scope.sequences.push(parts);
+  });
+  return scope;
+}
+// V14.5.14: tách mệnh đề Hậu quả đã được một mục Outline nêu -> bỏ khỏi ghi chú, tránh một sự kiện bị yêu cầu hai lần (nguồn của cảnh lặp ba lần).
+function _beatToks(t) { return Array.from(new Set(normalizeName(t).split(/[^a-z0-9đ]+/).filter(w => w.length >= 2 && !SCENE_STOP_TOKENS.has(w)))); }
+function outlineClauseCovered(clause, items) {
+  const ct = _beatToks(clause); if (ct.length < 2) return false;
+  const pool = new Set(); (items || []).forEach(it => _beatToks(it).forEach(w => pool.add(w)));
+  return ct.filter(w => pool.has(w)).length / ct.length >= 0.6;
+}
+function dedupeOutlineMeta(meta, items) {
+  const out = Object.assign({}, meta || {});
+  if (out.consequence) {
+    const keep = String(out.consequence).split(/\s*(?:\s\+\s|;)\s*/).map(s => s.trim()).filter(Boolean).filter(c => !outlineClauseCovered(c, items));
+    if (keep.length) out.consequence = keep.join(' + '); else delete out.consequence;
+  }
+  return out;
 }
 function sceneScopedContract(contract) {
   const c = promptChapterContract(contract);
@@ -774,6 +846,8 @@ function sceneScopedChecklistBlock(scene, scope) {
   const out = ['CHECKLIST RIÊNG CỦA SCENE ' + (s.id || '') + ' (' + ((sc.index || 0) + 1) + '/' + (sc.total || '?') + ') — chỉ thực hiện các mục này rồi dừng ở handoff' + (perBeat >= 150 ? '; mỗi mục viết thành cảnh đầy đủ (hành động, lời thoại, phản ứng), khoảng ' + perBeat + ' từ/mục, không tóm tắt' : '') + ':\n- ' + mine.join('\n- ')];
   if (sc.done && sc.done.length) out.push('ĐÃ KỂ XONG Ở SCENE TRƯỚC — TUYỆT ĐỐI KHÔNG kể lại hay diễn đạt lại (chỉ được nhắc hậu quả bằng một mệnh đề ngắn):\n- ' + sc.done.join('\n- '));
   if (sc.later && sc.later.length) out.push('DÀNH CHO SCENE SAU — KHÔNG kể diễn biến ở scene này; chỉ được gợi sang bằng 1–2 câu cuối theo handoff:\n- ' + sc.later.join('\n- '));
+  (sc.sequences || []).forEach(parts => out.push('TRÌNH TỰ LIÊN TỤC BẮT BUỘC — viết trong MỘT cảnh liền mạch, đúng thứ tự, mỗi bước kể ĐÚNG MỘT LẦN (không tách sang đoạn khác, không nhắc lại như hậu quả, không bỏ bước): ' + parts.join(' → ')));
+  (sc.notes || []).forEach(n => out.push(n));
   return out.join('\n\n');
 }
 // V14.3.2: phát hiện scene mới KỂ LẠI sự kiện đã có ở scene trước bằng câu chữ khác (so theo từ đặc trưng của từng đoạn, không cần trùng nguyên văn).
@@ -1863,6 +1937,16 @@ function sceneTransitionOnly(text) {
 }
 // Chuẩn hoá kết quả Auditor → review có verdict cuối cùng. Trả null nếu obj không phải object JSON.
 // opts: { maxMainEvents, maxNamedCharacters, passScore, softFailScore, extraHard: string[], now }
+/* V14.5.14: Auditor hay nhét NHẬN XÉT "KHÔNG CÓ LỖI" vào danh sách lỗi ("… nên không phải lỗi continuity", "hợp lý", "đúng trình tự", "đã đúng"). Các dòng đó vào luồng AI tự sửa
+   làm model sửa nhầm chỗ đang đúng. Chỉ bỏ dòng có kết luận "không lỗi" VÀ không chứa từ chỉ lỗi thật (thiếu/sai/mâu thuẫn/lặp/…), nên dòng lỗi thật không bị nuốt. */
+function isNoopAuditNote(text) {
+  const t = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  const ok = /(không phải (?:là )?(?:một )?lỗi|không (?:có )?lỗi|không có vấn đề|không cần sửa|hợp lý|đúng trình tự|đã đúng|đúng như outline|đạt yêu cầu|nên không phải)/.test(t);
+  if (!ok) return false;
+  const bad = /(không hợp lý|bất hợp lý|chưa hợp lý|không đúng|chưa đúng|không đạt|sai lệch|trái |thiếu|sai |sai\.|mâu thuẫn|vi phạm|bỏ sót|bị lặp|lặp lại|nhầm|không khớp|chưa (?:thấy|có|viết|thực hiện|rõ)|thừa|lỗi nặng|nên (?:sửa|thêm|bổ sung|viết lại)|cần (?:sửa|thêm|bổ sung|viết lại))/.test(t);
+  return !bad;
+}
 function evaluateReview(obj, opts) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
   opts = opts || {};
@@ -1871,7 +1955,8 @@ function evaluateReview(obj, opts) {
   const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
   // Một số Auditor đặt câu kiểm tra đạt vào hardFailures dù đây không phải lỗi.
   // Không để dòng "Không có lỗi continuity mức cao..." làm nhiễu Gate/UI.
-  const hard = arr(obj.hardFailures, 20).filter(x => !/^\s*Không có lỗi continuity mức cao/i.test(gateItemText(x)));
+  const hard = arr(obj.hardFailures, 20).filter(x => !/^\s*Không có lỗi continuity mức cao/i.test(gateItemText(x)) && !isNoopAuditNote(gateItemText(x)));
+  const noiseDropped = (Array.isArray(obj.warnings) ? obj.warnings.slice(0, 20) : []).filter(x => isNoopAuditNote(gateItemText(x))).length + (Array.isArray(obj.hardFailures) ? obj.hardFailures.slice(0, 20).length : 0) - hard.length;
   /* V14.5.9: AI Auditor hay báo "Thiếu sự kiện/beat bắt buộc" dù chương đã viết ý đó bằng câu chữ khác -> chỉ CẢNH BÁO, không HARD_FAIL
      (viết lại không hết lỗi). Bật lại chặn cứng bằng opts.strictBeats. */
   const beatWarn = [];
@@ -1936,7 +2021,7 @@ function evaluateReview(obj, opts) {
   return Object.assign({}, obj, {
     score, verdict, hardFailures: hard,
     dimensions: obj.dimensions && typeof obj.dimensions === "object" ? obj.dimensions : {},
-    warnings: arr(obj.warnings, 20).concat(beatWarn, sceneWarn, timeWarn, opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
+    warnings: arr(obj.warnings, 20).filter(x => !isNoopAuditNote(gateItemText(x))).concat(beatWarn, sceneWarn, timeWarn, opts.extraWarnings || []), noiseDropped: Math.max(0, noiseDropped), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
     reviewedAt: opts.now || Date.now()
   });
 }
@@ -3166,6 +3251,7 @@ function outlineChapterItems(content, ol) {
       pieces.slice(1).forEach(x => parseMeta(x, out[cur].meta));
     }
   });
+  Object.keys(out).forEach(k => { if (out[k] && out[k].meta) out[k].meta = dedupeOutlineMeta(out[k].meta, out[k].items); }); // V14.5.14: Hậu quả trùng mục -> bỏ
   return _outlineRemapLocal(out, ol);
 }
 function validateOutlineMapping(plan, items) {
@@ -3284,7 +3370,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     }
   });
 
-  const pieces = [], sceneStates = [];
+  const pieces = [], sceneStates = [], sceneTelemetry = [];
   let dupDropped = 0, sceneRetries = 0, sceneAiReviews = 0, ratioSum = 0, ratioN = 0;
   const danglingTrimmed = [];
   const sceneRewritten = [], sceneWarnings = [], sceneKept = [], scenePatched = [];
@@ -3320,17 +3406,19 @@ async function runAdaptiveChapterPipeline(o, deps) {
     /* V14.3.8: model viết scene ngắn hơn ngân sách (thường chỉ 75–90%) nên chương luôn phải bù từ SAU câu kết. Nâng mục tiêu trong PROMPT theo tỉ lệ đạt được của các scene trước (tối đa x1,35); kiểm tra vẫn dùng mục tiêu gốc. */
     const _boost = (deps.sceneTargetBoost !== false && ratioN) ? Math.min(1.35, Math.max(1, 1 / Math.max(0.6, ratioSum / ratioN))) : 1;
     const pScene = _boost > 1.05 ? Object.assign({}, scene, { targetWords: Math.round(scene.targetWords * _boost) }) : scene;
+    const sceneT0 = Date.now(), sceneMetric = { sceneId: scene.id, outlineItems: Array.isArray(scene.outlineItems) ? scene.outlineItems.slice() : [], targetWords: Number(scene.targetWords) || 0, attempts: 0, retries: 0, inputChars: 0, outputWords: 0, status: 'running', errors: [], patched: false, aiReviews: 0 };
     let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
+      sceneMetric.attempts = sceneTries; sceneMetric.retries = Math.max(0, sceneTries - 1);
       const prompt = buildAdaptiveSceneWritePrompt({
         state: st, scene: pScene, chapterGoal: graph.chapterGoal,
         endingAnchor: graph.endingAnchor, previousTail,
         isOpeningScene: i === 0 && !!priorChapters.length,
         stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
         requiredBeats,
-        sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i),
+        sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i, chapterContract.outlineMeta, itemsAll),
         prevScene: i > 0 && deps.sceneBridge !== false ? graph.scenes[i - 1] : null,
         allowedCast: chapterContract.allowedCharacters.join(', '),
         forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract,
@@ -3338,6 +3426,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         style: deps.style(route.nsfw),
         correction
       });
+      sceneMetric.inputChars += prompt.length;
       let text;
       try {
         const r = await callAI(prompt, {
@@ -3350,11 +3439,13 @@ async function runAdaptiveChapterPipeline(o, deps) {
           streaming: false
         });
         text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
+        sceneMetric.outputWords = Math.max(sceneMetric.outputWords, countWords(text));
         if (detectNonVietnamese(text)) text = stripForeign(text);
         // V14.0.8: scene viết LẠI đoạn đã có (model mở đầu lại cùng một cảnh) -> cắt phần lặp, giống đường viết tiếp của writer cũ.
         if (pieces.length) { const d = dropRepeatedParagraphs(pieces.join('\n\n'), text); if (d.length < text.length) { dupDropped++; text = d.trim(); if (countWords(text) < 80) { skipScene = true; break; } } }
         { const tr = trimDanglingSceneEnd(text); if (tr !== text && countWords(tr) >= 80) { if (!danglingTrimmed.includes(scene.id)) danglingTrimmed.push(scene.id); text = tr; } }
       } catch (e) {
+        sceneMetric.errors.push(String(e && e.message || 'scene API error').slice(0, 240));
         if (deps.warn) deps.warn('[AdaptiveScene] scene failed', scene.id, e && e.message);
         // V14.5.5: giữ thông báo lỗi API thật; lỗi tạm thời (timeout/5xx/429...) -> thử lại CHÍNH scene này thay vì hủy cả job.
         if (deps.onSceneError) { try { deps.onSceneError(scene.id, e && e.message); } catch (_) {} }
@@ -3391,6 +3482,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
           });
           const parsed = parseSceneReviewResponse(rv && rv.text);
           sceneAiReviews++;
+          sceneMetric.aiReviews++;
           if (parsed) {
             errors = parsed.errors.slice(); warns = warns.concat(parsed.warnings);
             if (parsed.ok === false && !parsed.errors.length && !parsed.warnings.length) warns.push('rà AI báo ok=false nhưng không nêu lý do — scene được coi là đạt, nên đọc lại');
@@ -3453,8 +3545,10 @@ async function runAdaptiveChapterPipeline(o, deps) {
       accepted = lastText; sceneKept.push(scene.id);
       pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 480), true);
     }
-    if (accepted === null) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') };
+    if (accepted === null) { sceneMetric.status = 'rejected'; sceneMetric.errors = sceneMetric.errors.concat(lastErrors.map(x => String(x).slice(0, 240))).slice(0, 6); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric); return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') }; }
     pieces.push(accepted); pieceScene.push(i);
+    sceneMetric.status = sceneKept.includes(scene.id) ? 'kept_with_warning' : (scenePatched.includes(scene.id) ? 'patched' : 'accepted');
+    sceneMetric.patched = scenePatched.includes(scene.id); sceneMetric.outputWords = countWords(accepted); sceneMetric.errors = lastErrors.slice(0, 6).map(x => String(x).slice(0, 240)); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric);
     if (Number(scene.targetWords) > 0) { ratioSum += countWords(accepted) / Number(scene.targetWords); ratioN++; }
     previousTail = accepted.slice(-1200);
     sceneStates.push({
@@ -3563,7 +3657,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   const underTarget = wc < limits.minAccept;
   const outlineMissing = ledgerMiss ? ledgerMiss.map(n => itemsAll[n - 1].slice(0, 90)) : deps.outlineCheck === false ? [] : outlineMissingBeats(chapterContract.chapterOutline, text, [].concat(chapterContract.allowedCharacters || [], chapterContract.canonicalCharacters || []));
   const beatLedgerOut = {}; Object.keys(beatLedger).forEach(k => { beatLedgerOut[k] = { done: !!beatLedger[k].done, sceneId: beatLedger[k].sceneId, evidence: String(beatLedger[k].evidence || '').slice(0, 120) }; });
-  const stats = { beatLedger: beatLedgerOut, beatChecks, beatRepaired, outlineMissing, outlineMap, scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneKept, scenePatched, danglingTrimmed, sceneAiReviews, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
+  const stats = { beatLedger: beatLedgerOut, beatChecks, beatRepaired, outlineMissing, outlineMap, scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneKept, scenePatched, danglingTrimmed, sceneAiReviews, sceneTelemetry, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
   return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(promptChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut, stats };
 }
 
@@ -3775,6 +3869,28 @@ function deterministicConsistencyCheck(st) {
   });
   return issues;
 }
+function buildChapterPostWriteAudit(st, chapterNumber) {
+  st = st || {};
+  const n = Math.max(1, Math.floor(Number(chapterNumber) || 1)), chapters = Array.isArray(st.chapters) ? st.chapters : [];
+  const chapter = chapters[n - 1] || {}, limits = chapterWordLimits(st), words = countWords(chapter.text || "");
+  const withinWordBounds = words >= limits.minAccept && words <= limits.maxAccept;
+  const lengthStatus = words < limits.minAccept ? "below_min" : words > limits.maxAccept ? (words <= limits.hardMax ? "within_hard_cap" : "above_max") : "within";
+  const issues = (Array.isArray(chapter.continuityWarnings) ? chapter.continuityWarnings : []).map(x => String(x && (x.description || x.message) || x).trim()).filter(Boolean);
+  const consistency = deterministicConsistencyCheck(st).filter(x => !Array.isArray(x.chapters) || !x.chapters.length || x.chapters.includes(n));
+  consistency.forEach(x => { const text = String(x.description || "").trim(); if (text && !issues.includes(text)) issues.push(text); });
+  const statusState = st.statusState && typeof st.statusState === "object" ? st.statusState : {};
+  const log = (Array.isArray(statusState.timeLog) ? statusState.timeLog : Array.isArray(st.timeLog) ? st.timeLog : [])
+    .filter(x => x && x.time && (!Number(x.chapter) || Number(x.chapter) <= n));
+  const norm = x => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+  let run = 0, mark = "";
+  if (log.length) { mark = String(log[log.length - 1].time); const last = norm(mark); for (let i = log.length - 1; i >= 0 && norm(log[i].time) === last; i--) run++; }
+  const timeStall = run >= 3 ? { repeatedMarks: run, time: mark, startChapter: Number(log[log.length - run].chapter) || null, endChapter: Number(log[log.length - 1].chapter) || n } : null;
+  if (timeStall) issues.push(run + " chương liên tiếp cùng mốc thời gian: " + mark);
+  const terminal = ["paid_off", "abandoned", "resolved", "completed"];
+  const unresolvedThreads = (Array.isArray(st.threads) ? st.threads : []).filter(x => x && !terminal.includes(String(x.status || "").toLowerCase())).length;
+  const unresolvedForeshadowing = (Array.isArray(st.foreshadowing) ? st.foreshadowing : []).filter(x => x && !terminal.includes(String(x.status || "").toLowerCase())).length;
+  return { chapterNumber: n, checkedAt: Date.now(), wordCount: words, minWords: limits.minAccept, maxWords: limits.maxAccept, hardMax: limits.hardMax, withinWordBounds, lengthStatus, continuityIssues: issues.slice(0, 30), timeStall, unresolvedThreads, unresolvedForeshadowing };
+}
 /* ----- Rà mâu thuẫn bằng AI trên dữ liệu rút gọn ----- */
 function buildConsistencyPrompt(st) {
   const chars = (st.characters || []).slice(0, 60).map(c => ({ name: c.name, tier: c.tier, age: c.age, gender: c.gender, role: c.role || c.occupation, married: c.maritalStatus, spouse: c.spouseName, dead: !!c.dead, deathChapter: c.deathChapter, loc: c.currentLocation, secret: String(c.secret || "").slice(0, 80) }));
@@ -3821,6 +3937,104 @@ function recordStepUsage(st, step, model, inTok, outTok, cost) {
 function modelForStep(st, step, fallback) {
   const m = st && st.stepModels && typeof st.stepModels[step] === "string" ? st.stepModels[step].trim() : "";
   return m || fallback;
+}
+/* ----- Memory phân tầng: range chương, arc và volume ----- */
+function buildLayeredMemoryRanges(chapterCount, config) {
+  const positiveInt = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 1 ? Math.min(1000000, Math.floor(n)) : fallback;
+  };
+  const rawCount = Number(chapterCount);
+  const count = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 0;
+  const cfg = config && typeof config === "object" ? config : {};
+  const chunkSize = positiveInt(cfg.chunkSize, 4), chunksPerArc = positiveInt(cfg.chunksPerArc, 5), arcsPerVolume = positiveInt(cfg.arcsPerVolume, 3);
+  const chunks = [], arcs = [], volumes = [];
+  const chunkCount = Math.ceil(count / chunkSize), arcSize = chunkSize * chunksPerArc, volumeSize = arcSize * arcsPerVolume;
+  const idFor = (prefix, index) => prefix + "-" + String(index).padStart(4, "0");
+  for (let i = 0; i < chunkCount; i++) {
+    const startChapter = i * chunkSize + 1, expectedEndChapter = startChapter + chunkSize - 1;
+    const endChapter = Math.min(count, expectedEndChapter), arcIndex = Math.floor(i / chunksPerArc), volumeIndex = Math.floor(arcIndex / arcsPerVolume);
+    chunks.push({ id: idFor("L2", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, arcId: idFor("L3", arcIndex + 1), volumeId: idFor("L4", volumeIndex + 1) });
+  }
+  const arcCount = Math.ceil(count / arcSize);
+  for (let i = 0; i < arcCount; i++) {
+    const startChapter = i * arcSize + 1, expectedEndChapter = startChapter + arcSize - 1, endChapter = Math.min(count, expectedEndChapter);
+    const chunkIds = chunks.filter(x => x.arcId === idFor("L3", i + 1)).map(x => x.id);
+    arcs.push({ id: idFor("L3", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, volumeId: idFor("L4", Math.floor(i / arcsPerVolume) + 1), chunkIds });
+  }
+  const volumeCount = Math.ceil(count / volumeSize);
+  for (let i = 0; i < volumeCount; i++) {
+    const startChapter = i * volumeSize + 1, expectedEndChapter = startChapter + volumeSize - 1, endChapter = Math.min(count, expectedEndChapter);
+    const arcIds = arcs.filter(x => x.volumeId === idFor("L4", i + 1)).map(x => x.id);
+    volumes.push({ id: idFor("L4", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, arcIds });
+  }
+  return { chunks, arcs, volumes };
+}
+function upsertFrozenLayerSummary(existing, incoming) {
+  const result = Array.isArray(existing) ? existing.slice() : [];
+  if (!incoming || typeof incoming.id !== "string" || !incoming.id.trim()) return result;
+  const index = result.findIndex(item => item && item.id === incoming.id);
+  if (index >= 0 && result[index].frozen === true) return result;
+  const summary = Object.assign({}, incoming, { frozen: true });
+  if (index >= 0) result[index] = summary;
+  else result.push(summary);
+  return result;
+}
+function organizationProfilesPromptBlock(st, maxChars) {
+  st = st || {};
+  const orgs = Array.isArray(st.organizations) ? st.organizations.filter(x => x && String(x.name || "").trim()).slice(-10) : [];
+  const rawBudget = Number(maxChars), budget = Number.isFinite(rawBudget) && rawBudget >= 0 ? Math.floor(rawBudget) : 2200;
+  if (!orgs.length || !budget) return "";
+  const cut = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+  let out = "HỒ SƠ THẾ LỰC (trạng thái/lịch sử đã xác nhận; không tự đổi):\n";
+  orgs.forEach(org => {
+    if (out.length >= budget) return;
+    const row = "- " + cut(org.name, 80) + " [" + cut(org.status || "active", 24) + "]" +
+      (org.type ? " | loại: " + cut(org.type, 60) : "") + (org.leader ? " | thủ lĩnh: " + cut(org.leader, 60) : "") +
+      (org.territory ? " | lãnh địa: " + cut(org.territory, 80) : "") + (org.description ? " | hồ sơ: " + cut(org.description, 200) : "") +
+      (org.historyText ? " | lịch sử: " + cut(org.historyText, 160) : "") + "\n";
+    const room = budget - out.length;
+    out += row.length <= room ? row : (room > 1 ? row.slice(0, room - 1) + "…" : "");
+  });
+  return out.slice(0, budget).trimEnd();
+}
+function buildLayeredMemoryContextBlock(st, targetChapter, maxChars) {
+  st = st || {};
+  const memory = st.layeredMemory && typeof st.layeredMemory === "object" ? st.layeredMemory : {};
+  const summaries = memory.summaries && typeof memory.summaries === "object" ? memory.summaries : {};
+  const target = Math.max(1, Math.floor(Number(targetChapter) || ((st.chapters || []).length + 1)));
+  const rawBudget = Number(maxChars), budget = Number.isFinite(rawBudget) && rawBudget >= 0 ? Math.floor(rawBudget) : 5200;
+  if (!budget) return "";
+  const labels = { L1: "L1 · TÓM TẮT CHƯƠNG GẦN", L5: "L5 · TỔNG QUAN TOÀN TRUYỆN", L4: "L4 · VOLUME", L3: "L3 · ARC", L2: "L2 · NHÓM CHƯƠNG" };
+  const blocks = [];
+  ["L1", "L5", "L4", "L3", "L2"].forEach(level => {
+    const list = Array.isArray(summaries[level]) ? summaries[level] : [];
+    const eligible = list.filter(x => {
+      const end = Number(x && (x.endChapter != null ? x.endChapter : x.toChapter));
+      return x && x.frozen === true && !x.stale && Number.isFinite(end) && end < target && String(x.summary || x.text || "").trim();
+    }).sort((a, b) => Number(b.endChapter != null ? b.endChapter : b.toChapter) - Number(a.endChapter != null ? a.endChapter : a.toChapter));
+    if (!eligible.length) return;
+    const selected = level === "L1" ? eligible.slice(0, 2).reverse() : [eligible[0]];
+    selected.forEach(item => {
+      const start = Number(item.startChapter != null ? item.startChapter : item.fromChapter) || 0;
+      const end = Number(item.endChapter != null ? item.endChapter : item.toChapter) || 0;
+      let text = String(item.summary || item.text || "").trim();
+      if (level === "L1" && text.length > 900) text = text.slice(0, 899).trimEnd() + "…";
+      blocks.push({ heading: labels[level] + (start && end ? " (ch" + start + "–" + end + ")" : "") + ":\n", text });
+    });
+  });
+  let out = "";
+  for (const block of blocks) {
+    if (out.length >= budget) break;
+    const separator = out ? "\n\n" : "";
+    const available = budget - out.length - separator.length;
+    if (available <= 0) break;
+    const heading = block.heading.slice(0, available);
+    const contentBudget = Math.max(0, available - heading.length);
+    const content = block.text.length > contentBudget && contentBudget > 1 ? block.text.slice(0, contentBudget - 1).trimEnd() + "…" : block.text.slice(0, contentBudget);
+    out += separator + heading + content;
+  }
+  return out.slice(0, budget);
 }
 // <<SHARED-CORE:END>>
 // V12.3: hard cap để mục tiêu 5.000 từ không biến thành 8.000+ từ.
@@ -4309,7 +4523,7 @@ function buildContext(state) {
     }).join("\n"));
   }
   if (Array.isArray(state.threads) && state.threads.length) {
-    p.push("PLOT THREADS ĐANG MỞ:\n" + state.threads.filter(t => !["paid_off","abandoned","completed"].includes(t.status)).slice(0, 20).map(t => `- ${t.type}: ${t.desc} [${t.status}]`).join("\n"));
+    p.push("PLOT THREADS ĐANG MỞ:\n" + state.threads.filter(t => !["paid_off","abandoned","completed","resolved"].includes(String(t.status||"").toLowerCase())).slice(0, 20).map(t => `- ${t.type}: ${t.desc} [${t.status}]`).join("\n"));
   }
   if (Array.isArray(state.foreshadowing) && state.foreshadowing.length) {
     p.push("伏イ / FORESHADOWING CHƯA GIẢI:\n" + state.foreshadowing.filter(f => !["paid_off","abandoned","resolved"].includes(f.status)).slice(-20).map(f => `- ${f.description} [${f.status}] từ ch${f.plantedChapter || "?"}`).join("\n"));
@@ -4405,6 +4619,8 @@ function buildContextBlock(options){
   // V12.32: không chèn tóm tắt chương cũ lần thứ hai vào khối ngữ cảnh.
   /* V12.32.5: nhưng cần TRÍ NHỚ TRUYỆN: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tối đa ~2800 ký tự. */
   const soFar = storySoFarPrompt(Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters : state.chapters, 2800); if(soFar) lines.push(soFar);
+  const memoryTargetChapter = Number(contextOptions.chapterNumber) || ((Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters.length : state.chapters.length) + 1);
+  const layeredMemoryBlock = buildLayeredMemoryContextBlock(state, memoryTargetChapter, 3600); if(layeredMemoryBlock) lines.push("BỘ NHỚ PHÂN TẦNG (chỉ dữ kiện đã chốt trước chương này; ưu tiên canon mới hơn nếu xung đột):\n" + layeredMemoryBlock);
   const loops = openLoopsPrompt(state); if(loops) lines.push(loops);
   /* NV: bóc thẻ tự động, tối đa 5 thẻ cho mỗi prompt */
   const cardText = characterCardsForPromptV102((state.chapters.slice(-1)[0]?.text||"") + "\n" + (state.directive||""));
@@ -4431,6 +4647,7 @@ function buildContextBlock(options){
     lines.push("⚠ CHƯA khai báo Nhân Vật Chính (tab Nhân Vật Chính) — nếu Cốt Truyện/Bối Cảnh có nhắc tên nhân vật chính, PHẢI dùng đúng tên đó xuyên suốt, không tự đặt tên khác.");
   }
 
+  const organizationBlock = organizationProfilesPromptBlock(state, 2200); if(organizationBlock) lines.push(organizationBlock);
   const activeLocs = state.locations.filter(l=>l.status === 'active').slice(-4);
   if(activeLocs.length) lines.push("ĐỊA ĐIỂM:\n" + activeLocs.map(l=>"- "+l.name+": "+clip(l.description, 100)).join("\n"));
 
@@ -4439,7 +4656,7 @@ function buildContextBlock(options){
 
   /* V14.4.3: THREADS/FORESHADOWING/TIMELINE/KIẾN THỨC không có nhãn ưu tiên nên model coi là việc phải đẩy tiến ở MỖI chương (vd tuyến "ân nhân"), kéo truyện khỏi Outline. */
   if((state.threads||[]).length || (state.foreshadowing||[]).length) lines.push("LƯU Ý ƯU TIÊN: THREADS / FORESHADOWING / TIMELINE / KIẾN THỨC bên dưới chỉ là BỐI CẢNH để giữ nhất quán. Chương này không bắt buộc đẩy chúng tiến triển; có thể thêm yếu tố/tình tiết phụ nếu hợp lý, nhưng sự kiện chính của Outline chương PHẢI có và viết đầy đủ trước, không để các mục này chiếm chỗ hay làm thiếu Outline.");
-  const openThreads = state.threads.filter(t=>t.status!=='paid_off' && t.status!=='abandoned').slice(0, 6);
+  const openThreads = state.threads.filter(t=>!['paid_off','abandoned','resolved','completed'].includes(String(t.status||'').toLowerCase())).slice(0, 6);
   if(openThreads.length) lines.push("THREADS:\n" + openThreads.map(t=>"- ["+t.type+"] "+clip(t.desc, 120)).join("\n"));
 
   const openForeshadowing = (state.foreshadowing||[]).filter(f=>!['paid_off','abandoned','resolved'].includes(f.status)).slice(-8);

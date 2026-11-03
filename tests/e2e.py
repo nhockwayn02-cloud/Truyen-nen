@@ -1,5 +1,5 @@
 """Test E2E v11 — chạy: python3 tests/e2e.py  (cần playwright + chromium)"""
-import http.server, threading, socketserver, os, sys, json, functools
+import http.server, threading, socketserver, os, sys, json, functools, shutil, re
 from playwright.sync_api import sync_playwright
 import gzip
 def body_text(req):
@@ -25,7 +25,8 @@ def check(name, cond, extra=""):
     print(("PASS " if cond else "FAIL ") + name + (f"  [{extra}]" if extra else ""))
 
 with sync_playwright() as p:
-    b = p.chromium.launch()
+    browser_path = shutil.which("chromium")
+    b = p.chromium.launch(**({"executable_path": browser_path} if browser_path else {}), args=["--no-sandbox"])
     ctx = b.new_context()
     ctx.add_init_script("window.__XTA_TEST__=true")
     page = ctx.new_page()
@@ -48,6 +49,43 @@ with sync_playwright() as p:
 
     # Hàm helper tồn tại
     check("4. Hàm v11 tồn tại", page.evaluate("!!window.__xta && typeof __xta.flushPersist==='function' && typeof __xta.ageGuardPrompt==='function'"))
+
+    # ---- V14.6: controls for long-novel memory, profiles and explicit word bounds ----
+    controls = page.evaluate("""()=>({memory:!!window.__XTA_LAYERED_MEMORY__, min:!!document.getElementById('chapterWordMinInput'), max:!!document.getElementById('chapterWordMaxInput'), org:!!document.getElementById('organizationList'), audit:!!document.getElementById('layeredMemoryStats')})""")
+    check("4a. Giao diện có bộ nhớ 6 tầng, min/max và hồ sơ thế lực", all(controls.values()), str(controls))
+    bounds = page.evaluate("""()=>{const s=__xta.state, min=document.getElementById('chapterWordMinInput'), max=document.getElementById('chapterWordMaxInput'); min.value='4200'; max.value='5200'; max.dispatchEvent(new Event('change',{bubbles:true})); return [s.chapterWordMin,s.chapterWordMax,Number(s.minChapterWords)];}""")
+    check("4b. Min/max hợp lệ được lưu đúng vào truyện hiện tại", bounds == [4200, 5200, 5000], str(bounds))
+    invalid_bounds = page.evaluate("""()=>{const s=__xta.state, min=document.getElementById('chapterWordMinInput'), max=document.getElementById('chapterWordMaxInput'); min.value='5300'; max.value='5200'; min.dispatchEvent(new Event('change',{bubbles:true})); return [s.chapterWordMin,s.chapterWordMax];}""")
+    check("4c. Từ chối min > max mà không ghi đè giới hạn đã lưu", invalid_bounds == [4200, 5200], str(invalid_bounds))
+    page.evaluate("""()=>{const min=document.getElementById('chapterWordMinInput'), max=document.getElementById('chapterWordMaxInput'); min.value=''; max.value=''; max.dispatchEvent(new Event('change',{bubbles:true}));}""")
+    cleared = page.evaluate("()=>__xta.state.chapterWordMin===null && __xta.state.chapterWordMax===null")
+    check("4d. Có thể xóa min/max để quay về mặc định tương thích ngược", cleared)
+
+    page.select_option("#uiModeSelect", "expert")
+    page.locator("#organizationNameInput").evaluate("el=>el.closest('.section').querySelector('.section-head').click()")
+    page.fill("#organizationNameInput", "Hội Bạch Hạc E2E")
+    page.fill("#organizationTypeInput", "Tông môn")
+    page.fill("#organizationLeaderInput", "Lâm")
+    page.fill("#organizationTerritoryInput", "Miền Bắc")
+    page.fill("#organizationDescInput", "Giữ cửa ải")
+    page.click("#organizationAddBtn")
+    page.locator("#organizationList details summary").click()
+    page.locator('[data-org-edit="0"][data-field="name"]').fill("Hội Bạch Hạc E2E đã sửa")
+    page.select_option('[data-org-edit="0"][data-field="status"]', "hostile")
+    page.click('[data-org-save="0"]')
+    org_state = page.evaluate("""()=>{const x=__xta.state.organizations[0]; return x&&[x.name,x.status,x.leader,x.territory,Array.isArray(x.history)&&x.history.length>1]}""")
+    check("4e. Tạo/sửa hồ sơ thế lực lưu trạng thái, thủ lĩnh và lịch sử", org_state == ["Hội Bạch Hạc E2E đã sửa", "hostile", "Lâm", "Miền Bắc", True], str(org_state))
+    page.locator("#organizationList details summary").click()
+    page.click('[data-org-del="0"]')
+    check("4f. Xóa hồ sơ thế lực khỏi state", page.evaluate("()=>__xta.state.organizations.length===0"))
+
+    page.locator("#threadDescInput").evaluate("el=>el.closest('.section').querySelector('.section-head').click()")
+    page.fill("#threadDescInput", "E2E giữ bí mật trong phong thư")
+    page.select_option("#threadStatusInput", "developing")
+    page.click("#threadAddBtn")
+    page.select_option('[data-thread-status="0"]', "resolved")
+    thread_state = page.evaluate("""()=>{const t=__xta.state.threads[0], p=__xta.buildContextBlock(); return [t.status,t.statusHistory.some(x=>x.source==='author'),p.includes('E2E giữ bí mật trong phong thư')]}""")
+    check("4g. Thread được tác giả đóng, ghi lịch sử và không vào prompt đang mở", thread_state == ["resolved", True, False], str(thread_state))
 
     # Age guard
     r = page.evaluate("""()=>{
@@ -99,7 +137,7 @@ with sync_playwright() as p:
     check("13. Mở tab thứ hai không lỗi", True)
 
     # ---- Luồng viết chương với API giả (mock SSE / JSON) ----
-    calls = {"stream": 0, "json": 0}
+    calls = {"stream": 0, "json": 0, "scene_prompts": []}
     gate = {"mode": "pass", "warningOnce": False}
     def mock_api(route):
         req = route.request
@@ -114,10 +152,20 @@ with sync_playwright() as p:
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":json.dumps(plan, ensure_ascii=False)},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "VIẾT SCENE TIẾP NỐI" in prompt or "TOP-UP" in prompt.upper() or "còn thiếu khoảng" in prompt:
             calls["json"] += 1; calls["scene"] = calls.get("scene", 0) + 1
+            if "VIẾT SCENE TIẾP NỐI" in prompt: calls["scene_prompts"].append(prompt)
             calls.setdefault("scene_models", []).append(body.get("model"))
-            # Câu khác nhau từng chút để bộ lọc lặp câu của app không xóa mất văn bản.
-            calls["seq"] = calls.get("seq", 0) + 1
-            text = "\n\n".join("Gió thổi qua con phố vắng số %d, nhân vật chính bước đi chậm rãi dưới cơn mưa thứ %d và nghĩ về chuyện cũ." % (calls["seq"]*1000+i, i) for i in range(150))
+            # Mỗi scene có nội dung riêng, đủ gần ngân sách và khác rõ để overlap guard
+            # không nhầm các scene trong cùng một chương thành kể lại cùng sự kiện.
+            scene_prompt = "\n".join(str(m.get("content", "")) for m in body.get("messages", []))
+            match = re.search(r'"id"\s*:\s*"(S\d+)"', scene_prompt)
+            scene_id = match.group(1) if match else "TOPUP"
+            scene_bases = {
+                "S1": "Mưa bụi phủ mái hiên, An rảo bước qua phố cũ, nhớ lời hẹn đã bỏ lỡ.",
+                "S2": "Tiếng còi tàu ngân dài, An cầm tấm vé nhàu, lắng nghe mái ga rung trong mưa.",
+                "S3": "Con tàu chậm rãi rời bến, An nhìn ánh đèn lùi xa và siết chặt lá thư.",
+            }
+            base = scene_bases.get(scene_id, "An lặng lẽ đi tiếp, quan sát con đường và nghĩ về quyết định sắp tới.")
+            text = "\n\n".join(base + " Ở nhịp thứ %d, một chi tiết nhỏ khiến An dừng lại rồi bước tiếp." % i for i in range(50))
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":text},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "VÁ CỤC BỘ BẢN THẢO" in prompt:
             # Chương V13+ dài ~5.000 từ nên không thể viết lại cả chương: AI chỉ trả danh sách vá.
@@ -128,6 +176,10 @@ with sync_playwright() as p:
             calls["json"] += 1
             src = json.loads(prompt)[-1]["content"].split("===== ĐOẠN VĂN =====")[-1].strip()
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":src.replace("Gió","GIÓ_ĐÃ_SỬA")},"finish_reason":"stop"}]}, ensure_ascii=False)); return
+        if "RÚT GỌN CHƯƠNG" in prompt:
+            calls["json"] += 1; calls["condense"] = calls.get("condense", 0) + 1
+            condensed = " ".join("từ%04d" % i for i in range(350))
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":condensed},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "QUALITY AUDITOR" in prompt:
             calls["json"] += 1; calls["review"] = calls.get("review", 0) + 1
             obj = {"score":95,"verdict":"PASS","dimensions":{},"mainEventCount":1,"namedCharacterCount":1,"unauthorizedImportantCharacter":False,"knowledgeViolation":False,"retcon":False,"outlineDeviation":False,"hardFailures":[],"warnings":[],"suggestions":[],"rewriteInstructions":[]}
@@ -168,7 +220,8 @@ with sync_playwright() as p:
     page.route("**/.netlify/functions/job-status**", mock_bg_status)
     page.fill("#apiEndpoint", "http://127.0.0.1:%d/chat/completions" % port)
     page.fill("#apiKey", "test-key")
-    page.evaluate("()=>{const s=__xta.state; s.apiEndpoint=document.getElementById('apiEndpoint').value; s.apiKey='test-key'; s.minChapterWords=40; s.nsfwMode='off'; s.mature=false; s.autoContinueEnabled=false; s.streamingEnabled=false;}")
+    page.evaluate("()=>{const s=__xta.state; s.apiEndpoint=document.getElementById('apiEndpoint').value; s.apiKey='test-key'; s.minChapterWords=40; s.storyClock='Ngày E2E 1'; s.nsfwMode='off'; s.mature=false; s.autoContinueEnabled=false; s.streamingEnabled=false;}")
+    scene_prompt_start = len(calls["scene_prompts"])
     before = page.evaluate("()=>__xta.state.chapters.length")
     page.evaluate("()=>{const b=document.getElementById('writeChapterBtn'); b.click();}")
     for _ in range(40):
@@ -179,6 +232,30 @@ with sync_playwright() as p:
     if after > before:
         ln = page.evaluate("()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return (c.text||c.content||'').length}")
         check("15. Nội dung chương không rỗng", ln > 100, str(ln))
+        scene_result = page.evaluate("""()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1];
+          const t=(c.adaptiveStats||{}).sceneTelemetry||[];
+          return {stats:c.adaptiveStats||null, telemetry:t,
+            graph:(c.plan||'').includes('ADAPTIVE SCENE GRAPH'),
+            panel:document.getElementById('planBox').textContent};}""")
+        scene_prompts = calls["scene_prompts"][scene_prompt_start:]
+        tele = scene_result.get("telemetry") or []
+        scene_ids = [x.get("sceneId") for x in tele]
+        check("15a. Client lập kế hoạch và gọi API để viết tối thiểu 3 scene", scene_result["graph"] and len(scene_prompts) >= 3 and all("VIẾT SCENE TIẾP NỐI" in p for p in scene_prompts[:3]), f"prompts={len(scene_prompts)}")
+        check("15b. Chương lưu telemetry riêng cho từng scene đã chấp nhận", len(tele) >= 3 and len(set(scene_ids)) == len(tele) and all(x.get("status") in ("accepted", "patched", "kept_with_warning") and x.get("outputWords", 0) > 0 and x.get("durationMs", -1) >= 0 for x in tele), json.dumps(tele, ensure_ascii=False)[:700])
+        check("15c. Panel kế hoạch hiển thị telemetry đã lưu", scene_result["graph"] and "TELEMETRY SCENE" in scene_result["panel"] and all(sid in scene_result["panel"] for sid in scene_ids), scene_result["panel"][-500:])
+        audit = page.evaluate("""()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return {audit:c.postWriteAudit||null, time:__xta.state.statusState.timeLog||[], badge:!!document.getElementById('postWriteAuditViewBtn')};}""")
+        check("15d. Chương mới có báo cáo hậu kiểm và badge độ dài", bool(audit["audit"]) and audit["audit"]["wordCount"] > 0 and audit["badge"], json.dumps(audit, ensure_ascii=False)[:350])
+        check("15e. Mốc thời gian chương được lưu vào nhật ký", any(x.get("chapter") == after and x.get("time") == "Ngày E2E 1" for x in audit["time"]), json.dumps(audit["time"], ensure_ascii=False)[:250])
+        condensed = page.evaluate("""async()=>{const s=__xta.state, original=Array.from({length:500},(_,i)=>'từ'+i).join(' '), obj={title:'Kiểm thử rút gọn',text:original,versions:[]}; s.chapterWordMin=300;s.chapterWordMax=400;s.minChapterWords=350; try{const r=await __xta.condenseChapterToBounds(obj,99,'Giữ các sự kiện đã có','test/model');return {r,words:__xta.countWords(obj.text),snapshot:obj.versions.length,originalSaved:obj.versions[0]&&obj.versions[0].text===original};}finally{s.chapterWordMin=null;s.chapterWordMax=null;s.minChapterWords=40;}}""")
+        check("15f. AI rút gọn hai ngưỡng, lưu snapshot và không xóa bản gốc", condensed["r"]["ok"] and condensed["r"]["reduced"] and condensed["words"] == 350 and condensed["snapshot"] == 1 and condensed["originalSaved"], json.dumps(condensed, ensure_ascii=False)[:300])
+        page.locator("#memoryLayerBuildBtn").evaluate("el=>el.closest('.section').classList.add('open')")
+        page.locator("#memoryLayerBuildBtn").scroll_into_view_if_needed()
+        page.click("#memoryLayerBuildBtn")
+        for _ in range(40):
+            page.wait_for_timeout(200)
+            if page.evaluate("()=>__xta.state.layeredMemory.summaries.L1.length>=1"): break
+        mem = page.evaluate("()=>({l1:__xta.state.layeredMemory.summaries.L1.length,frozen:__xta.state.layeredMemory.summaries.L1[0]&&__xta.state.layeredMemory.summaries.L1[0].frozen,stats:document.getElementById('layeredMemoryStats').textContent})")
+        check("15g. Nút xây bù tạo L1 đóng băng và cập nhật thống kê bộ nhớ", mem["l1"] == 1 and mem["frozen"] is True and "L1" in mem["stats"], json.dumps(mem, ensure_ascii=False)[:350])
         page.wait_for_timeout(2500)
         page.reload(); page.wait_for_timeout(1500)
         kept = page.evaluate("()=>__xta.state.chapters.length")

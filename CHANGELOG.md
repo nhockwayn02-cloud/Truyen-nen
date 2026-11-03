@@ -1,5 +1,25 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [Unreleased] — Bộ nhớ truyện dài L0–L5, continuity và min/max chương
+- Thêm snapshots L1–L4 đóng băng theo tầng, L2/L3/L4 gộp theo 4/20/60 chương, L5 có version history; hỗ trợ xây bù và chỉ đưa summary quá khứ vào prompt trong ngân sách giới hạn.
+- Thêm CRUD hồ sơ thế lực; cho phép sửa/đóng threads có history, giữ trạng thái do tác giả chọn qua merge worker và lưu mốc thời gian theo chương.
+- Thêm giới hạn min/max theo truyện, rút gọn có snapshot/giữ Outline và bản gốc, báo cáo hậu kiểm độ dài/continuity/time/threads theo từng chương.
+- Cập nhật E2E client cho Scene Graph/telemetry, CRUD thế lực, đóng thread, min/max, condensation, L1 memory và báo cáo hậu kiểm; sửa chuyển chế độ Expert và flex layout để các form settings thực sự mở/tương tác được.
+- Xác minh: `npm test` PASS; `python3 tests/e2e.py` — 49/49 PASS; 7 E2E phụ bị skip do runner thiếu dependency riêng.
+
+## [V14.5.15] — Telemetry chi tiết theo scene và đồng bộ metadata phát hành
+- **Telemetry scene:** adaptive pipeline lưu từng scene: số lượt thử/retry, input chars, output words, trạng thái (`accepted`, `patched`, `kept_with_warning`, `rejected`), lỗi rút gọn, số lượt rà AI và thời lượng.
+- **Hiển thị:** telemetry được lưu trong `chapter.adaptiveStats.sceneTelemetry` và hiện ngay dưới kế hoạch chương để người dùng biết cảnh nào bị viết lại, vá hoặc giữ kèm cảnh báo.
+- **Parity:** `shared/core.js` tiếp tục là nguồn dùng chung; sau `npm run sync`, client và worker dùng cùng logic.
+- **Metadata:** sửa `package.json` và README từng còn ghi V14.5.1 trong khi mã/changelog đã ở V14.5.14.
+
+## [V14.5.14] — Mục Outline ghép thành ý con, Kháng cự/Hậu quả vào prompt scene, lọc nhận xét "không lỗi"
+- **Mục ghép (>= 3 hành động) = ý con:** `outlineItemParts`; bước kiểm bằng chứng chỉ cho `done` khi đủ TẤT CẢ ý con trong một đoạn liền mạch. Thiếu ý con -> lỗi `THIẾU TRÌNH TỰ BẮT BUỘC` (không thuộc diện vá chèn) nên scene được viết lại liền mạch thay vì chèn rải rác.
+- **Prompt scene:** `sceneScopeOf(scenes, i, meta, items)` thêm "KHÁNG CỰ CỦA CHƯƠNG" cho mọi scene có mục, "HẬU QUẢ CẦN THỂ HIỆN" đúng một scene, và "TRÌNH TỰ LIÊN TỤC BẮT BUỘC" cho mục ghép. Trước đây writer không thấy Kháng cự (chỉ prompt lập kế hoạch thấy).
+- **Hậu quả trùng mục:** `dedupeOutlineMeta` gỡ mệnh đề của `Hậu quả` đã được một mục nêu, tránh một sự kiện bị yêu cầu hai lần (cảnh lặp ba lần).
+- **Auditor:** `isNoopAuditNote` lọc dòng chỉ là nhận xét "không phải lỗi/hợp lý/đúng trình tự" khỏi `warnings`/`hardFailures` trong `evaluateReview` (dòng có từ chỉ lỗi thật được giữ).
+- Test mới: `v14_5_14_outline_subparts.test.js`; toàn bộ 95 nhóm PASS, sync-check OK.
+
 ## [V14.5.8] — Độ dài chương theo số người dùng nhập (±500) + Quality Gate mặc định TẮT
 - **Độ dài:** `chapterWordLimits/adaptiveChapterWordLimits` lấy "Độ dài mục tiêu" làm chuẩn: chấp nhận mục tiêu ±500 từ (5000 → 4500–5500; 4500 → 4000–5000; 3000 → 2500–3500), hardMax = mục tiêu + 600. Không còn kẹt cứng 4500–5500: hợp đồng chương, báo "Thiếu từ x/y", kiểm tra Gate, bù từ đều dùng cùng giới hạn. Chưa nhập → mặc định 5000.
 - **Quality Gate (chấm + tự sửa):** mặc định TẮT; truyện cũ được chuyển sang tắt MỘT lần (cờ `qgOffV1458`), sau đó công tắc 🛡 vẫn bật lại được. Tắt Gate: chương được duyệt/ghi Canon ngay, không chấm điểm, không tự sửa.

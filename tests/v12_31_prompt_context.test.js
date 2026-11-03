@@ -25,6 +25,8 @@ function makeContext(state) {
   const ctx = {
     state,
     buildVocabularyBlockFrom: () => '',
+    organizationProfilesPromptBlock: () => '',
+    buildLayeredMemoryContextBlock: () => '',
     loreForPrompt: () => '',
     currentArc: () => null,
     currentOutline: () => null,

@@ -284,6 +284,20 @@
 </div>
 <button class="btn btn-amber" id="itemAddBtn">＋ Thêm</button>
 </div>
+</div><div class="section tone-blue settings-only-section" data-column="settings" data-section="">
+<div class="section-head" data-toggle=""><span>0.55. Hồ Sơ Thế Lực</span><span class="chev">▾</span></div>
+<div class="section-body">
+<div class="hint">Lưu tổ chức, phe phái, gia tộc hoặc thế lực cùng thủ lĩnh, lãnh địa, mục tiêu, trạng thái và lịch sử thay đổi. Nhân vật liên kết qua trường “Thế lực/faction”.</div>
+<div id="organizationList"><div class="empty-note">Chưa có.</div></div>
+<div class="field" style="border-top:1px solid var(--line);padding-top:10px;">
+<input id="organizationNameInput" placeholder="Tên thế lực" style="margin-bottom:6px;" type="text"/>
+<div class="row2" style="margin-bottom:6px;"><input id="organizationTypeInput" placeholder="Loại (gia tộc, giáo phái...)" type="text"/><input id="organizationLeaderInput" placeholder="Thủ lĩnh" type="text"/></div>
+<div class="row2" style="margin-bottom:6px;"><input id="organizationTerritoryInput" placeholder="Lãnh địa" type="text"/><select id="organizationStatusInput"><option value="active">Đang hoạt động</option><option value="allied">Đồng minh</option><option value="hostile">Đối địch</option><option value="hidden">Ẩn danh</option><option value="dissolved">Tan rã</option></select></div>
+<textarea id="organizationDescInput" placeholder="Mô tả, mục tiêu, quy tắc, quan hệ" rows="3"></textarea>
+<textarea id="organizationHistoryInput" placeholder="Lịch sử và những thay đổi đã xác nhận" rows="2" style="margin-top:6px;"></textarea>
+</div>
+<button class="btn btn-blue" id="organizationAddBtn">＋ Thêm thế lực</button>
+</div>
 </div><div class="section tone-green settings-only-section" data-column="settings" data-section="">
 <div class="section-head" data-toggle=""><span>0.6. Chapter Outline</span><span class="chev">▾</span></div>
 <div class="section-body">
@@ -333,8 +347,11 @@
 </div><div class="section tone-purple settings-only-section" data-column="settings" data-section="">
 <div class="section-head" data-toggle=""><span>1.6. Memory Engine v9</span><span class="chev">▾</span></div>
 <div class="section-body">
-<div class="hint">Bộ nhớ dài hạn: Timeline, Foreshadowing và Knowledge Ledger. Đây là dữ liệu phụ trợ để AI không quên diễn biến/kiến thức của từng nhân vật.</div>
+<div class="hint">Bộ nhớ sáu tầng: L0 chương gốc · L1 tóm tắt chương · L2 nhóm 4 chương · L3 arc 20 chương · L4 volume 60 chương · L5 tổng hợp toàn truyện. L1–L4 đóng băng khi tạo; L5 giữ lịch sử phiên bản.</div>
 <div class="status-box" id="memoryStats" style="max-height:180px;">Chưa có.</div>
+<div class="status-box" id="layeredMemoryStats" style="max-height:180px;white-space:pre-wrap;">L0–L5 chưa được xây.</div>
+<button class="btn btn-ghost" id="memoryLayerBuildBtn">🧱 Xây bù / đồng bộ L0–L5</button>
+<button class="btn btn-ghost" id="memoryLayerRebuildL5Btn">↻ Tạo phiên bản L5 mới (lưu bản cũ)</button>
 <button class="btn btn-purple" id="memoryRescanBtn">🧠 Quét lại Memory toàn truyện</button>
 </div>
 </div><div class="section tone-amber settings-only-section" data-column="settings" data-section="">
@@ -377,10 +394,11 @@
 </select>
 <select id="threadStatusInput">
 <option value="seeded">Seeded</option><option value="developing">Developing</option>
-<option value="paid_off">Paid off</option><option value="abandoned">Abandoned</option>
+<option value="blocked">Blocked</option><option value="resolved">Resolved</option><option value="paid_off">Paid off</option><option value="abandoned">Abandoned</option>
 </select>
 </div>
-<textarea id="threadDescInput" placeholder="Mô tả" rows="2"></textarea>
+<textarea id="threadDescInput" placeholder="Mô tả tình tiết chưa giải quyết" rows="2"></textarea>
+<input id="threadExpectedInput" placeholder="Kết quả/hệ quả dự kiến (không bắt buộc)" style="margin-top:6px;" type="text"/>
 </div>
 <button class="btn btn-ghost" id="threadAddBtn">＋ Thêm</button>
 </div>
@@ -444,7 +462,8 @@
 <option value="pacing">Cải thiện nhịp</option>
 </select>
 </div>
-<div class="field"><label>Độ dài mục tiêu (từ, đếm theo âm tiết) · tối đa 6.000 · chấp nhận ±500 (5000 → 4500–5500)</label><input id="minWordsInput" max="6000" min="500" step="500" type="number" value="5000"/></div>
+<div class="field"><label>Độ dài mục tiêu (từ, đếm theo âm tiết)</label><input id="minWordsInput" max="12000" min="500" step="100" type="number" value="5000"/><div class="hint">Nếu không đặt min/max bên dưới, app giữ tương thích: mục tiêu ±500 từ, hard cap +600.</div></div>
+<div class="field"><label>Khoảng chấp nhận min/max (từ)</label><div class="row2"><input id="chapterWordMinInput" max="12000" min="300" placeholder="Tối thiểu" type="number"/><input id="chapterWordMaxInput" max="12000" min="300" placeholder="Tối đa" type="number"/></div><div class="hint">Để trống cả hai để dùng giới hạn mặc định. Khi đặt, chương được mở rộng/rút gọn trong khoảng này; giới hạn lưu riêng theo truyện.</div></div>
 <div class="field"><label>Auto-continue tối đa</label><input id="autoContinueMaxInput" max="8" min="0" type="number" value="4"/></div>
 <div class="field"><label>🎨 Mức độ miêu tả</label>
 <select id="descriptionLevelSelect">
@@ -736,6 +755,15 @@ function normalizeName(s) {
 function chapterWordLimits(st) {
   // Client gọi không tham số (dùng state toàn cục); worker truyền state của job.
   if (!st && typeof state !== "undefined") st = state;
+  // V14.6: min/max tường minh được ưu tiên; truyện cũ không có hai trường này vẫn dùng target ±500.
+  const explicitMin = Number(st && st.chapterWordMin), explicitMax = Number(st && st.chapterWordMax);
+  if (Number.isFinite(explicitMin) && Number.isFinite(explicitMax) && explicitMin >= 300 && explicitMax >= explicitMin && explicitMax <= 12000) {
+    const minAccept = Math.floor(explicitMin), maxAccept = Math.floor(explicitMax);
+    const requestedTarget = Number(st && st.minChapterWords);
+    const target = Number.isFinite(requestedTarget) && requestedTarget >= minAccept && requestedTarget <= maxAccept
+      ? Math.round(requestedTarget) : Math.round((minAccept + maxAccept) / 2);
+    return { target, minAccept, maxAccept, hardMax: maxAccept };
+  }
   // V14.5.8: độ dài chương theo ĐÚNG số người dùng nhập ở "Độ dài mục tiêu": chấp nhận mục tiêu ±500 từ
   // (5000 -> 4500–5500; 4500 -> 4000–5000). Không nhập/không hợp lệ -> mặc định 5000.
   const requested = Number(st && st.minChapterWords);
@@ -749,6 +777,14 @@ function chapterWordLimits(st) {
 // V13: số scene và chức năng scene do diễn biến quyết định, không gán vai trò cố định.
 function adaptiveChapterWordLimits(st) {
   return chapterWordLimits(st);
+}
+function chapterLengthAction(st, wordCount) {
+  const limits = chapterWordLimits(st), words = Math.max(0, Math.floor(Number(wordCount) || 0));
+  const hasExplicitBounds = Number.isFinite(Number(st && st.chapterWordMin)) && Number.isFinite(Number(st && st.chapterWordMax)) && Number(st.chapterWordMin) >= 300 && Number(st.chapterWordMax) >= Number(st.chapterWordMin) && Number(st.chapterWordMax) <= 12000;
+  if (words < limits.minAccept) return { action: "expand", deficit: limits.minAccept - words, target: limits.target, minAccept: limits.minAccept, maxAccept: limits.maxAccept };
+  const maxForAction = hasExplicitBounds ? limits.maxAccept : limits.hardMax;
+  if (words > maxForAction) return { action: "condense", excess: words - maxForAction, target: limits.target, minAccept: limits.minAccept, maxAccept: maxForAction };
+  return { action: "within", target: limits.target, minAccept: limits.minAccept, maxAccept: limits.maxAccept, hardMax: limits.hardMax };
 }
 
 function compactSceneTail(text, maxChars) {
@@ -1308,13 +1344,28 @@ function beatEvidenceInText(evidence, text) {
   const et = e.split(' ').filter(w => w.length >= 2), tt = new Set(t.split(' '));
   return et.length >= 4 && et.filter(w => tt.has(w)).length / et.length >= 0.7;
 }
+/* V14.5.14: MỤC OUTLINE GHÉP (liệt kê >= 3 hành động: "Còng tay, đeo vòng cổ, bắt quỳ và …") được tách thành Ý CON.
+   Trước đây chỉ cần một câu trích cho cả mục là qua kiểm tra, nên chỉ một ý con xuất hiện (đâu đó trong cảnh) vẫn "done"; bộ chấm cuối chương mới bắt lỗi -> viết xong mới biết thiếu. */
+function outlineItemParts(text) {
+  const parts = String(text || '').replace(/\s+/g, ' ').trim()
+    .split(/\s*(?:,|;|\s\+\s|\s+và\s+|\.\s+(?=\p{Lu}))\s*/u)
+    .map(s => s.replace(/[.\s]+$/u, '').trim()).filter(s => s.length >= 4);
+  return parts.length >= 3 && parts.length <= 7 ? parts : [];
+}
+function outlineItemIsCompound(text) { return outlineItemParts(text).length >= 3; }
 function buildBeatEvidencePrompt(o) {
   o = o || {}; const items = Array.isArray(o.items) ? o.items : [];
+  const itemLine = x => {
+    const t = String(x.text || '').replace(/\s+/g, ' ').slice(0, 300), parts = outlineItemParts(t);
+    return x.n + '. ' + t + (parts.length ? '  [GỒM ' + parts.length + ' Ý CON, phải có ĐỦ TẤT CẢ: ' + parts.map((p, k) => (k + 1) + ') ' + p).join(' · ') + ']' : '');
+  };
+  const hasParts = items.some(x => outlineItemParts(x.text).length);
   return [
     'KIỂM TRA SỰ KIỆN BẮT BUỘC của ' + (o.scope === 'chapter' ? 'CHƯƠNG' : 'MỘT SCENE') + ' tiểu thuyết. Với MỖI sự kiện dưới đây, quyết định văn bản đã THỰC HIỆN nó chưa.',
     'Chỉ trả JSON: {"items":[{"n":1,"done":true,"evidence":"trích NGUYÊN VĂN 6–25 từ liên tục từ văn bản"}]} — evidence để rỗng nếu done=false.',
     'QUY TẮC: done=true khi sự kiện thực sự DIỄN RA trong truyện (hành động/lời thoại/thông tin/hậu quả cụ thể), kể cả viết bằng câu chữ khác hay thứ tự khác. done=false khi hoàn toàn vắng, chỉ được nhắc thoáng qua/tóm tắt một câu, hoặc diễn ra ngược lại. Không đòi chi tiết mà sự kiện không nêu. evidence PHẢI chép đúng từng chữ từ văn bản, không viết lại.',
-    'SỰ KIỆN CẦN KIỂM TRA:\n' + items.map(x => x.n + '. ' + String(x.text || '').replace(/\s+/g, ' ').slice(0, 300)).join('\n'),
+    hasParts ? 'MỤC CÓ Ý CON: done=true CHỈ KHI TẤT CẢ các ý con đều thực sự diễn ra (không đòi từng chữ), và chúng thuộc MỘT đoạn cảnh liền mạch chứ không rải ở những cảnh/đoạn xa nhau. Thiếu dù một ý con -> done=false.' : '',
+    'SỰ KIỆN CẦN KIỂM TRA:\n' + items.map(itemLine).join('\n'),
     'VĂN BẢN:\n' + String(o.text || '').slice(0, o.scope === 'chapter' ? 42000 : 12000)
   ].join('\n\n');
 }
@@ -1340,6 +1391,9 @@ function parseBeatEvidence(raw, ns, text) {
   return { results, missing, unknown };
 }
 function beatMissingError(texts) {
+  /* V14.5.14: mục ghép thiếu ý con -> KHÔNG vá chèn (chèn rải ý con ra nhiều chỗ, gây cảnh rời rạc/lặp); lỗi này không thuộc diện "vá được" nên scene được VIẾT LẠI liền mạch. */
+  const compound = (texts || []).filter(outlineItemIsCompound);
+  if (compound.length) return 'THIẾU TRÌNH TỰ BẮT BUỘC (SỰ KIỆN BẮT BUỘC chưa đủ ý con): ' + compound.map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 200) + '»').join(' · ') + ' — viết lại scene thành MỘT cảnh liên tục: các ý theo đúng thứ tự, mỗi ý có hành động/lời thoại/phản ứng riêng, kể mỗi ý đúng MỘT lần, không rải sang đoạn khác và không tóm tắt.' + ((texts || []).length > compound.length ? ' Đồng thời còn thiếu: ' + (texts || []).filter(x => !outlineItemIsCompound(x)).map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 160) + '»').join(' · ') : '');
   return 'MUST_CHANGE: thiếu SỰ KIỆN BẮT BUỘC (chưa thấy diễn ra trong văn bản): ' + texts.map(x => '«' + String(x).replace(/\s+/g, ' ').slice(0, 160) + '»').join(' · ') + ' — chèn hành động/lời thoại cụ thể cho sự kiện này, không tóm tắt một câu.';
 }
 
@@ -1418,10 +1472,47 @@ function vietnameseNovelWritingPrompt() {
 }
 
 // V14.3.2: scene prompt CHỈ nhận checklist của chính scene đó (trước đây cả outline chương bị lặp 3 lần trong mọi scene prompt -> model kể lại toàn bộ chuỗi sự kiện ở từng scene).
-function sceneScopeOf(scenes, i) {
+/* V14.5.14: meta = ghi chú Kháng cự/Hậu quả của Outline chương; items = các mục Outline đánh số. Trước đây prompt VIẾT scene không thấy "Kháng cự" (chỉ prompt lập kế hoạch thấy)
+   nên writer tước dao ngay dù Outline đòi "chống trả quyết liệt"; mục ghép cũng không có "trình tự liên tục" để writer giữ trong MỘT cảnh. */
+function sceneScopeOf(scenes, i, meta, items) {
   const list = Array.isArray(scenes) ? scenes : [];
   const pick = sc => [sc && sc.id, String((sc && sc.mustChange) || '').replace(/\s+/g, ' ').trim().slice(0, 220)].filter(Boolean).join(': ');
-  return { index: i, total: list.length, done: list.slice(0, i).map(pick).filter(Boolean), later: list.slice(i + 1).map(pick).filter(Boolean) };
+  const scope = { index: i, total: list.length, done: list.slice(0, i).map(pick).filter(Boolean), later: list.slice(i + 1).map(pick).filter(Boolean), notes: [], sequences: [] };
+  const cur = list[i], own = cur && Array.isArray(cur.outlineItems) ? cur.outlineItems.map(Number).filter(n => n >= 1) : [];
+  if (!own.length) return scope;
+  const m = meta || {}, clean = v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 260);
+  if (clean(m.resistance)) scope.notes.push('KHÁNG CỰ CỦA CHƯƠNG (diễn tiến xuyên suốt các scene; scene này chỉ thể hiện phần hợp với vị trí của nó, không kể lại phần đã có, không rút ngắn thành một câu. Nếu mục của scene là kháng cự rồi bị khống chế/tước vũ khí thì phải viết cuộc giằng co thật — nhiều nhịp đòn/đỡ/phản ứng — TRƯỚC khi bị khống chế, không tước ngay): ' + clean(m.resistance));
+  if (clean(m.consequence)) {
+    const idxs = []; list.forEach((sc, k) => { if (sc && Array.isArray(sc.outlineItems) && sc.outlineItems.length) idxs.push(k); });
+    let owner = idxs.length ? idxs[idxs.length - 1] : -1, best = 0;
+    const ct = _beatToks(m.consequence);
+    idxs.forEach(k => {
+      const pool = new Set(); list[k].outlineItems.forEach(n => _beatToks((items || [])[n - 1] || '').forEach(w => pool.add(w)));
+      const hit = ct.filter(w => pool.has(w)).length;
+      if (hit > best) { best = hit; owner = k; }
+    });
+    if (owner === i) scope.notes.push('HẬU QUẢ CẦN THỂ HIỆN (một lần, ở scene này): ' + clean(m.consequence));
+  }
+  own.forEach(n => {
+    const parts = outlineItemParts((items || [])[n - 1] || '');
+    if (parts.length >= 3) scope.sequences.push(parts);
+  });
+  return scope;
+}
+// V14.5.14: tách mệnh đề Hậu quả đã được một mục Outline nêu -> bỏ khỏi ghi chú, tránh một sự kiện bị yêu cầu hai lần (nguồn của cảnh lặp ba lần).
+function _beatToks(t) { return Array.from(new Set(normalizeName(t).split(/[^a-z0-9đ]+/).filter(w => w.length >= 2 && !SCENE_STOP_TOKENS.has(w)))); }
+function outlineClauseCovered(clause, items) {
+  const ct = _beatToks(clause); if (ct.length < 2) return false;
+  const pool = new Set(); (items || []).forEach(it => _beatToks(it).forEach(w => pool.add(w)));
+  return ct.filter(w => pool.has(w)).length / ct.length >= 0.6;
+}
+function dedupeOutlineMeta(meta, items) {
+  const out = Object.assign({}, meta || {});
+  if (out.consequence) {
+    const keep = String(out.consequence).split(/\s*(?:\s\+\s|;)\s*/).map(s => s.trim()).filter(Boolean).filter(c => !outlineClauseCovered(c, items));
+    if (keep.length) out.consequence = keep.join(' + '); else delete out.consequence;
+  }
+  return out;
 }
 function sceneScopedContract(contract) {
   const c = promptChapterContract(contract);
@@ -1436,6 +1527,8 @@ function sceneScopedChecklistBlock(scene, scope) {
   const out = ['CHECKLIST RIÊNG CỦA SCENE ' + (s.id || '') + ' (' + ((sc.index || 0) + 1) + '/' + (sc.total || '?') + ') — chỉ thực hiện các mục này rồi dừng ở handoff' + (perBeat >= 150 ? '; mỗi mục viết thành cảnh đầy đủ (hành động, lời thoại, phản ứng), khoảng ' + perBeat + ' từ/mục, không tóm tắt' : '') + ':\n- ' + mine.join('\n- ')];
   if (sc.done && sc.done.length) out.push('ĐÃ KỂ XONG Ở SCENE TRƯỚC — TUYỆT ĐỐI KHÔNG kể lại hay diễn đạt lại (chỉ được nhắc hậu quả bằng một mệnh đề ngắn):\n- ' + sc.done.join('\n- '));
   if (sc.later && sc.later.length) out.push('DÀNH CHO SCENE SAU — KHÔNG kể diễn biến ở scene này; chỉ được gợi sang bằng 1–2 câu cuối theo handoff:\n- ' + sc.later.join('\n- '));
+  (sc.sequences || []).forEach(parts => out.push('TRÌNH TỰ LIÊN TỤC BẮT BUỘC — viết trong MỘT cảnh liền mạch, đúng thứ tự, mỗi bước kể ĐÚNG MỘT LẦN (không tách sang đoạn khác, không nhắc lại như hậu quả, không bỏ bước): ' + parts.join(' → ')));
+  (sc.notes || []).forEach(n => out.push(n));
   return out.join('\n\n');
 }
 // V14.3.2: phát hiện scene mới KỂ LẠI sự kiện đã có ở scene trước bằng câu chữ khác (so theo từ đặc trưng của từng đoạn, không cần trùng nguyên văn).
@@ -2525,6 +2618,16 @@ function sceneTransitionOnly(text) {
 }
 // Chuẩn hoá kết quả Auditor → review có verdict cuối cùng. Trả null nếu obj không phải object JSON.
 // opts: { maxMainEvents, maxNamedCharacters, passScore, softFailScore, extraHard: string[], now }
+/* V14.5.14: Auditor hay nhét NHẬN XÉT "KHÔNG CÓ LỖI" vào danh sách lỗi ("… nên không phải lỗi continuity", "hợp lý", "đúng trình tự", "đã đúng"). Các dòng đó vào luồng AI tự sửa
+   làm model sửa nhầm chỗ đang đúng. Chỉ bỏ dòng có kết luận "không lỗi" VÀ không chứa từ chỉ lỗi thật (thiếu/sai/mâu thuẫn/lặp/…), nên dòng lỗi thật không bị nuốt. */
+function isNoopAuditNote(text) {
+  const t = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  const ok = /(không phải (?:là )?(?:một )?lỗi|không (?:có )?lỗi|không có vấn đề|không cần sửa|hợp lý|đúng trình tự|đã đúng|đúng như outline|đạt yêu cầu|nên không phải)/.test(t);
+  if (!ok) return false;
+  const bad = /(không hợp lý|bất hợp lý|chưa hợp lý|không đúng|chưa đúng|không đạt|sai lệch|trái |thiếu|sai |sai\.|mâu thuẫn|vi phạm|bỏ sót|bị lặp|lặp lại|nhầm|không khớp|chưa (?:thấy|có|viết|thực hiện|rõ)|thừa|lỗi nặng|nên (?:sửa|thêm|bổ sung|viết lại)|cần (?:sửa|thêm|bổ sung|viết lại))/.test(t);
+  return !bad;
+}
 function evaluateReview(obj, opts) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
   opts = opts || {};
@@ -2533,7 +2636,8 @@ function evaluateReview(obj, opts) {
   const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
   // Một số Auditor đặt câu kiểm tra đạt vào hardFailures dù đây không phải lỗi.
   // Không để dòng "Không có lỗi continuity mức cao..." làm nhiễu Gate/UI.
-  const hard = arr(obj.hardFailures, 20).filter(x => !/^\s*Không có lỗi continuity mức cao/i.test(gateItemText(x)));
+  const hard = arr(obj.hardFailures, 20).filter(x => !/^\s*Không có lỗi continuity mức cao/i.test(gateItemText(x)) && !isNoopAuditNote(gateItemText(x)));
+  const noiseDropped = (Array.isArray(obj.warnings) ? obj.warnings.slice(0, 20) : []).filter(x => isNoopAuditNote(gateItemText(x))).length + (Array.isArray(obj.hardFailures) ? obj.hardFailures.slice(0, 20).length : 0) - hard.length;
   /* V14.5.9: AI Auditor hay báo "Thiếu sự kiện/beat bắt buộc" dù chương đã viết ý đó bằng câu chữ khác -> chỉ CẢNH BÁO, không HARD_FAIL
      (viết lại không hết lỗi). Bật lại chặn cứng bằng opts.strictBeats. */
   const beatWarn = [];
@@ -2598,7 +2702,7 @@ function evaluateReview(obj, opts) {
   return Object.assign({}, obj, {
     score, verdict, hardFailures: hard,
     dimensions: obj.dimensions && typeof obj.dimensions === "object" ? obj.dimensions : {},
-    warnings: arr(obj.warnings, 20).concat(beatWarn, sceneWarn, timeWarn, opts.extraWarnings || []), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
+    warnings: arr(obj.warnings, 20).filter(x => !isNoopAuditNote(gateItemText(x))).concat(beatWarn, sceneWarn, timeWarn, opts.extraWarnings || []), noiseDropped: Math.max(0, noiseDropped), suggestions: arr(obj.suggestions, 20), rewriteInstructions: arr(obj.rewriteInstructions, 12),
     reviewedAt: opts.now || Date.now()
   });
 }
@@ -3828,6 +3932,7 @@ function outlineChapterItems(content, ol) {
       pieces.slice(1).forEach(x => parseMeta(x, out[cur].meta));
     }
   });
+  Object.keys(out).forEach(k => { if (out[k] && out[k].meta) out[k].meta = dedupeOutlineMeta(out[k].meta, out[k].items); }); // V14.5.14: Hậu quả trùng mục -> bỏ
   return _outlineRemapLocal(out, ol);
 }
 function validateOutlineMapping(plan, items) {
@@ -3946,7 +4051,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     }
   });
 
-  const pieces = [], sceneStates = [];
+  const pieces = [], sceneStates = [], sceneTelemetry = [];
   let dupDropped = 0, sceneRetries = 0, sceneAiReviews = 0, ratioSum = 0, ratioN = 0;
   const danglingTrimmed = [];
   const sceneRewritten = [], sceneWarnings = [], sceneKept = [], scenePatched = [];
@@ -3982,17 +4087,19 @@ async function runAdaptiveChapterPipeline(o, deps) {
     /* V14.3.8: model viết scene ngắn hơn ngân sách (thường chỉ 75–90%) nên chương luôn phải bù từ SAU câu kết. Nâng mục tiêu trong PROMPT theo tỉ lệ đạt được của các scene trước (tối đa x1,35); kiểm tra vẫn dùng mục tiêu gốc. */
     const _boost = (deps.sceneTargetBoost !== false && ratioN) ? Math.min(1.35, Math.max(1, 1 / Math.max(0.6, ratioSum / ratioN))) : 1;
     const pScene = _boost > 1.05 ? Object.assign({}, scene, { targetWords: Math.round(scene.targetWords * _boost) }) : scene;
+    const sceneT0 = Date.now(), sceneMetric = { sceneId: scene.id, outlineItems: Array.isArray(scene.outlineItems) ? scene.outlineItems.slice() : [], targetWords: Number(scene.targetWords) || 0, attempts: 0, retries: 0, inputChars: 0, outputWords: 0, status: 'running', errors: [], patched: false, aiReviews: 0 };
     let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
+      sceneMetric.attempts = sceneTries; sceneMetric.retries = Math.max(0, sceneTries - 1);
       const prompt = buildAdaptiveSceneWritePrompt({
         state: st, scene: pScene, chapterGoal: graph.chapterGoal,
         endingAnchor: graph.endingAnchor, previousTail,
         isOpeningScene: i === 0 && !!priorChapters.length,
         stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
         requiredBeats,
-        sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i),
+        sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i, chapterContract.outlineMeta, itemsAll),
         prevScene: i > 0 && deps.sceneBridge !== false ? graph.scenes[i - 1] : null,
         allowedCast: chapterContract.allowedCharacters.join(', '),
         forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract,
@@ -4000,6 +4107,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         style: deps.style(route.nsfw),
         correction
       });
+      sceneMetric.inputChars += prompt.length;
       let text;
       try {
         const r = await callAI(prompt, {
@@ -4012,11 +4120,13 @@ async function runAdaptiveChapterPipeline(o, deps) {
           streaming: false
         });
         text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
+        sceneMetric.outputWords = Math.max(sceneMetric.outputWords, countWords(text));
         if (detectNonVietnamese(text)) text = stripForeign(text);
         // V14.0.8: scene viết LẠI đoạn đã có (model mở đầu lại cùng một cảnh) -> cắt phần lặp, giống đường viết tiếp của writer cũ.
         if (pieces.length) { const d = dropRepeatedParagraphs(pieces.join('\n\n'), text); if (d.length < text.length) { dupDropped++; text = d.trim(); if (countWords(text) < 80) { skipScene = true; break; } } }
         { const tr = trimDanglingSceneEnd(text); if (tr !== text && countWords(tr) >= 80) { if (!danglingTrimmed.includes(scene.id)) danglingTrimmed.push(scene.id); text = tr; } }
       } catch (e) {
+        sceneMetric.errors.push(String(e && e.message || 'scene API error').slice(0, 240));
         if (deps.warn) deps.warn('[AdaptiveScene] scene failed', scene.id, e && e.message);
         // V14.5.5: giữ thông báo lỗi API thật; lỗi tạm thời (timeout/5xx/429...) -> thử lại CHÍNH scene này thay vì hủy cả job.
         if (deps.onSceneError) { try { deps.onSceneError(scene.id, e && e.message); } catch (_) {} }
@@ -4053,6 +4163,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
           });
           const parsed = parseSceneReviewResponse(rv && rv.text);
           sceneAiReviews++;
+          sceneMetric.aiReviews++;
           if (parsed) {
             errors = parsed.errors.slice(); warns = warns.concat(parsed.warnings);
             if (parsed.ok === false && !parsed.errors.length && !parsed.warnings.length) warns.push('rà AI báo ok=false nhưng không nêu lý do — scene được coi là đạt, nên đọc lại');
@@ -4115,8 +4226,10 @@ async function runAdaptiveChapterPipeline(o, deps) {
       accepted = lastText; sceneKept.push(scene.id);
       pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 480), true);
     }
-    if (accepted === null) return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') };
+    if (accepted === null) { sceneMetric.status = 'rejected'; sceneMetric.errors = sceneMetric.errors.concat(lastErrors.map(x => String(x).slice(0, 240))).slice(0, 6); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric); return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') }; }
     pieces.push(accepted); pieceScene.push(i);
+    sceneMetric.status = sceneKept.includes(scene.id) ? 'kept_with_warning' : (scenePatched.includes(scene.id) ? 'patched' : 'accepted');
+    sceneMetric.patched = scenePatched.includes(scene.id); sceneMetric.outputWords = countWords(accepted); sceneMetric.errors = lastErrors.slice(0, 6).map(x => String(x).slice(0, 240)); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric);
     if (Number(scene.targetWords) > 0) { ratioSum += countWords(accepted) / Number(scene.targetWords); ratioN++; }
     previousTail = accepted.slice(-1200);
     sceneStates.push({
@@ -4225,7 +4338,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   const underTarget = wc < limits.minAccept;
   const outlineMissing = ledgerMiss ? ledgerMiss.map(n => itemsAll[n - 1].slice(0, 90)) : deps.outlineCheck === false ? [] : outlineMissingBeats(chapterContract.chapterOutline, text, [].concat(chapterContract.allowedCharacters || [], chapterContract.canonicalCharacters || []));
   const beatLedgerOut = {}; Object.keys(beatLedger).forEach(k => { beatLedgerOut[k] = { done: !!beatLedger[k].done, sceneId: beatLedger[k].sceneId, evidence: String(beatLedger[k].evidence || '').slice(0, 120) }; });
-  const stats = { beatLedger: beatLedgerOut, beatChecks, beatRepaired, outlineMissing, outlineMap, scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneKept, scenePatched, danglingTrimmed, sceneAiReviews, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
+  const stats = { beatLedger: beatLedgerOut, beatChecks, beatRepaired, outlineMissing, outlineMap, scenes: pieces.length, plannedScenes: graph.scenes.length, topUpAttempts, dupDropped, sceneRetries, sceneRewritten, sceneWarnings, sceneKept, scenePatched, danglingTrimmed, sceneAiReviews, sceneTelemetry, strippedCast, addedCast, wordsAfterScenes, wordsBeforeClean, words: wc, seconds: Math.round((Date.now() - t0) / 1000) };
   return { text, plan: 'V14 CHAPTER CONTRACT\n' + JSON.stringify(promptChapterContract(chapterContract)) + '\nADAPTIVE SCENE GRAPH\n' + JSON.stringify(Object.assign({}, graph, { requiredBeats, topUpAttempts })), underTarget, usedNsfw, timedOut, stats };
 }
 
@@ -4437,6 +4550,28 @@ function deterministicConsistencyCheck(st) {
   });
   return issues;
 }
+function buildChapterPostWriteAudit(st, chapterNumber) {
+  st = st || {};
+  const n = Math.max(1, Math.floor(Number(chapterNumber) || 1)), chapters = Array.isArray(st.chapters) ? st.chapters : [];
+  const chapter = chapters[n - 1] || {}, limits = chapterWordLimits(st), words = countWords(chapter.text || "");
+  const withinWordBounds = words >= limits.minAccept && words <= limits.maxAccept;
+  const lengthStatus = words < limits.minAccept ? "below_min" : words > limits.maxAccept ? (words <= limits.hardMax ? "within_hard_cap" : "above_max") : "within";
+  const issues = (Array.isArray(chapter.continuityWarnings) ? chapter.continuityWarnings : []).map(x => String(x && (x.description || x.message) || x).trim()).filter(Boolean);
+  const consistency = deterministicConsistencyCheck(st).filter(x => !Array.isArray(x.chapters) || !x.chapters.length || x.chapters.includes(n));
+  consistency.forEach(x => { const text = String(x.description || "").trim(); if (text && !issues.includes(text)) issues.push(text); });
+  const statusState = st.statusState && typeof st.statusState === "object" ? st.statusState : {};
+  const log = (Array.isArray(statusState.timeLog) ? statusState.timeLog : Array.isArray(st.timeLog) ? st.timeLog : [])
+    .filter(x => x && x.time && (!Number(x.chapter) || Number(x.chapter) <= n));
+  const norm = x => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+  let run = 0, mark = "";
+  if (log.length) { mark = String(log[log.length - 1].time); const last = norm(mark); for (let i = log.length - 1; i >= 0 && norm(log[i].time) === last; i--) run++; }
+  const timeStall = run >= 3 ? { repeatedMarks: run, time: mark, startChapter: Number(log[log.length - run].chapter) || null, endChapter: Number(log[log.length - 1].chapter) || n } : null;
+  if (timeStall) issues.push(run + " chương liên tiếp cùng mốc thời gian: " + mark);
+  const terminal = ["paid_off", "abandoned", "resolved", "completed"];
+  const unresolvedThreads = (Array.isArray(st.threads) ? st.threads : []).filter(x => x && !terminal.includes(String(x.status || "").toLowerCase())).length;
+  const unresolvedForeshadowing = (Array.isArray(st.foreshadowing) ? st.foreshadowing : []).filter(x => x && !terminal.includes(String(x.status || "").toLowerCase())).length;
+  return { chapterNumber: n, checkedAt: Date.now(), wordCount: words, minWords: limits.minAccept, maxWords: limits.maxAccept, hardMax: limits.hardMax, withinWordBounds, lengthStatus, continuityIssues: issues.slice(0, 30), timeStall, unresolvedThreads, unresolvedForeshadowing };
+}
 /* ----- Rà mâu thuẫn bằng AI trên dữ liệu rút gọn ----- */
 function buildConsistencyPrompt(st) {
   const chars = (st.characters || []).slice(0, 60).map(c => ({ name: c.name, tier: c.tier, age: c.age, gender: c.gender, role: c.role || c.occupation, married: c.maritalStatus, spouse: c.spouseName, dead: !!c.dead, deathChapter: c.deathChapter, loc: c.currentLocation, secret: String(c.secret || "").slice(0, 80) }));
@@ -4483,6 +4618,104 @@ function recordStepUsage(st, step, model, inTok, outTok, cost) {
 function modelForStep(st, step, fallback) {
   const m = st && st.stepModels && typeof st.stepModels[step] === "string" ? st.stepModels[step].trim() : "";
   return m || fallback;
+}
+/* ----- Memory phân tầng: range chương, arc và volume ----- */
+function buildLayeredMemoryRanges(chapterCount, config) {
+  const positiveInt = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 1 ? Math.min(1000000, Math.floor(n)) : fallback;
+  };
+  const rawCount = Number(chapterCount);
+  const count = Number.isFinite(rawCount) ? Math.max(0, Math.floor(rawCount)) : 0;
+  const cfg = config && typeof config === "object" ? config : {};
+  const chunkSize = positiveInt(cfg.chunkSize, 4), chunksPerArc = positiveInt(cfg.chunksPerArc, 5), arcsPerVolume = positiveInt(cfg.arcsPerVolume, 3);
+  const chunks = [], arcs = [], volumes = [];
+  const chunkCount = Math.ceil(count / chunkSize), arcSize = chunkSize * chunksPerArc, volumeSize = arcSize * arcsPerVolume;
+  const idFor = (prefix, index) => prefix + "-" + String(index).padStart(4, "0");
+  for (let i = 0; i < chunkCount; i++) {
+    const startChapter = i * chunkSize + 1, expectedEndChapter = startChapter + chunkSize - 1;
+    const endChapter = Math.min(count, expectedEndChapter), arcIndex = Math.floor(i / chunksPerArc), volumeIndex = Math.floor(arcIndex / arcsPerVolume);
+    chunks.push({ id: idFor("L2", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, arcId: idFor("L3", arcIndex + 1), volumeId: idFor("L4", volumeIndex + 1) });
+  }
+  const arcCount = Math.ceil(count / arcSize);
+  for (let i = 0; i < arcCount; i++) {
+    const startChapter = i * arcSize + 1, expectedEndChapter = startChapter + arcSize - 1, endChapter = Math.min(count, expectedEndChapter);
+    const chunkIds = chunks.filter(x => x.arcId === idFor("L3", i + 1)).map(x => x.id);
+    arcs.push({ id: idFor("L3", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, volumeId: idFor("L4", Math.floor(i / arcsPerVolume) + 1), chunkIds });
+  }
+  const volumeCount = Math.ceil(count / volumeSize);
+  for (let i = 0; i < volumeCount; i++) {
+    const startChapter = i * volumeSize + 1, expectedEndChapter = startChapter + volumeSize - 1, endChapter = Math.min(count, expectedEndChapter);
+    const arcIds = arcs.filter(x => x.volumeId === idFor("L4", i + 1)).map(x => x.id);
+    volumes.push({ id: idFor("L4", i + 1), index: i + 1, startChapter, endChapter, expectedEndChapter, complete: endChapter === expectedEndChapter, arcIds });
+  }
+  return { chunks, arcs, volumes };
+}
+function upsertFrozenLayerSummary(existing, incoming) {
+  const result = Array.isArray(existing) ? existing.slice() : [];
+  if (!incoming || typeof incoming.id !== "string" || !incoming.id.trim()) return result;
+  const index = result.findIndex(item => item && item.id === incoming.id);
+  if (index >= 0 && result[index].frozen === true) return result;
+  const summary = Object.assign({}, incoming, { frozen: true });
+  if (index >= 0) result[index] = summary;
+  else result.push(summary);
+  return result;
+}
+function organizationProfilesPromptBlock(st, maxChars) {
+  st = st || {};
+  const orgs = Array.isArray(st.organizations) ? st.organizations.filter(x => x && String(x.name || "").trim()).slice(-10) : [];
+  const rawBudget = Number(maxChars), budget = Number.isFinite(rawBudget) && rawBudget >= 0 ? Math.floor(rawBudget) : 2200;
+  if (!orgs.length || !budget) return "";
+  const cut = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+  let out = "HỒ SƠ THẾ LỰC (trạng thái/lịch sử đã xác nhận; không tự đổi):\n";
+  orgs.forEach(org => {
+    if (out.length >= budget) return;
+    const row = "- " + cut(org.name, 80) + " [" + cut(org.status || "active", 24) + "]" +
+      (org.type ? " | loại: " + cut(org.type, 60) : "") + (org.leader ? " | thủ lĩnh: " + cut(org.leader, 60) : "") +
+      (org.territory ? " | lãnh địa: " + cut(org.territory, 80) : "") + (org.description ? " | hồ sơ: " + cut(org.description, 200) : "") +
+      (org.historyText ? " | lịch sử: " + cut(org.historyText, 160) : "") + "\n";
+    const room = budget - out.length;
+    out += row.length <= room ? row : (room > 1 ? row.slice(0, room - 1) + "…" : "");
+  });
+  return out.slice(0, budget).trimEnd();
+}
+function buildLayeredMemoryContextBlock(st, targetChapter, maxChars) {
+  st = st || {};
+  const memory = st.layeredMemory && typeof st.layeredMemory === "object" ? st.layeredMemory : {};
+  const summaries = memory.summaries && typeof memory.summaries === "object" ? memory.summaries : {};
+  const target = Math.max(1, Math.floor(Number(targetChapter) || ((st.chapters || []).length + 1)));
+  const rawBudget = Number(maxChars), budget = Number.isFinite(rawBudget) && rawBudget >= 0 ? Math.floor(rawBudget) : 5200;
+  if (!budget) return "";
+  const labels = { L1: "L1 · TÓM TẮT CHƯƠNG GẦN", L5: "L5 · TỔNG QUAN TOÀN TRUYỆN", L4: "L4 · VOLUME", L3: "L3 · ARC", L2: "L2 · NHÓM CHƯƠNG" };
+  const blocks = [];
+  ["L1", "L5", "L4", "L3", "L2"].forEach(level => {
+    const list = Array.isArray(summaries[level]) ? summaries[level] : [];
+    const eligible = list.filter(x => {
+      const end = Number(x && (x.endChapter != null ? x.endChapter : x.toChapter));
+      return x && x.frozen === true && !x.stale && Number.isFinite(end) && end < target && String(x.summary || x.text || "").trim();
+    }).sort((a, b) => Number(b.endChapter != null ? b.endChapter : b.toChapter) - Number(a.endChapter != null ? a.endChapter : a.toChapter));
+    if (!eligible.length) return;
+    const selected = level === "L1" ? eligible.slice(0, 2).reverse() : [eligible[0]];
+    selected.forEach(item => {
+      const start = Number(item.startChapter != null ? item.startChapter : item.fromChapter) || 0;
+      const end = Number(item.endChapter != null ? item.endChapter : item.toChapter) || 0;
+      let text = String(item.summary || item.text || "").trim();
+      if (level === "L1" && text.length > 900) text = text.slice(0, 899).trimEnd() + "…";
+      blocks.push({ heading: labels[level] + (start && end ? " (ch" + start + "–" + end + ")" : "") + ":\n", text });
+    });
+  });
+  let out = "";
+  for (const block of blocks) {
+    if (out.length >= budget) break;
+    const separator = out ? "\n\n" : "";
+    const available = budget - out.length - separator.length;
+    if (available <= 0) break;
+    const heading = block.heading.slice(0, available);
+    const contentBudget = Math.max(0, available - heading.length);
+    const content = block.text.length > contentBudget && contentBudget > 1 ? block.text.slice(0, contentBudget - 1).trimEnd() + "…" : block.text.slice(0, contentBudget);
+    out += separator + heading + content;
+  }
+  return out.slice(0, budget);
 }
 // <<SHARED-CORE:END>>
 function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -4862,7 +5095,7 @@ async function initIndexedDBStorage(){
 }
 /* ========== STATE ========== */
 const state = {
-  schemaVersion: 9,
+  schemaVersion: 13,
   apiEndpoint: "https://openrouter.ai/api/v1/chat/completions", apiKey: "",
   model: "deepseek/deepseek-v3.2", modelNsfw: "aion-labs/aion-2.0",
   nsfwMode: "auto", nsfwAutoThreshold: 6, chapterMatureFocus: "none",
@@ -4873,7 +5106,7 @@ const state = {
   autoContinueEnabled: true, autoSummaryEnabled: true, autoSceneEnabled: true,
   dupCheckEnabled: true, streamingEnabled: true, queueEnabled: true,
   parallelEnabled: true, checkpointEnabled: true,
-  autoContinueMax: 4, minChapterWords: 5000,
+  autoContinueMax: 4, minChapterWords: 5000, chapterWordMin: null, chapterWordMax: null,
   totalCalls: 0, totalTokensIn: 0, totalTokensOut: 0, totalCostUSD: 0,
   storyId: null, storyName: "",
   styleBible: { pov:"third_limited", tense:"past", tone:"", sample:"", extra:"" },
@@ -4885,11 +5118,12 @@ const state = {
   difficulty: "vua", mature: false, chapterMatureFocus: "none",
   storyControl: { schemaVersion:1, maxMainEvents:2, maxNamedCharacters:4, maxNewThreads:3, noRetcon:true, agencyRequired:true, lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"] },
   currentStatus: "",
-  characters: [], locations: [], items: [], threads: [],
+  characters: [], locations: [], items: [], organizations: [], threads: [],
   scenes: [], consentLog: [],
   chapters: [], currentChapterIndex: -1,
   chaptersSinceBackup: 0,
-  statusState: {}, timeline: [], foreshadowing: [], knowledgeLedger: [], memoryEvents: [], lastMemorySyncChapter: 0,
+  statusState: {}, timeline: [], timeLog: [], foreshadowing: [], knowledgeLedger: [], memoryEvents: [], lastMemorySyncChapter: 0,
+  layeredMemory: { schemaVersion: 1, config: { chunkSize: 4, chunksPerArc: 5, arcsPerVolume: 3 }, summaries: { L1: [], L2: [], L3: [], L4: [], L5: [] }, history: [] },
   triggeredCheckpoints: [],
   lastPacingWarnChapter: 0,
   includeScenesInPrompt: true,
@@ -4922,7 +5156,7 @@ function newMainCharProfile(){
 }
 function newStoryState(name){
   return {
-    schemaVersion: 12, lorebook: [], loreBudgetTokens: 2000, storyId: newStoryId(), storyName: name || ("Truyện " + (storiesIndex.length + 1)),
+    schemaVersion: 13, lorebook: [], loreBudgetTokens: 2000, storyId: newStoryId(), storyName: name || ("Truyện " + (storiesIndex.length + 1)),
     styleBible: { pov:"third_limited", tense:"past", tone:"", sample:"", extra:"" },
     mainPlot:"", genre:"", worldSetting:"", worldRules:"", antagonist:"", cultivationSystem:"", realmLadder:"",
     pronounRules:"", worldDescription:"", storyBibleLocked:false,
@@ -4932,11 +5166,12 @@ function newStoryState(name){
     vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
     arcs:[], outlinePlans:[], storyClock:"", directive:"", nextChapterHint:"", nextChapterHintMeta:{targetChapter:0,version:0,status:"unverified"}, autoNextChapterHint:"",
     difficulty:"vua", mature:false, chapterMatureFocus:"none", storyControl:{schemaVersion:1,maxMainEvents:2,maxNamedCharacters:4,maxNewThreads:3,noRetcon:true,agencyRequired:true,lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"]}, currentStatus:"",
-    characters:[], locations:[], items:[], threads:[],
+    characters:[], locations:[], items:[], organizations:[], threads:[], chapterWordMin:null, chapterWordMax:null,
     scenes:[], consentLog:[],
     chapters:[], chapterDrafts:[], currentChapterIndex:-1, chaptersSinceBackup:0,
     triggeredCheckpoints: [], lastPacingWarnChapter: 0,
-    statusState: {}, timeline: [], foreshadowing: [], knowledgeLedger: [], memoryEvents: [],
+    statusState: {}, timeline: [], timeLog: [], foreshadowing: [], knowledgeLedger: [], memoryEvents: [],
+    layeredMemory:{schemaVersion:1,config:{chunkSize:4,chunksPerArc:5,arcsPerVolume:3},summaries:{L1:[],L2:[],L3:[],L4:[],L5:[]},history:[]},
     lastMemorySyncChapter: 0,
     apiSettings: { endpoint:"https://openrouter.ai/api/v1/chat/completions", key:"", primaryModel:"deepseek/deepseek-v3.2", nsfwModel:"aion-labs/aion-2.0", nsfwMode:"auto", nsfwThreshold:6 },
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
@@ -5211,9 +5446,17 @@ async function loadCurrentStoryIntoState(){
   if(!Array.isArray(state.consentLog)) state.consentLog = [];
   if(!state.statusState || typeof state.statusState !== "object") state.statusState = {};
   if(!Array.isArray(state.timeline)) state.timeline = [];
+  if(!Array.isArray(state.timeLog)) state.timeLog = [];
+  if(!Array.isArray(state.organizations)) state.organizations = [];
   if(!Array.isArray(state.foreshadowing)) state.foreshadowing = [];
   if(!Array.isArray(state.knowledgeLedger)) state.knowledgeLedger = [];
   if(!Array.isArray(state.memoryEvents)) state.memoryEvents = [];
+  if(!state.layeredMemory || typeof state.layeredMemory !== "object") state.layeredMemory = {};
+  state.layeredMemory.schemaVersion = 1;
+  state.layeredMemory.config = Object.assign({ chunkSize: 4, chunksPerArc: 5, arcsPerVolume: 3 }, state.layeredMemory.config || {});
+  state.layeredMemory.summaries = Object.assign({ L1: [], L2: [], L3: [], L4: [], L5: [] }, state.layeredMemory.summaries || {});
+  ["L1", "L2", "L3", "L4", "L5"].forEach(k => { if(!Array.isArray(state.layeredMemory.summaries[k])) state.layeredMemory.summaries[k] = []; });
+  if(!Array.isArray(state.layeredMemory.history)) state.layeredMemory.history = [];
   if(!Number.isFinite(Number(state.lastMemorySyncChapter))) state.lastMemorySyncChapter = 0;
   /* v10.2 normalize merged metadata objects */
   if(!state.apiSettings || typeof state.apiSettings!=="object") state.apiSettings={};
@@ -5232,7 +5475,7 @@ async function loadCurrentStoryIntoState(){
   if(!Number.isFinite(Number(state.snapshotLimit))) state.snapshotLimit=7;
   if(state.wakeLockEnabled==null) state.wakeLockEnabled=true;
   if(!Number.isFinite(Number(state.slidingWindowWords))) state.slidingWindowWords=1500;
-  state.schemaVersion = 10;
+  state.schemaVersion = 13;
 }
 
 /* ========== DOM REFS ========== */
@@ -5251,13 +5494,18 @@ function setupAgeGate(){
 function setupUIMode(){
   const sel=$ID("uiModeSelect"); if(!sel)return;
   let mode="simple"; try{mode=localStorage.getItem("xta_ui_mode")||"simple";}catch(e){}
-  sel.value=mode; document.body.classList.toggle("ui-simple",mode==="simple");
   const sections=[...document.querySelectorAll(".sidebar .section")];
-  sections.forEach(sec=>{const head=sec.querySelector(".section-head span"); const text=(head&&head.textContent||"").trim();
-    const essential=/^(0\.0|0\.1|0\.2|2\.\s|4\.)/.test(text);
-    sec.dataset.simpleHidden=essential?"false":"true";
-  });
-  sel.addEventListener("change",()=>{mode=sel.value==="expert"?"expert":"simple";document.body.classList.toggle("ui-simple",mode==="simple");try{localStorage.setItem("xta_ui_mode",mode);}catch(e){};setStatus(mode==="simple"?"Đã bật Chế độ đơn giản — các mục nâng cao đã được ẩn.":"Đã bật Chế độ chuyên gia — toàn bộ công cụ đã hiện.",false);});
+  const applyMode=()=>{
+    mode=sel.value==="expert"?"expert":"simple";
+    document.body.classList.toggle("ui-simple",mode==="simple");
+    sections.forEach(sec=>{const head=sec.querySelector(".section-head span"); const text=(head&&head.textContent||"").trim();
+      const essential=/^(0\.0|0\.1|0\.2|2\.\s|4\.)/.test(text);
+      sec.dataset.simpleHidden=mode==="simple"&&!essential?"true":"false";
+    });
+    try{localStorage.setItem("xta_ui_mode",mode);}catch(e){}
+  };
+  sel.value=mode; applyMode();
+  sel.addEventListener("change",()=>{applyMode();setStatus(mode==="simple"?"Đã bật Chế độ đơn giản — các mục nâng cao đã được ẩn.":"Đã bật Chế độ chuyên gia — toàn bộ công cụ đã hiện.",false);});
 }
 function setWriteProgress(step){
   const box=$ID("writeProgress"); if(!box)return;
@@ -5319,7 +5567,7 @@ const autoSceneToggle = $ID("autoSceneToggle");
 const dupCheckToggle = $ID("dupCheckToggle"), streamingToggle = $ID("streamingToggle");
 const queueToggle = $ID("queueToggle"), parallelToggle = $ID("parallelToggle");
 const checkpointToggle = $ID("checkpointToggle"), autoRepairOnCreateToggle = $ID("autoRepairOnCreateToggle");
-const minWordsInput = $ID("minWordsInput"), autoContinueMaxInput = $ID("autoContinueMaxInput");
+const minWordsInput = $ID("minWordsInput"), chapterWordMinInput = $ID("chapterWordMinInput"), chapterWordMaxInput = $ID("chapterWordMaxInput"), autoContinueMaxInput = $ID("autoContinueMaxInput");
 const regenModeSelect = $ID("regenModeSelect");
 const descriptionLevelSelect = $ID("descriptionLevelSelect");
 const explicitLevelSelect = $ID("explicitLevelSelect");
@@ -6420,6 +6668,8 @@ function buildContextBlock(options){
   // V12.32: không chèn tóm tắt chương cũ lần thứ hai vào khối ngữ cảnh.
   /* V12.32.5: nhưng cần TRÍ NHỚ TRUYỆN: mỗi chương cũ 1–2 câu (trừ chương gần nhất đã có khối riêng), tối đa ~2800 ký tự. */
   const soFar = storySoFarPrompt(Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters : state.chapters, 2800); if(soFar) lines.push(soFar);
+  const memoryTargetChapter = Number(contextOptions.chapterNumber) || ((Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters.length : state.chapters.length) + 1);
+  const layeredMemoryBlock = buildLayeredMemoryContextBlock(state, memoryTargetChapter, 3600); if(layeredMemoryBlock) lines.push("BỘ NHỚ PHÂN TẦNG (chỉ dữ kiện đã chốt trước chương này; ưu tiên canon mới hơn nếu xung đột):\n" + layeredMemoryBlock);
   const loops = openLoopsPrompt(state); if(loops) lines.push(loops);
   /* NV: bóc thẻ tự động, tối đa 5 thẻ cho mỗi prompt */
   const cardText = characterCardsForPromptV102((state.chapters.slice(-1)[0]?.text||"") + "\n" + (state.directive||""));
@@ -6446,6 +6696,7 @@ function buildContextBlock(options){
     lines.push("⚠ CHƯA khai báo Nhân Vật Chính (tab Nhân Vật Chính) — nếu Cốt Truyện/Bối Cảnh có nhắc tên nhân vật chính, PHẢI dùng đúng tên đó xuyên suốt, không tự đặt tên khác.");
   }
 
+  const organizationBlock = organizationProfilesPromptBlock(state, 2200); if(organizationBlock) lines.push(organizationBlock);
   const activeLocs = state.locations.filter(l=>l.status === 'active').slice(-4);
   if(activeLocs.length) lines.push("ĐỊA ĐIỂM:\n" + activeLocs.map(l=>"- "+l.name+": "+clip(l.description, 100)).join("\n"));
 
@@ -6454,7 +6705,7 @@ function buildContextBlock(options){
 
   /* V14.4.3: THREADS/FORESHADOWING/TIMELINE/KIẾN THỨC không có nhãn ưu tiên nên model coi là việc phải đẩy tiến ở MỖI chương (vd tuyến "ân nhân"), kéo truyện khỏi Outline. */
   if((state.threads||[]).length || (state.foreshadowing||[]).length) lines.push("LƯU Ý ƯU TIÊN: THREADS / FORESHADOWING / TIMELINE / KIẾN THỨC bên dưới chỉ là BỐI CẢNH để giữ nhất quán. Chương này không bắt buộc đẩy chúng tiến triển; có thể thêm yếu tố/tình tiết phụ nếu hợp lý, nhưng sự kiện chính của Outline chương PHẢI có và viết đầy đủ trước, không để các mục này chiếm chỗ hay làm thiếu Outline.");
-  const openThreads = state.threads.filter(t=>t.status!=='paid_off' && t.status!=='abandoned').slice(0, 6);
+  const openThreads = state.threads.filter(t=>!['paid_off','abandoned','resolved','completed'].includes(String(t.status||'').toLowerCase())).slice(0, 6);
   if(openThreads.length) lines.push("THREADS:\n" + openThreads.map(t=>"- ["+t.type+"] "+clip(t.desc, 120)).join("\n"));
 
   const openForeshadowing = (state.foreshadowing||[]).filter(f=>!['paid_off','abandoned','resolved'].includes(f.status)).slice(-8);
@@ -6758,9 +7009,26 @@ queueToggle.addEventListener("change", ()=>{ state.queueEnabled = queueToggle.ch
 parallelToggle.addEventListener("change", ()=>{ state.parallelEnabled = parallelToggle.checked; persist(); });
 checkpointToggle.addEventListener("change", ()=>{ state.checkpointEnabled = checkpointToggle.checked; persist(); });
 minWordsInput.addEventListener("change", ()=>{
-  state.minChapterWords = Math.min(6000, Math.max(500, parseInt(minWordsInput.value,10) || 5000));
+  state.minChapterWords = Math.min(12000, Math.max(500, parseInt(minWordsInput.value,10) || 5000));
+  if(state.chapterWordMin!=null && state.chapterWordMax!=null && Number.isFinite(Number(state.chapterWordMin)) && Number.isFinite(Number(state.chapterWordMax)) && Number(state.chapterWordMax) >= Number(state.chapterWordMin)){
+    state.minChapterWords = Math.max(Number(state.chapterWordMin), Math.min(Number(state.chapterWordMax), state.minChapterWords));
+  }
   minWordsInput.value = state.minChapterWords; persist();
 });
+function saveChapterWordBounds(){
+  const minText = chapterWordMinInput.value.trim(), maxText = chapterWordMaxInput.value.trim();
+  if(!minText && !maxText){ state.chapterWordMin = null; state.chapterWordMax = null; persist(); setStatus("Đã dùng lại giới hạn mục tiêu ±500 từ.", false); return; }
+  const min = Number(minText), max = Number(maxText);
+  if(!minText || !maxText || !Number.isFinite(min) || !Number.isFinite(max) || min < 300 || max > 12000 || min > max){
+    setStatus("Khoảng min/max không hợp lệ: nhập đủ hai số, 300 ≤ min ≤ max ≤ 12.000.", false);
+    chapterWordMinInput.value = state.chapterWordMin || ""; chapterWordMaxInput.value = state.chapterWordMax || ""; return;
+  }
+  state.chapterWordMin = Math.floor(min); state.chapterWordMax = Math.floor(max);
+  state.minChapterWords = Math.max(state.chapterWordMin, Math.min(state.chapterWordMax, Number(state.minChapterWords) || 5000));
+  minWordsInput.value = state.minChapterWords; persist(); setStatus("Đã lưu min/max riêng cho truyện này.", false);
+}
+chapterWordMinInput.addEventListener("change", saveChapterWordBounds);
+chapterWordMaxInput.addEventListener("change", saveChapterWordBounds);
 autoContinueMaxInput.addEventListener("change", ()=>{
   state.autoContinueMax = Math.max(0, Math.min(8, parseInt(autoContinueMaxInput.value,10) || 4));
   autoContinueMaxInput.value = state.autoContinueMax; persist();
@@ -7758,24 +8026,70 @@ $ID("itemAddBtn").addEventListener("click", ()=>{
   $ID("itemBoundInput").checked = false;
 });
 
+/* ========== ORGANIZATION / FACTION PROFILES ========== */
+function renderOrganizations(){
+  const list = $ID("organizationList"); if(!list) return;
+  if(!Array.isArray(state.organizations) || !state.organizations.length){ list.innerHTML = '<div class="empty-note">Chưa có hồ sơ thế lực.</div>'; return; }
+  list.innerHTML = state.organizations.map((org,i)=>
+    '<details class="item-item" style="margin:5px 0;"><summary><b>'+escapeHtml(org.name||"Chưa đặt tên")+'</b> <span class="hint">'+escapeHtml(org.status||"active")+'</span></summary>'+
+    '<div class="field" style="margin-top:6px;"><div class="row2"><input data-org-edit="'+i+'" data-field="name" value="'+escapeHtml(org.name||"")+'" placeholder="Tên"/><input data-org-edit="'+i+'" data-field="type" value="'+escapeHtml(org.type||"")+'" placeholder="Loại"/></div>'+
+    '<div class="row2" style="margin-top:5px;"><input data-org-edit="'+i+'" data-field="leader" value="'+escapeHtml(org.leader||"")+'" placeholder="Thủ lĩnh"/><input data-org-edit="'+i+'" data-field="territory" value="'+escapeHtml(org.territory||"")+'" placeholder="Lãnh địa"/></div>'+
+    '<select data-org-edit="'+i+'" data-field="status" style="margin-top:5px;"><option value="active"'+(org.status==="active"?" selected":"")+'>Đang hoạt động</option><option value="allied"'+(org.status==="allied"?" selected":"")+'>Đồng minh</option><option value="hostile"'+(org.status==="hostile"?" selected":"")+'>Đối địch</option><option value="hidden"'+(org.status==="hidden"?" selected":"")+'>Ẩn danh</option><option value="dissolved"'+(org.status==="dissolved"?" selected":"")+'>Tan rã</option></select>'+
+    '<textarea data-org-edit="'+i+'" data-field="description" rows="3" placeholder="Mô tả / mục tiêu">'+escapeHtml(org.description||"")+'</textarea><textarea data-org-edit="'+i+'" data-field="historyText" rows="2" placeholder="Lịch sử và thay đổi">'+escapeHtml(org.historyText||"")+'</textarea>'+
+    '<div class="hint">Xuất hiện lần đầu: ch'+(Number(org.firstAppearance)||0)+' · cập nhật gần nhất: ch'+(Number(org.lastAppearance)||0)+'</div><div class="char-actions"><button class="btn btn-blue btn-sm" data-org-save="'+i+'">Lưu sửa</button><button class="btn btn-outline-red btn-sm" data-org-del="'+i+'">Xóa</button></div></div></details>'
+  ).join("");
+  list.querySelectorAll("[data-org-save]").forEach(btn=>btn.addEventListener("click",()=>{
+    const i = Number(btn.getAttribute("data-org-save")), org = state.organizations[i]; if(!org) return;
+    const box = btn.closest("details"), next = {};
+    box.querySelectorAll("[data-org-edit]").forEach(el=>{ next[el.getAttribute("data-field")] = el.value.trim(); });
+    if(!next.name){ setStatus("Tên thế lực không được để trống.", false); return; }
+    const changed = ["name","type","leader","territory","status","description","historyText"].some(k=>String(org[k]||"")!==String(next[k]||""));
+    if(!changed) return;
+    const history = Array.isArray(org.history) ? org.history : [];
+    history.push({ chapter: state.chapters.length, at: Date.now(), note: "Cập nhật hồ sơ: " + [org.name,next.name].filter(Boolean).join(" → ") });
+    state.organizations[i] = Object.assign({}, org, next, { history, lastAppearance: state.chapters.length, updatedAt: Date.now() });
+    persist(); renderOrganizations();
+  }));
+  list.querySelectorAll("[data-org-del]").forEach(btn=>btn.addEventListener("click",()=>{ state.organizations.splice(Number(btn.getAttribute("data-org-del")),1); persist(); renderOrganizations(); }));
+}
+$ID("organizationAddBtn").addEventListener("click",()=>{
+  const name=$ID("organizationNameInput").value.trim(); if(!name){ setStatus("Nhập tên thế lực.",false); return; }
+  if(state.organizations.some(x=>normalizeName(x.name)===normalizeName(name))){ setStatus("Thế lực này đã có hồ sơ.",false); return; }
+  const nowChapter=state.chapters.length;
+  state.organizations.push({id:genId(),name,type:$ID("organizationTypeInput").value.trim(),leader:$ID("organizationLeaderInput").value.trim(),territory:$ID("organizationTerritoryInput").value.trim(),status:$ID("organizationStatusInput").value,description:$ID("organizationDescInput").value.trim(),historyText:$ID("organizationHistoryInput").value.trim(),firstAppearance:nowChapter,lastAppearance:nowChapter,history:[{chapter:nowChapter,at:Date.now(),note:"Hồ sơ được tạo"}],updatedAt:Date.now()});
+  persist(); renderOrganizations(); ["organizationNameInput","organizationTypeInput","organizationLeaderInput","organizationTerritoryInput","organizationDescInput","organizationHistoryInput"].forEach(id=>$ID(id).value="");
+});
+
 /* ========== THREADS ========== */
 function renderThreads(){
   if(!state.threads.length){ threadList.innerHTML = '<div class="empty-note">Chưa có.</div>'; return; }
   threadList.innerHTML = state.threads.map((t,i)=>
-    '<div class="thread-item"><span class="thread-type">'+t.type+'</span><span class="thread-status">'+t.status+'</span>'
-    + '<div style="margin-top:4px;">'+escapeHtml(t.desc)+'</div>'
+    '<div class="thread-item"><span class="thread-type">'+escapeHtml(t.type||"open_thread")+'</span><span class="thread-status">'+escapeHtml(t.status||"seeded")+'</span>'
+    + '<textarea data-thread-desc="'+i+'" rows="2" style="margin-top:5px;">'+escapeHtml(t.desc||"")+'</textarea>'
+    + (t.expectedPayoff?'<div class="hint">Dự kiến: '+escapeHtml(t.expectedPayoff)+'</div>':'')
+    + '<div class="row2"><span class="hint">Gieo ch'+(Number(t.chapterIntroduced)||0)+' · cập nhật ch'+(Number(t.lastUpdatedChapter)||Number(t.chapterIntroduced)||0)+'</span><select data-thread-status="'+i+'"><option value="seeded"'+(t.status==="seeded"?" selected":"")+'>Seeded</option><option value="developing"'+(t.status==="developing"?" selected":"")+'>Developing</option><option value="blocked"'+(t.status==="blocked"?" selected":"")+'>Blocked</option><option value="resolved"'+(t.status==="resolved"?" selected":"")+'>Resolved</option><option value="paid_off"'+(t.status==="paid_off"?" selected":"")+'>Paid off</option><option value="abandoned"'+(t.status==="abandoned"?" selected":"")+'>Abandoned</option></select></div>'
     + '<div class="char-actions"><button class="btn btn-outline-red btn-sm" data-thread-del="'+i+'">Xóa</button></div></div>'
   ).join("");
   threadList.querySelectorAll("[data-thread-del]").forEach(btn=>{
     btn.addEventListener("click", ()=>{ state.threads.splice(parseInt(btn.getAttribute("data-thread-del"),10),1); persist(); renderThreads(); });
   });
+  threadList.querySelectorAll("[data-thread-status]").forEach(sel=>sel.addEventListener("change",()=>{
+    const t=state.threads[Number(sel.getAttribute("data-thread-status"))]; if(!t) return;
+    const old=t.status||"seeded", next=sel.value; if(old===next) return;
+    const at=Date.now(); t.statusHistory=Array.isArray(t.statusHistory)?t.statusHistory:[]; t.statusHistory.push({from:old,to:next,chapter:state.chapters.length,storyTime:state.storyClock||"",source:"author",at});
+    t.status=next; t.lastManualUpdatedAt=at; t.lastUpdatedChapter=state.chapters.length; t.lastUpdatedTime=state.storyClock||""; persist(); renderThreads();
+  }));
+  threadList.querySelectorAll("[data-thread-desc]").forEach(el=>el.addEventListener("change",()=>{
+    const t=state.threads[Number(el.getAttribute("data-thread-desc"))]; if(!t) return;
+    const next=el.value.trim(); if(!next) return; if(next!==t.desc){ t.desc=next; t.lastManualUpdatedAt=Date.now(); t.lastUpdatedChapter=state.chapters.length; t.lastUpdatedTime=state.storyClock||""; persist(); renderThreads(); }
+  }));
 }
 $ID("threadAddBtn").addEventListener("click", ()=>{
   const desc = $ID("threadDescInput").value.trim();
   if(!desc){ setStatus("Nhập mô tả.", false); return; }
-  state.threads.push({ id: genId(), type: $ID("threadTypeInput").value,
-    status: $ID("threadStatusInput").value, desc, chapterIntroduced: state.chapters.length + 1 });
-  persist(); renderThreads(); $ID("threadDescInput").value = "";
+  const status=$ID("threadStatusInput").value, chapter=state.chapters.length+1;
+  const createdAt=Date.now(); state.threads.push({ id: genId(), type: $ID("threadTypeInput").value, status, desc, expectedPayoff:$ID("threadExpectedInput").value.trim(), chapterIntroduced:chapter, lastUpdatedChapter:chapter, lastUpdatedTime:state.storyClock||"", lastManualUpdatedAt:createdAt, statusHistory:[{from:"",to:status,chapter,storyTime:state.storyClock||"",source:"author",at:createdAt}] });
+  persist(); renderThreads(); $ID("threadDescInput").value = ""; $ID("threadExpectedInput").value = "";
 });
 
 /* ========== CHAPTER STATE SNAPSHOT (lịch sử theo chương) ========== */
@@ -8283,8 +8597,8 @@ $ID("npcUpdateBtn").addEventListener("click", async ()=>{
 const WORLD_JSON_FORMAT_HINT = 'Trả về DUY NHẤT một object JSON (không thêm chữ nào khác, không markdown):\n'
   + '{"locations":[{"name":"","description":"","status":"active|destroyed|abandoned|locked"}],'
   + '"items":[{"name":"","description":"","owner":"","status":"active|lost|destroyed|stored","kind":"pháp bảo|binh khí|đan dược|công pháp/bí kíp|trận pháp/phù lục|linh thạch/tài nguyên|khác","grade":"phẩm cấp nếu chương nêu rõ","effect":"công dụng/hạn chế nếu chương nêu","bound":false}],'
-  + '"threads":[{"type":"open_thread|foreshadowing|consequence","desc":"","status":"seeded|developing|paid_off|abandoned","matchExistingDesc":""}]}\n'
-  + 'Chỉ liệt kê địa điểm/vật phẩm MỚI hoặc CÓ THAY ĐỔI, và thread mới/đổi trạng thái. Nếu không có gì đổi ở 1 mục, để mảng rỗng []. Tất cả TIẾNG VIỆT.';
+  + '"threads":[{"type":"open_thread|foreshadowing|consequence","desc":"","status":"seeded|developing|blocked|resolved|paid_off|abandoned","matchExistingDesc":"","evidence":"chi tiết cụ thể trong chương chứng minh việc đổi trạng thái"}]}\n'
+  + 'Chỉ liệt kê địa điểm/vật phẩm MỚI hoặc CÓ THAY ĐỔI, và thread mới/đổi trạng thái. Chỉ đóng thread khi chương có bằng chứng rõ; không mở lại thread đã resolved/paid_off/abandoned trừ khi tác giả sửa tay. Nếu không có gì đổi ở 1 mục, để mảng rỗng []. Tất cả TIẾNG VIỆT.';
 function applyWorldUpdate(obj, chapterNumber){
   let touched = false;
   (obj.locations||[]).forEach(u=>{
@@ -8316,8 +8630,14 @@ function applyWorldUpdate(obj, chapterNumber){
       const key = t.matchExistingDesc.toLowerCase().slice(0,20);
       match = state.threads.find(x=> x.desc.toLowerCase().includes(key));
     }
-    if(match){ match.status = t.status || match.status; }
-    else state.threads.push({ id: genId(), type: t.type||"open_thread", status: t.status||"seeded", desc: t.desc, chapterIntroduced: chapterNumber });
+    if(match){
+      const prior=match.status||"seeded", next=t.status||prior, terminal=["paid_off","abandoned","resolved","completed"].includes(String(prior).toLowerCase());
+      if(!terminal||String(next).toLowerCase()===String(prior).toLowerCase()){
+        if(next!==prior){match.statusHistory=Array.isArray(match.statusHistory)?match.statusHistory:[];match.statusHistory.push({from:prior,to:next,chapter:chapterNumber,source:"postprocess",evidence:String(t.evidence||"").slice(0,240),at:Date.now()});}
+        match.status=next; match.lastUpdatedChapter=chapterNumber; match.lastUpdatedTime=state.storyClock||"";
+      }
+    }
+    else state.threads.push({ id: genId(), type: t.type||"open_thread", status:["paid_off","abandoned","resolved"].includes(String(t.status||"").toLowerCase())?"seeded":(t.status||"seeded"), desc: t.desc, chapterIntroduced: chapterNumber, lastUpdatedChapter:chapterNumber, statusHistory:[] });
   });
   return touched;
 }
@@ -8644,7 +8964,7 @@ async function generateNextChapterHint(text, summary, chapterNumber, opts){
   // Chỉ đưa các thread/foreshadowing đang mở vào prompt khi chúng thực sự liên quan đến mạch chính.
   // Không nhồi toàn bộ tuyến phụ vào hint vì dễ khiến AI tự mở rộng phạm vi truyện.
   const openThreads = (state.threads||[])
-    .filter(t=>!['paid_off','abandoned','completed'].includes(t.status))
+    .filter(t=>!['paid_off','abandoned','completed','resolved'].includes(String(t.status||'').toLowerCase()))
     .slice(0,3)
     .map(t=>"- "+t.desc).join("\n");
   const openForeshadowing = (state.foreshadowing||[])
@@ -9940,6 +10260,68 @@ async function topUpShortDraftText(initialText, o){
   return text;
 }
 
+async function condenseChapterToBounds(chapterObj, chapterNumber, chapterPlan, model){
+  const limits=chapterWordLimits(), start=String(chapterObj&&chapterObj.text||""); let best=start, before=countWords(start), attempts=0;
+  if(before<=limits.maxAccept) return {ok:true,reduced:false,wordCount:before};
+  while(countWords(best)>limits.maxAccept && attempts<2){
+    attempts++;
+    const prompt=["RÚT GỌN CHƯƠNG "+chapterNumber+" ĐỂ ĐẠT GIỚI HẠN ĐỘ DÀI TÁC GIẢ ĐẶT TRƯỚC.",
+      "Mục tiêu: tối đa "+limits.maxAccept+" từ; tối thiểu "+limits.minAccept+" từ. Bản hiện tại "+countWords(best)+" từ.",
+      "Rút gọn bằng cách gộp câu/đoạn lặp, giảm diễn giải trùng và miêu tả dư. BẮT BUỘC giữ mọi sự kiện nhân quả, nhân vật có mặt, lựa chọn, chuyển trạng thái, thông tin mới, thoại chứa dữ kiện, thứ tự thời gian, đoạn kết/handoff và toàn bộ beat bắt buộc. Không tự sáng tác, không xóa cảnh/sự kiện để đạt số từ. Không chèn tiêu đề/nhận xét; chỉ trả văn bản chương đã biên tập.",
+      "TIÊU ĐỀ: "+String(chapterObj.title||""),"OUTLINE / CONTRACT CẦN GIỮ:\n"+String(chapterPlan||chapterObj.plan||"").slice(0,10000),
+      "BẢN CHƯƠNG:\n"+best].join("\n\n");
+    try{
+      const response=await callAI(prompt,{maxTokens:Math.min(7600,Math.max(1500,Math.ceil(limits.maxAccept*1.7)+900)),temperature:0.18,modelOverride:model,streaming:false});
+      let candidate=formatParagraphs(stripForeign(stripThinkingOutput(String(response&&response.text||"")))).trim();
+      if(detectNonVietnamese(candidate)) candidate=stripForeign(candidate);
+      const words=countWords(candidate), priorWords=countWords(best);
+      if(!candidate||words<limits.minAccept||words>=priorWords) break;
+      best=candidate;
+    }catch(e){ console.warn("[ChapterLength] safe condensation failed",e&&e.message); break; }
+  }
+  const resultWords=countWords(best), reduced=resultWords<before;
+  if(reduced){
+    const versions=Array.isArray(chapterObj.versions)?chapterObj.versions:[];
+    versions.push({text:start,wordCount:before,label:"Trước khi rút gọn theo min/max",at:Date.now()});
+    chapterObj.versions=versions.slice(-12); chapterObj.text=best; chapterObj.wordCount=resultWords; chapterObj.condensedForBounds=true;
+  }
+  return {ok:resultWords<=limits.maxAccept,reduced,wordCount:resultWords,attempts,warning:resultWords>limits.maxAccept?"Không thể rút gọn đủ mà vẫn giữ mức tối thiểu; giữ bản tốt nhất, không cắt cụt.":""};
+}
+
+function recordStoryTimeMark(chapterNumber, chapterObj){
+  const n=Number(chapterNumber)||0; if(!n)return null;
+  if(!state.statusState||typeof state.statusState!=="object")state.statusState={};
+  if(!Array.isArray(state.statusState.timeLog))state.statusState.timeLog=[];
+  const time=String(chapterObj&&chapterObj.storyTimeMark||currentTimeMark(state)||"").trim(); if(!time)return null;
+  const log=state.statusState.timeLog, row={chapter:n,time,source:state.storyClock?"storyClock":"statusState",updatedAt:Date.now()};
+  const index=log.findIndex(x=>x&&Number(x.chapter)===n); if(index>=0)log[index]=Object.assign({},log[index],row);else log.push(row);
+  log.sort((a,b)=>(Number(a.chapter)||0)-(Number(b.chapter)||0)); state.statusState.timeLog=log.slice(-500);
+  if(chapterObj)chapterObj.storyTimeMark=time;
+  return row;
+}
+function recordChapterPostWriteAudit(chapterObj, chapterNumber){
+  if(!chapterObj)return null;
+  const n=Number(chapterNumber)||0, chapters=state.chapters.slice();
+  if(n>0&&n<=chapters.length)chapters[n-1]=chapterObj;else if(n===chapters.length+1)chapters.push(chapterObj);
+  const audit=buildChapterPostWriteAudit(Object.assign({},state,{chapters}),n);
+  chapterObj.postWriteAudit=audit; return audit;
+}
+async function enforceChapterLengthBounds(chapterObj, chapterNumber, chapterPlan, model){
+  const before=String(chapterObj.text||""), action=chapterLengthAction(state,countWords(before)); let result={reduced:false,ok:true};
+  if(action.action==="expand"){
+    const expanded=await topUpShortDraftText(before,{chapterNumber,model,usingNsfw:!!chapterObj.isNsfw});
+    if(countWords(expanded)>countWords(before))chapterObj.text=expanded;
+  }else if(action.action==="condense"){
+    setStatus("📏 Chương vượt giới hạn — đang rút gọn có bảo toàn sự kiện...",true);
+    result=await condenseChapterToBounds(chapterObj,chapterNumber,chapterPlan,model);
+  }
+  chapterObj.wordCount=countWords(chapterObj.text||"");
+  const after=chapterLengthAction(state,chapterObj.wordCount);
+  if(after.action!=="within") chapterObj.lengthWarning=after.action==="expand"?"Chương còn dưới mức tối thiểu sau khi thử mở rộng; giữ bản tốt nhất để tác giả xem lại.":"Chương còn vượt max sau hai lần rút gọn; giữ bản tốt nhất, không cắt cụt sự kiện.";
+  else if(result.ok) chapterObj.lengthWarning="";
+  return {changed:String(chapterObj.text||"")!==before,action:after.action,result};
+}
+
 /* V14.4.0: kiểm tra Outline TRƯỚC khi tốn thời gian viết. 'high' -> hỏi xác nhận; 'warn' -> chỉ nhắc ở dòng trạng thái; chương đã chọn "vẫn viết" không bị hỏi lại cho tới khi Outline đổi. */
 function outlinePreflightReport(st, n){
   const ol = outlineOf(st, n); if(!ol) return null;
@@ -10085,7 +10467,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       else if(!streamTimer){ streamTimer = setTimeout(()=>{ streamTimer = null; streamLastAt = Date.now(); renderStream(streamLatest); }, 120); }
     } : null;
 
-    let rawText = "", finishReason = null;
+    let rawText = "", finishReason = null, adaptiveStats = null;
     let firstResult = null;
     // V13.3: viết lại chương cũng phải đi qua Adaptive Scene + Top-up.
     // Trước đây chỉ chương mới đi qua nhánh này; nút Viết lại vì thế có thể
@@ -10104,6 +10486,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       if(adaptive && adaptive.text){
         rawText = adaptive.text;
         plan = adaptive.plan;
+        adaptiveStats = adaptive.stats || null;
         if(adaptive.usedNsfw && !usingNsfw){ usingNsfw = true; modeTag = "🔥 [NSFW] "; }
         if(adaptive.underTarget) setStatus("⚠ Scene Graph tạo chương dưới 4.500 từ; giữ bản nháp để người dùng quyết định.", true);
         _lastSceneNote = formatSceneNote(adaptive.stats);
@@ -10151,7 +10534,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
 
     const chapterObj = {
       id: genId(), title, text, wordCount: countWords(text), truncated: finishReason === "length",
-      plan, continuityWarnings: [], modelUsed: targetModel, isNsfw: usingNsfw,
+      plan, adaptiveStats, continuityWarnings: [], modelUsed: targetModel, isNsfw: usingNsfw, storyTimeMark: currentTimeMark(state),
       polished: false, summary: "", versions: [], compressed: false,
       briefUsed: { hint: String(state.nextChapterHint || "").slice(0, 4000), directive: String(state.directive || "").slice(0, 4000) },   // V12.24
       status: "DRAFTED",
@@ -10164,11 +10547,16 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     _writeBriefSnapshot = String(state.nextChapterHint || "");
     await autoContinueUntilDone(chapterObj, chapterNumber, targetModel, usingNsfw, onChunk);
     cancelStream();
+    await enforceChapterLengthBounds(chapterObj,chapterNumber,plan,targetModel);
     /* V12.22: ĐÃ BỎ bước 'chia đoạn làm dày'. Độ dài do prompt tự do + chế độ chèn diễn biến trong autoContinueUntilDone. */
     const finalLimits=chapterWordLimits();
     const finalCapped=trimToWordLimit(chapterObj.text,finalLimits.hardMax);
-    if(finalCapped.trimmed) chapterObj.truncated=true;
-    chapterObj.text=finalCapped.text;
+    const explicitWordBounds=Number(state.chapterWordMin)>=300&&Number(state.chapterWordMax)>=Number(state.chapterWordMin)&&Number(state.chapterWordMax)<=12000;
+    if(finalCapped.trimmed){
+      chapterObj.truncated=true;
+      if(explicitWordBounds) chapterObj.lengthWarning=chapterObj.lengthWarning||"Vượt max đã đặt; văn bản được giữ nguyên để tránh cắt cụt cảnh/sự kiện.";
+      else chapterObj.text=finalCapped.text;
+    }else chapterObj.text=finalCapped.text;
     chapterObj.wordCount=countWords(chapterObj.text);
     text = chapterObj.text;
 
@@ -10185,7 +10573,14 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     const reviewContext = buildStoryBibleSummary() + "\n" + characterSummaryForPrompt(relevantCharacters(20));
     const autonomousRepair = state.autoRepairOnCreate !== false && state.qualityGateEnabled !== false;
     setStatus(autonomousRepair ? "✦ Đang tự hoàn thiện chương " + chapterNumber + ": Quality Gate + sửa lỗi..." : "🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true); setWriteProgress("gate");
-    const gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext, {rewrite:autonomousRepair,forceWarnings:autonomousRepair});
+    let gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext, {rewrite:autonomousRepair,forceWarnings:autonomousRepair});
+    if(gate.approved){
+      const beforeGateText=chapterObj.text, adjusted=await enforceChapterLengthBounds(chapterObj,chapterNumber,plan,targetModel);
+      if(adjusted.changed||chapterObj.text!==beforeGateText){
+        setStatus("🔎 Kiểm tra lại chương sau khi áp dụng min/max...",true);
+        gate=await runQualityGate(chapterObj,chapterNumber,plan,reviewContext,{rewrite:false,forceWarnings:false});
+      }
+    }
     if(!gate.approved){
       clearDraftProgress();
       chapterObj.status = gate.stopped ? "DRAFTED" : "REVISION_REQUIRED";
@@ -10197,7 +10592,9 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
         state.chapters.push(chapterObj);
         state.currentChapterIndex=state.chapters.length-1;
         state.chaptersSinceBackup++;
+        recordStoryTimeMark(chapterNumber,chapterObj);
       }
+      recordChapterPostWriteAudit(chapterObj,chapterNumber);
       persist(); renderChapterNav(); renderCurrentChapter();
       if(gate.stopped) setStatus("Đã dừng trước khi Sync — bản nháp được giữ lại, chưa thành canon.", false);
       else setStatus("⛔ Chương "+chapterNumber+" chưa vượt Quality Gate. Bản nháp đã được giữ lại để sửa, chưa ghi vào Canon.", false);
@@ -10209,7 +10606,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(isRegen && state.chapters[regenIndex]){
       pushChapterVersion(regenIndex, "Trước khi viết lại (" + (regenMode||"full") + ")");
       const oldVersions = state.chapters[regenIndex].versions || [];
-      chapterObj.versions = oldVersions;
+      chapterObj.versions = oldVersions.concat(chapterObj.versions || []).slice(-12);
       chapterObj.status="APPROVED"; chapterObj.sync={status:"pending",canonVersion:null,syncedAt:null,changes:[]};
       state.chapters[regenIndex] = chapterObj;
       state.currentChapterIndex = regenIndex;
@@ -10218,6 +10615,8 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       state.currentChapterIndex = state.chapters.length - 1;
       state.chaptersSinceBackup++;
     }
+    recordStoryTimeMark(chapterNumber,chapterObj);
+    recordChapterPostWriteAudit(chapterObj,chapterNumber);
     persist(); renderChapterNav(); renderCurrentChapter(); refreshBackupBanner(); refreshStatBar();
     clearDraftProgress();
     /* V12.27 FAST WRITE: chương đã được Quality PASS + persist ở trên.
@@ -11141,6 +11540,7 @@ function hydrateFormFromState(){
   parallelToggle.checked = state.parallelEnabled !== false;
   checkpointToggle.checked = state.checkpointEnabled !== false;
   minWordsInput.value = state.minChapterWords || 5000;
+  chapterWordMinInput.value = state.chapterWordMin || ""; chapterWordMaxInput.value = state.chapterWordMax || "";
   autoContinueMaxInput.value = state.autoContinueMax || 4;
   descriptionLevelSelect.value = state.descriptionLevel || "balanced";
   explicitLevelSelect.value = state.explicitLevel || "sensual";
@@ -11335,6 +11735,7 @@ function renderAllCore(){
   renderOutlines();
   renderLocations();
   renderItems();
+  renderOrganizations();
   renderThreads();
   renderScenes();
   renderConsentLog();
@@ -11541,6 +11942,14 @@ function pollBackgroundJob(record){
       else if(data.status==="completed"){
         clearInterval(bgPollTimer);bgPollTimer=null;setBgStatus(record.mode==="postprocess"?"✓ Hậu kỳ server đã xong — đang hợp nhất an toàn...":"✓ Chương nền đã xong — đang hợp nhất an toàn...",true);
         await mergeBackgroundChapter(data,record);
+        if(record.mode==="postprocess"&&record.storyId===state.storyId&&record.chapterNumber){
+          const mergedChapter=state.chapters[record.chapterNumber-1];
+          if(mergedChapter){recordStoryTimeMark(record.chapterNumber,mergedChapter);recordChapterPostWriteAudit(mergedChapter,record.chapterNumber);}
+        }
+        if(record.mode==="postprocess" && record.storyId===state.storyId && record.chapterNumber && data.postProcessStatus==="DONE" && !isGateFailedResult(data)){
+          const layerEngine=window.__XTA_LAYERED_MEMORY__;
+          if(layerEngine&&typeof layerEngine.autoBuildLayeredMemory==="function") Promise.resolve().then(()=>layerEngine.autoBuildLayeredMemory(record.chapterNumber)).catch(e=>setBgStatus("⚠ Chương đã lưu; đồng bộ Memory lỗi: "+String(e&&e.message||e),true));
+        }
         try{ if(typeof persistNow==="function") await persistNow(); }catch(e){}
         if((!record.storyId||record.storyId===state.storyId)&&data.storyState&&Array.isArray(data.storyState.chapters)&&state.chapters.length>=data.storyState.chapters.length) ackBackgroundJob(record);
         localStorage.removeItem(BG_JOB_KEY);setBgStatus(data.draftOnly?"✓ Đã có bản nháp nền."+draftQuickLabel(data.resultChapter):isGateFailedResult(data)?"⚠ Background xong nhưng chưa vượt Quality Gate — chưa ghi Canon.":(data.postProcessStatus&&data.postProcessStatus!=="DONE"?"⚠ Hậu kỳ "+(data.postProcessStatus==="FAILED"?"thất bại":"chỉ cập nhật một phần")+(data.postProcessError?": "+data.postProcessError:""):record.mode==="postprocess"?"✓ Đã hoàn tất hậu kỳ server và đồng bộ Canon.":"✓ Đã đồng bộ background v9."),true);setTimeout(()=>setBgStatus("",false),9000);
@@ -11619,10 +12028,30 @@ async function mergeBackgroundChapter(statusData,record){
   state.characters=mergeArrayByIdOrName(state.characters,incoming.characters||[]);
   state.locations=mergeArrayByIdOrName(state.locations,incoming.locations||[]);
   state.items=mergeArrayByIdOrName(state.items,incoming.items||[]);
-  state.threads=mergeArrayByIdOrName(state.threads,incoming.threads||[],"desc");
+  const localThreadSnapshot=(state.threads||[]).slice(), incomingThreadSnapshot=incoming.threads||[];
+  state.threads=mergeArrayByIdOrName(state.threads,incomingThreadSnapshot,"desc").map(thread=>{
+    const key=normalizeName(thread.desc||"");
+    const local=localThreadSnapshot.find(x=>(thread.id&&x.id===thread.id)||normalizeName(x.desc||"")===key);
+    if(!local)return thread;
+    const localManualAt=Number(local.lastManualUpdatedAt)||Math.max(0,...(local.statusHistory||[]).filter(h=>h&&h.source==="author").map(h=>Number(h.at)||0));
+    const incomingMatch=incomingThreadSnapshot.find(x=>(thread.id&&x.id===thread.id)||normalizeName(x.desc||"")===key);
+    const remoteManualAt=Number(incomingMatch&&incomingMatch.lastManualUpdatedAt)||Math.max(0,...((incomingMatch&&incomingMatch.statusHistory)||[]).filter(h=>h&&h.source==="author").map(h=>Number(h.at)||0));
+    if(localManualAt>remoteManualAt){
+      thread.status=local.status; thread.desc=local.desc; thread.lastManualUpdatedAt=localManualAt;
+      thread.lastUpdatedChapter=local.lastUpdatedChapter; thread.lastUpdatedTime=local.lastUpdatedTime;
+      thread.statusHistory=Array.isArray(local.statusHistory)?local.statusHistory.slice():[];
+    }
+    return thread;
+  });
   state.scenes=mergeArrayByIdOrName(state.scenes,incoming.scenes||[],"description");
   if(incoming.currentStatus)state.currentStatus=incoming.currentStatus;
-  if(incoming.statusState)state.statusState=incoming.statusState;
+  if(incoming.statusState){
+    const localTimeLog=state.statusState&&Array.isArray(state.statusState.timeLog)?state.statusState.timeLog:[];
+    const remoteTimeLog=Array.isArray(incoming.statusState.timeLog)?incoming.statusState.timeLog:[];
+    state.statusState=incoming.statusState;
+    const byChapter=new Map(); remoteTimeLog.concat(localTimeLog).forEach(x=>{if(x&&Number(x.chapter)>0)byChapter.set(Number(x.chapter),x);});
+    state.statusState.timeLog=Array.from(byChapter.values()).sort((a,b)=>Number(a.chapter)-Number(b.chapter)).slice(-500);
+  }
   state.lastStatusChapter=incoming.lastStatusChapter||state.lastStatusChapter;
   state.chaptersSinceBackup=incoming.chaptersSinceBackup!=null?incoming.chaptersSinceBackup:state.chaptersSinceBackup;
   /* v9.3: trước đây Timeline / Foreshadowing / Knowledge Ledger KHÔNG được hợp nhất từ job nền nên không bao giờ hiện. */
@@ -11955,12 +12384,18 @@ function renderCurrentChapterCore(){
   const chTokens = estimateTokens(c.text);
   const tokenBadge = '<span class="badge token' + (chTokens > 20000 ? ' bad' : '') + '">≈'+chTokens+' token</span>';
   const pipelineBadge='<span class="badge '+((c.status||"").includes("FAIL")||c.status==="REVISION_REQUIRED"||c.status==="MODIFIED_AFTER_SYNC"?"warn":"")+'">'+escapeHtml(chapterStatusLabel(c.status))+'</span>';
+  const audit=c.postWriteAudit, auditBadge=audit?'<button class="badge '+(audit.withinWordBounds?'':'warn')+'" id="postWriteAuditViewBtn" title="Mở báo cáo hậu kiểm">📏 '+audit.wordCount+'/'+audit.minWords+'–'+audit.maxWords+' từ · '+(audit.continuityIssues&&audit.continuityIssues.length?audit.continuityIssues.length+' cảnh báo':'hậu kiểm')+'</button>':'';
   editorBadges.innerHTML = '<span class="badge">'+wc+' từ</span>' + pipelineBadge + clockHtml + modelHtml + tokenBadge
     + (c.polished ? '<span class="badge polished">✓ đã rà</span>' : '')
     + (c.truncated ? '<span class="badge warn">⚠ có thể cắt</span>' : '')
-    + ((c.continuityWarnings&&c.continuityWarnings.length) ? '<span class="badge warn">🔍 '+c.continuityWarnings.length+'</span>' : '');
+    + ((c.continuityWarnings&&c.continuityWarnings.length) ? '<span class="badge warn">🔍 '+c.continuityWarnings.length+'</span>' : '') + auditBadge;
+  const auditBtn=$ID("postWriteAuditViewBtn"); if(auditBtn&&audit) auditBtn.addEventListener("click",()=>showAlert(["HẬU KIỂM CHƯƠNG "+audit.chapterNumber,"Độ dài: "+audit.wordCount+" từ (mục tiêu "+audit.minWords+"–"+audit.maxWords+"); trạng thái: "+audit.lengthStatus,"Mốc thời gian lặp: "+(audit.timeStall?audit.timeStall.repeatedMarks+" chương — "+audit.timeStall.time:"không phát hiện"),"Tình tiết đang mở: "+audit.unresolvedThreads+" thread · "+audit.unresolvedForeshadowing+" foreshadowing","Cảnh báo nhất quán:",...(audit.continuityIssues||[]).map(x=>"• "+x),c.lengthWarning?"Ghi chú: "+c.lengthWarning:""].filter(Boolean).join("\n")));
   if(c.summary){ summaryBox.textContent = "📄 Tóm tắt: " + c.summary; summaryBox.classList.add("show"); }
-  if(c.plan){ planBox.textContent = "Kế hoạch:\n" + c.plan; planBox.classList.add("show"); }
+  if(c.plan){
+    const tele = c.adaptiveStats && Array.isArray(c.adaptiveStats.sceneTelemetry) ? c.adaptiveStats.sceneTelemetry : [];
+    const teleText = tele.length ? "\n\n📊 TELEMETRY SCENE:\n" + tele.map(x => x.sceneId + " · " + (x.status || "?") + " · " + (x.outputWords || 0) + "/" + (x.targetWords || 0) + " từ · " + (x.attempts || 0) + " lượt · " + (x.durationMs || 0) + "ms" + (x.errors && x.errors.length ? " · " + x.errors[0] : "")).join("\n") : "";
+    planBox.textContent = "Kế hoạch:\n" + c.plan + teleText; planBox.classList.add("show");
+  }
   if(c.continuityWarnings && c.continuityWarnings.length) renderContinuityWarnings(c.continuityWarnings);
   renderQualityReview(c);
 }
@@ -11972,7 +12407,7 @@ chapterSearch.addEventListener("input", renderChapterNav);
 window.__XTA__ = {
   state, persist, escapeHtml, setStatus, showAlert, callAI, renderCharacters, renderLocations, newCharacter, newItem, renderItems, genId,
   get generating(){ return generating; },
-  core: { computeCanonDiff, undoCanonDiffItem, suggestCharacterCandidates, storyHealthReport, deterministicConsistencyCheck, buildConsistencyPrompt, parseConsistencyResponse, STEP_LABELS }
+  core: { computeCanonDiff, undoCanonDiffItem, suggestCharacterCandidates, storyHealthReport, deterministicConsistencyCheck, buildConsistencyPrompt, parseConsistencyResponse, STEP_LABELS, buildLayeredMemoryRanges, upsertFrozenLayerSummary }
 };
 
 /* v11: móc kiểm thử — chỉ bật khi trang được nạp với window.__XTA_TEST__ = true (không ảnh hưởng người dùng thường). */
@@ -11983,10 +12418,12 @@ if(window.__XTA_TEST__){
     writeEmergencyCopy, readEmergencyRecord, serializeStoryRecord, removeStoryFromDisk,
     setIdbPut(fn){ idbPut = fn; }, getIdbPut(){ return idbPut; },
     newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint,
-    mergeCharacterUpdate, saveMainCharFromForm, hydrateMainCharForm, renderItems, buildChapterContractForGeneration
+    mergeCharacterUpdate, saveMainCharFromForm, hydrateMainCharForm, renderItems, buildChapterContractForGeneration,
+    chapterWordLimits, condenseChapterToBounds, countWords
   };
 }
 })();
 </script>
 <script src="app/features.js"></script>
+<script src="app/layered-memory.js"></script>
 </html>

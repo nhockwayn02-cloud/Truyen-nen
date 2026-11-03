@@ -6,6 +6,12 @@
 
 Tạo chương tiểu thuyết tiếng Việt dài khoảng 4.500–5.500 từ, đặc biệt phù hợp với chương 18+, nhưng khóa cứng Arc/Outline, nhân vật được phép, continuity mở chương, required beat và thay đổi bắt buộc. AI được linh hoạt về số scene và chức năng scene nhưng không được tự đổi hướng truyện.
 
+## Kế hoạch tiếp tục đã được duyệt — bộ nhớ sáu tầng
+
+Tiếp tục trên app V14.5.15 hiện tại, giữ UI mobile, IndexedDB, backup/restore và kiến trúc `index.html` + `shared/core.js` + `app/features.js` + worker Netlify. Bộ nhớ dùng L0 = chương gốc; L1 = tóm tắt chương hiện có; L2 = chunk 4 chương; L3 = arc 20 chương (5 chunk); L4 = volume 60 chương (3 arc); L5 = toàn truyện tổng hợp từ L4. L1–L4 được đóng băng sau khi tạo; L5 lưu phiên bản cũ khi tái tạo; có luồng xây bù cho truyện cũ. Phạm vi nhóm lưu theo truyện, không tự thay đổi ranh giới đã tạo.
+
+Bổ sung hồ sơ thế lực bên cạnh characters/locations/items; hoàn thiện hồ sơ và trạng thái cho timeline, threads, foreshadowing và mốc thời gian. Sau viết, giữ Quality Gate và lưu báo cáo kiểm tra độ dài/continuity theo bằng chứng. Bổ sung min/max chương; chương ngắn được mở rộng theo scene/đoạn, chương dài được rút gọn theo scene/đoạn, đều bảo toàn Outline/required beat/ending anchor, tạo version trước mỗi chỉnh sửa, tối đa hai vòng rồi giữ bản tốt nhất và báo rõ nếu vẫn ngoài ngưỡng. Truyện cũ giữ giới hạn hiện hành cho tới khi tác giả đặt min/max. Tận dụng UI hiện có, không thay nhà cung cấp AI hay thêm backend/vector DB.
+
 ## Quyết định triển khai
 
 - Một lần gọi AI lập Scene Graph/Scene Contract ngắn.

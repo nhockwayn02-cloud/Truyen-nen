@@ -46,6 +46,7 @@ a{color:inherit;}
 
 @media (max-width:900px){.layout{grid-template-columns:1fr;}}
 .sidebar{border-right:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 130px);overflow-y:auto;}
+.sidebar>.section,.sidebar>.api-card{flex:0 0 auto;}
 @media (max-width:900px){.sidebar{max-height:none;}}
 .main{padding:20px 24px;display:flex;flex-direction:column;gap:12px;}
 .api-card{background:linear-gradient(160deg,#221c34,#171922);border:1px solid #3a2f57;border-radius:var(--radius);padding:14px;}

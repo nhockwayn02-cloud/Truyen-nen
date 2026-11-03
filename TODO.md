@@ -1,5 +1,13 @@
 # TODO — V14 Contract-First Complete Chapter Pipeline
 
+## Bộ nhớ truyện dài L0–L5 và continuity (đã được duyệt)
+- [x] L0–L5: L0 là văn bản gốc; L1 dùng summary chương; L2/L3/L4/L5 gộp theo 4/20/60/toàn truyện; L1–L4 đóng băng, L5 lưu phiên bản trước, phạm vi được lưu theo truyện và có nút xây bù (bằng chứng: `tests/v14_6_layered_memory_flow.test.js`, `tests/v14_6_layered_memory.test.js`; E2E nút xây L1).
+- [x] Hồ sơ thực thể: thêm CRUD hồ sơ thế lực, trạng thái và lịch sử; dùng trong prompt client/worker; giữ migration tương thích cho truyện cũ cùng characters/locations/items có sẵn (bằng chứng: `tests/e2e.py` 4e–4f; `tests/v14_6_long_novel_memory.test.js`).
+- [x] Theo dõi tình tiết/thời gian: trạng thái thread do tác giả sửa có lịch sử, mục đã đóng không bị AI/worker mở lại; ghi time log theo chương và giữ gộp dữ liệu local khi hậu kỳ (bằng chứng: `tests/e2e.py` 4g, 15e; `tests/v14_6_postwrite_audit.test.js`).
+- [x] Hậu kiểm sau viết: lưu và hiển thị báo cáo độ dài, continuity/time stall và số thread/foreshadowing chưa giải quyết, không thay canon khi chỉ có cảnh báo (bằng chứng: `tests/e2e.py` 15d; `tests/v14_6_postwrite_audit.test.js`).
+- [x] Giới hạn chữ: min/max theo truyện, từ chối min > max; mở rộng/rút gọn tối đa hai vòng, snapshot bản gốc, đếm lại và giữ bản tốt nhất khi lỗi/vượt ngưỡng; dữ liệu cũ vẫn dùng giới hạn trước đây (bằng chứng: `tests/e2e.py` 4b–4d, 15f; `tests/v14_6_word_bounds.test.js`).
+- [x] Rà soát trước bàn giao: tương thích schema/persistence, parity client-worker, UI desktop/iPhone và pipeline đã xác minh; `npm test` PASS, UI E2E 49/49 PASS (7 E2E phụ của runner bị skip do thiếu dependency riêng).
+
 ## V14 — Contract-First
 - [x] Chapter Contract bất biến khóa Arc/Outline, required beats, allowed cast, forbidden drift, opening continuity, must-change và ngân sách từ.
 - [x] Scene Graph phải được validate trước khi viết; plan drift bị retry một lần rồi dừng an toàn, không fallback âm thầm.
@@ -12,7 +20,7 @@
 ## V14.0.x — Scene and prose quality follow-up
 - [x] Kiểm tra từng scene (code) + viết lại đúng scene lỗi; rà AI từng scene tùy chọn.
 - [x] Tự sửa sau chấm nhanh (nháp nền) với Best Draft Guard.
-- [ ] Kiểm tra từng scene cho đường client "Tạo chương hoàn chỉnh" bằng E2E giao diện (hiện chỉ test logic dùng chung).
+- [x] Kiểm tra từng scene cho đường client "Tạo chương hoàn chỉnh" bằng E2E giao diện: xác nhận gọi kế hoạch và tối thiểu 3 scene, telemetry riêng từng scene được lưu, trạng thái/số từ/thời lượng hợp lệ và telemetry hiện trong panel kế hoạch (bằng chứng: `tests/e2e.py`, assertions 15a–15c; 38/38 PASS).
 - [x] Hiển thị cảnh báo scene: worker (dòng trạng thái, đủ scene bị giữ/đã vá) và đường viết thường (V14.3.0). Còn lại: panel riêng theo scene trong UI thay vì dòng trạng thái.
 - [x] Vá cục bộ scene khi rà AI báo MUST_CHANGE/LOCATION_TIME (V14.3.0).
 
@@ -27,12 +35,12 @@
 - [x] Semantic Prose Check không tự chạy nếu chưa bật `semanticProseAuto`.
 - [x] Quality Gate mặc định còn tối đa 2 vòng ở client; Best Draft Guard giữ attempt cuối.
 - [x] AI spell-check mặc định tắt.
-- [ ] Telemetry chi tiết theo step/scene/input/output/retry.
+- [x] Telemetry chi tiết theo step/scene/input/output/retry; lưu trong `chapter.adaptiveStats.sceneTelemetry` và hiển thị cùng kế hoạch chương.
 
 ## P2 — Nền và kiểm chứng
 - [x] Worker nền parity với adaptive scene pipeline (V14.0.6: dùng chung runAdaptiveChapterPipeline; có chế độ viết nháp nền).
 - [x] Regression test Scene Graph/Scene Contract/word limits.
-- [ ] Cập nhật E2E theo hợp đồng V13. (5 bộ E2E hiện PASS; chỉ `e2e.py` có phủ một phần scene/contract. Phần còn thiếu: đường client scene pipeline, xem mục V14.0.x ở trên.)
+- [x] Cập nhật E2E theo hợp đồng V13: đường client scene pipeline được kiểm tra qua giao diện và mock API; xác nhận scene graph, nhiều scene được chấp nhận, telemetry lưu/hiển thị (bằng chứng: `tests/e2e.py`, assertions 15a–15c; 38/38 PASS).
 - [x] Chạy full test và kiểm tra sync shared core (V14.0.20 audit: logic PASS và 5 bộ E2E PASS — `e2e.py`, `e2e_v14_0_15.py`, `e2e_bg.py`, `e2e_bg_slim.py`, `e2e_delete.py`).
 
 ## Kế thừa từ V12
