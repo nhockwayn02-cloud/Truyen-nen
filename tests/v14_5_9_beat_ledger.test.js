@@ -2,7 +2,7 @@
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const ctx = { console, Date, Math, JSON }; vm.createContext(ctx);
-vm.runInContext(src + '\n;this.__t={evidenceInText,buildBeatEvidencePrompt,parseBeatEvidence,beatMissingError,buildSceneFixPrompt,buildAdaptiveScenePlanPrompt,runAdaptiveChapterPipeline,countWords};', ctx);
+vm.runInContext(src + '\n;this.__t={beatEvidenceInText,buildBeatEvidencePrompt,parseBeatEvidence,beatMissingError,buildSceneFixPrompt,buildAdaptiveScenePlanPrompt,runAdaptiveChapterPipeline,countWords};', ctx);
 const T = ctx.__t; let pass = 0; const t = async (n, f) => { await f(); console.log('PASS ' + n); pass++; };
 let _seed = 4242; const rnd = () => (_seed = (_seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const LEX = 'mưa đêm cửa sổ ngọn đèn tiếng bước chân hành lang giấy tờ ngăn kéo chìa khóa điện thoại ánh mắt hơi thở căn phòng tấm rèm mùi cà phê chiếc bàn gỗ lá thư cũ'.split(' ');
@@ -46,12 +46,12 @@ function mk(opts) {
 }
 const OPTS = { context: '', priorChapters: [], model: 'm' };
 (async () => {
-await t('evidenceInText: nguyên văn đúng; bịa thì sai; lệch vài chữ vẫn nhận; quá ngắn không nhận', () => {
+await t('beatEvidenceInText: nguyên văn đúng; bịa thì sai; lệch vài chữ vẫn nhận; quá ngắn không nhận', () => {
   const txt = 'Hà đứng quan sát nhà kho Song Hành từ xa suốt buổi tối mưa. Lan im lặng.';
-  assert.ok(T.evidenceInText('Hà đứng quan sát nhà kho Song Hành từ xa', txt));
-  assert.ok(T.evidenceInText('Hà đứng quan sát nhà kho Song Hành từ xa suốt tối mưa', txt));
-  assert.ok(!T.evidenceInText('Hà bắt Lan ký biên bản giả rồi đứng yên', txt));
-  assert.ok(!T.evidenceInText('Lan im', txt));
+  assert.ok(T.beatEvidenceInText('Hà đứng quan sát nhà kho Song Hành từ xa', txt));
+  assert.ok(T.beatEvidenceInText('Hà đứng quan sát nhà kho Song Hành từ xa suốt tối mưa', txt));
+  assert.ok(!T.beatEvidenceInText('Hà bắt Lan ký biên bản giả rồi đứng yên', txt));
+  assert.ok(!T.beatEvidenceInText('Lan im', txt));
 });
 await t('parseBeatEvidence: done=true nhưng câu trích không có trong văn bản -> coi là THIẾU; thiếu mục -> unknown; JSON hỏng -> null', () => {
   const txt = 'Hà đứng quan sát nhà kho Song Hành từ xa suốt buổi tối mưa.';

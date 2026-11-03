@@ -7,6 +7,8 @@ const dir = __dirname; const suites = [
   ["Nhân vật trùng", process.execPath, ["characters.test.js"]],
   ["V14.1.1 nút hậu kỳ tự duyệt nháp", process.execPath, ["v14_1_1_postprocess_approve.test.js"]],
   ["V14.1.4 tắt thinking cho lệnh JSON (AnonRouter)", process.execPath, ["v14_1_4_thinking_off.test.js"]],
+  ["V14.5.13 thẻ nhân vật trong Current Status", process.execPath, ["v14_5_13_status_cards.test.js"]],
+  ["V14.5.11 hồ sơ nhân vật trong prompt scene", process.execPath, ["v14_5_11_scene_profile.test.js"]],
   ["V14.5.9 sổ bằng chứng sự kiện Outline", process.execPath, ["v14_5_9_beat_ledger.test.js"]],
   ["V14.5.2 plan: model thinking + mustChange/handoff", process.execPath, ["v14_5_2_plan_thinking.test.js"]],
   ["V14.5.7 outline có ngắt dòng mềm U+2028", process.execPath, ["v14_5_7_outline_soft_linebreak.test.js"]],

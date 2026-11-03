@@ -53,12 +53,28 @@ function validOutput() {
   };
 }
 (async () => {
+  // V14.5.13: lượt gọi thứ 2 = thẻ nhân vật đầy đủ trong Current Status; ghi vào statusState, lỗi ở lượt này không hoàn tác hậu kỳ.
+  {
+    const state = baseState(); const chapter = {text:source,summary:'Tóm tắt cũ'}; let calls=0;
+    sandbox.callWithRetry = async () => { calls++; if (calls===1) return {text:JSON.stringify(validOutput()),finishReason:'stop'};
+      return {text:JSON.stringify({cards:[{name:'Minh',card:{items:'Chìa khóa từ Lan'},changeEvidence:{items:'Minh đang cầm chìa khóa'}}]}),finishReason:'stop'}; };
+    const r = await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state}, chapter, 2, state);
+    assert.strictEqual(calls,2,'1 lượt hậu kỳ + 1 lượt thẻ nhân vật');
+    assert.strictEqual(r.ok,true);
+    const st=(state.statusState.characterStates||[]).find(x=>x.name==='Minh');
+    assert(st && st.changes && /Chìa khóa từ Lan/.test(st.changes.items),'thẻ Minh có vật dụng đang dùng từ evidence');
+    assert(/vật dụng\/đồ chơi đang dùng: Chìa khóa từ Lan/.test(state.currentStatus),'văn bản Current Status có thẻ mới');
+    let c2=0; const s2=baseState();
+    sandbox.callWithRetry = async () => { c2++; if (c2===1) return {text:JSON.stringify(validOutput()),finishReason:'stop'}; throw new Error('lỗi lượt thẻ'); };
+    const r2 = await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:s2}, {text:source,summary:'x'}, 2, s2);
+    assert.strictEqual(r2.ok,true,'lượt thẻ lỗi không được hoàn tác hậu kỳ');
+  }
   // Case 1: valid JSON, only one model request, protected canon and existing memories survive.
   {
     const state = baseState(); const chapter = {text:source,summary:'Tóm tắt cũ'};
     let calls=0;
     sandbox.callWithRetry = async () => { calls++; return {text:JSON.stringify(validOutput()),finishReason:'stop'}; };
-    const r = await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state}, chapter, 2, state);
+    const r = await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false}, chapter, 2, state); // V14.5.13: thẻ nhân vật là lượt gọi riêng, tắt ở case này
     assert.strictEqual(calls,1,'chỉ một request hậu kỳ khi API trả thành công');
     assert.strictEqual(r.ok,true,'hậu kỳ hợp lệ phải thành công: '+JSON.stringify(r.problems));
     assert.strictEqual(r.tasks.Continuity.ok,true,'Continuity phải được xử lý từ chính phản hồi tổng hợp');
@@ -96,7 +112,7 @@ function validOutput() {
   {
     const state=baseState(); const before=JSON.stringify(state); const chapter={text:source,summary:'Tóm tắt cũ'};
     let calls=0; sandbox.callWithRetry=async()=>{calls++; return {text:'{"summary":"bị cắt',finishReason:'length'};};
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert.strictEqual(calls,7,'V12.32.2/V14.1.1: 1 gộp + 3 nhóm + 3 lần thử lại phạm vi nhỏ (characters, world, status); không gọi AI sửa JSON');
     assert.strictEqual(r.ok,false,'JSON bị cắt phải thất bại an toàn');
     assert.strictEqual(JSON.stringify(state),before,'state phải rollback nguyên vẹn');
@@ -109,7 +125,7 @@ function validOutput() {
     const o=validOutput(); o.memory.knowledge='không phải mảng';
     sandbox.callWithRetry=async()=>({text:JSON.stringify(o),finishReason:'stop'});
     const chapter={text:source,summary:'Tóm tắt cũ'};
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert.strictEqual(r.ok,true,'các phần hợp lệ khác vẫn có thể hoàn thành');
     assert.strictEqual(JSON.stringify(state.timeline),beforeTimeline,'thiếu một mảng memory thì không merge nửa vời');
     assert.strictEqual(JSON.stringify(state.foreshadowing),beforeFS,'foreshadowing cũ phải nguyên vẹn');
@@ -126,7 +142,7 @@ function validOutput() {
       const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:'';
       const o={}; ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('"'+k+'"')) o[k]=out[k]!==undefined?out[k]:(k==='continuityWarnings'?[]:''); });
       return {text:JSON.stringify(o),finishReason:'stop'}; };
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert.strictEqual(r.ok,true,'fallback theo nhóm phải thành công');
     assert.strictEqual(calls,4,'1 lần gộp + 3 nhóm');
     assert(r.tasks.Memory.ok&&r.tasks.Status.ok&&r.tasks.NV.ok&&r.tasks['Thế giới'].ok,'mọi task cập nhật sau fallback');
@@ -138,7 +154,7 @@ function validOutput() {
     const state=baseState(); const chapter={text:source,summary:'Tóm tắt cũ'}; const out=validOutput();
     const o={ summary:out.summary, characters:out.characters, world:{items:out.world.items}, status:{changes:{mainEvent:out.status.changes.mainEvent}}, memory:{events:out.memory.events} };
     sandbox.callWithRetry=async()=>({text:JSON.stringify(o),finishReason:'stop'});
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert.strictEqual(r.ok,true);
     ['Summary','NV','Thế giới','Status','Memory','Continuity'].forEach(k=>assert(r.tasks[k].ok,k+' phải OK khi model bỏ khóa rỗng'));
     assert(state.items.some(x=>x.name==='Chìa khóa'),'vật phẩm hợp lệ phải được ghi');
@@ -155,7 +171,7 @@ function validOutput() {
       const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const sch=m?m[1]:''; const o={};
       ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('\"'+k+'\"')) o[k]=out[k]; });
       return {text:JSON.stringify(o),finishReason:'stop'}; };
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert.strictEqual(r.tasks['Thế giới'].ok,false,'nhóm world/status hỏng phải báo lỗi thật');
     assert.strictEqual(r.tasks.Status.ok,false);
     assert(r.tasks.Memory.ok&&r.tasks.NV.ok);
@@ -174,7 +190,7 @@ function validOutput() {
       const m=p.match(/JSON SCHEMA[^\n]*?: (\{.*\})/s); const s2=m?m[1]:''; const o={};
       ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(s2.includes('\"'+k+'\"')) o[k]=out[k]; });
       return {text:JSON.stringify(o),finishReason:'stop'}; };
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert(sawMax5,'lần thử lại phải giới hạn số nhân vật');
     assert(r.tasks.NV.ok,'NV phải cập nhật sau khi thử lại');
     assert(r.failNotes.some(x=>/thử lại.*thành công/.test(x)));
@@ -189,7 +205,7 @@ function validOutput() {
       ['summary','characters','world','status','memory','continuityWarnings','nextChapterHint'].forEach(k=>{ if(sch.includes('\"'+k+'\"')) o[k]=out[k]; });
       if(o.world&&o.status) return {text:'<think>nghĩ...</think>\n'+JSON.stringify({world:o.world})+'\n'+JSON.stringify({status:o.status}),finishReason:null};
       return {text:JSON.stringify(o),finishReason:'stop'}; };
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert(r.tasks['Thế giới'].ok&&r.tasks.Status.ok,'hai object rời nhau phải được gộp');
     console.log('PASS V14.1.7: separate JSON objects + <think> block are merged');
   }
@@ -202,7 +218,7 @@ function validOutput() {
       if(o.summary&&o.characters&&o.world) sawCombined=true;
       if(o.characters&&!o.world){ const full=JSON.stringify(o); return {text:full.slice(0,full.length-12),finishReason:null}; }
       return {text:JSON.stringify(o),finishReason:'stop'}; };
-    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state},chapter,2,state);
+    const r=await T.runUnifiedPostProcess({apiEndpoint:'x',apiKey:'k',model:'m',storyState:state,statusCards:false},chapter,2,state);
     assert(!sawCombined,'không gọi gộp khi lần trước PARTIAL');
     assert(r.ok&&r.tasks.Memory.ok&&r.tasks['Thế giới'].ok&&r.tasks.Status.ok,'các nhóm khác vẫn chạy');
     console.log('PASS V14.1.8: skip combined call after PARTIAL; salvage cut stream');

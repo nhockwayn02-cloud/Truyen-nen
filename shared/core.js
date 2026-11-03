@@ -32,6 +32,167 @@ function compactSceneTail(text, maxChars) {
   return t.length <= cap ? t : t.slice(-cap);
 }
 
+/* V14.5.11: HỒ SƠ NHÂN VẬT CHO SCENE. Trước đây prompt viết scene (adaptive) CHỈ có tên trong ALLOWED CAST — không có chức vụ, nhà ở, mức sống, tính cách —
+   nên model tự bịa (thư ký riêng chủ tịch thành giúp việc, căn hộ cao cấp thành nhà tồi tàn) rồi Gate bắt lỗi "vượt hồ sơ". Khối này đưa hồ sơ của đúng các nhân vật có mặt trong scene vào prompt. */
+const SCENE_PROFILE_FIELDS = [['position', 'chức vụ/địa vị', 70], ['occupation', 'nghề', 60], ['role', 'vai trò', 60], ['faction', 'tổ chức', 50], ['age', 'tuổi', 12], ['gender', 'giới tính', 14],
+  ['maritalStatus', 'hôn nhân', 30], ['spouseName', 'người yêu/phối ngẫu', 40], ['residence', 'nơi ở', 90], ['home', 'nơi ở', 90], ['housing', 'nơi ở', 90], ['currentLocation', 'đang ở', 60],
+  ['wealth', 'tài sản/mức sống', 70], ['assets', 'tài sản', 70], ['income', 'thu nhập', 50], ['notes', 'ghi chú hồ sơ', 220], ['appearance', 'ngoại hình', 110], ['personality', 'tính cách', 90],
+  ['speech', 'cách nói', 70], ['goals', 'mục tiêu', 70], ['relevanceToMC', 'quan hệ với NVC', 70]];
+function sceneProfileBlock(st, scene, castNames) {
+  st = st || {};
+  const names = [].concat((scene && scene.characters) || [], (!scene || !(scene.characters || []).length) ? (castNames || []) : []).map(x => String(x || '').trim()).filter(Boolean);
+  if (!names.length) return '';
+  const pool = [].concat(st.mainCharProfile && st.mainCharProfile.name ? [st.mainCharProfile] : [], Array.isArray(st.characters) ? st.characters : []).filter(c => c && c.name && !c.dead);
+  const pick = [], seen = new Set();
+  names.forEach(n => {
+    const nn = normalizeName(n), nt = nn.split(' ').filter(Boolean);
+    const c = pool.find(x => normalizeName(x.name) === nn) || pool.find(x => { const xt = normalizeName(x.name).split(' ').filter(Boolean); return xt.length >= 2 && nt.length >= 2 && (nt.every(t => xt.includes(t)) || xt.every(t => nt.includes(t))); });
+    if (c && !seen.has(c.name)) { seen.add(c.name); pick.push(c); }
+  });
+  const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const rows = pick.slice(0, 5).map(c => {
+    const f = [], used = new Set();
+    SCENE_PROFILE_FIELDS.forEach(([k, label, n]) => { const v = cut(c[k], n); if (v && !used.has(label + v)) { used.add(label + v); f.push(label + ': ' + v); } });
+    return f.length ? '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + ' | ' + f.join(' | ') : '';
+  }).filter(Boolean);
+  /* Trạng thái hiện tại tích lũy từ Current Status (mới hơn hồ sơ gốc; ưu tiên khi khác nhau): nghề, nơi ở, trang phục, địa vị, tính cách công khai/riêng tư... */
+  const SF = [['occupation', 'công việc hiện tại', 80], ['residence', 'nơi ở hiện tại', 100], ['socialStatus', 'địa vị/quan hệ xã hội', 90], ['clothing', 'trang phục hiện tại', 90], ['marks', 'dấu vết trên cơ thể', 90],
+    ['items', 'vật dụng đang dùng', 100], ['emotion', 'cảm xúc', 70], ['submission', 'mức phục tùng', 70], ['ruleCompliance', 'tuân thủ quy tắc', 70], ['publicPersonality', 'hình ảnh công khai phải giữ', 110],
+    ['privatePersonality', 'tính cách khi ở riêng', 110], ['romance', 'tình cảm/hôn nhân', 70], ['weakness', 'điểm yếu', 80], ['goals', 'mục tiêu', 80], ['relationships', 'quan hệ quan trọng', 110], ['physicalState', 'thể trạng', 70], ['mentalState', 'tâm lý', 80]];
+  const states = (st.statusState && Array.isArray(st.statusState.characterStates)) ? st.statusState.characterStates : [];
+  const srows = pick.slice(0, 5).map(c => {
+    const sc = states.find(x => x && (normalizeName(x.name || x.characterName || '') === normalizeName(c.name)));
+    const ch = sc && sc.changes && typeof sc.changes === 'object' ? sc.changes : null; if (!ch) return '';
+    const f = SF.map(([k, label, n]) => { const v = cut(typeof ch[k] === 'object' ? JSON.stringify(ch[k]) : ch[k], n); return v ? label + ': ' + v : ''; }).filter(Boolean);
+    return f.length ? '- ' + c.name + ' | ' + f.join(' | ') : '';
+  }).filter(Boolean);
+  if (!rows.length && !srows.length) return '';
+  const statusPart = srows.length ? '\nTRẠNG THÁI HIỆN TẠI (Current Status mới nhất — nếu khác hồ sơ gốc thì theo mục này):\n' + srows.join('\n').slice(0, 2200) : '';
+  if (!rows.length) return 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart;
+  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 2400) + statusPart;
+}
+
+/* ===== V14.5.13 — THẺ NHÂN VẬT TRONG CURRENT STATUS (toàn thẻ, tích lũy) =====
+   Trước đây bước cập nhật Status chỉ nhận "phần thay đổi có evidence" nên nhiều chương trả rỗng, thẻ nhân vật không bao giờ đầy đủ (nghề, nơi ở, trang phục...).
+   Nay: (1) thẻ khởi tạo từ hồ sơ gốc; (2) mỗi chương AI trả ĐỦ thẻ cho nhân vật có mặt — trường không đổi chép lại (không cần evidence), trường đổi/mới phải có câu trích thật;
+   (3) kết quả cộng dồn vào statusState.characterStates và được đưa vào prompt viết từng cảnh. */
+const STATUS_CARD_KEYS = ['age', 'appearance', 'body', 'clothing', 'marks', 'cultivation', 'cultivationState', 'emotion', 'submission', 'ruleCompliance', 'socialStatus', 'occupation', 'residence', 'romance', 'weakness', 'goals', 'items', 'publicPersonality', 'privatePersonality', 'psychology', 'relationships', 'physicalState', 'mentalState', 'knowledge'];
+const STATUS_CARD_LABELS = { age: 'độ tuổi', appearance: 'ngoại hình', body: 'cơ thể/thể trạng', clothing: 'trang phục hiện tại', marks: 'dấu vết trên cơ thể', cultivation: 'tu vi', cultivationState: 'trạng thái tu vi', emotion: 'cảm xúc', submission: 'mức thèm khát/phục tùng', ruleCompliance: 'mức tuân thủ quy tắc', socialStatus: 'địa vị/quan hệ xã hội', occupation: 'công việc hiện tại', residence: 'nơi ở hiện tại', romance: 'hôn nhân/tình cảm', weakness: 'điểm yếu', goals: 'mục tiêu', items: 'vật dụng/đồ chơi đang dùng', publicPersonality: 'hình ảnh công khai', privatePersonality: 'tính cách khi ở riêng', psychology: 'tâm lý', relationships: 'mối quan hệ quan trọng', physicalState: 'thể trạng hiện tại', mentalState: 'tinh thần hiện tại', knowledge: 'điều đã biết' };
+function _scVal(v) { if (v == null) return ''; if (typeof v === 'object') { try { return JSON.stringify(v); } catch (_) { return ''; } } return String(v).replace(/\s+/g, ' ').trim(); }
+function _scSame(a, b) {
+  const x = normalizeName(a), y = normalizeName(b); if (!x || !y) return false; if (x === y) return true;
+  const tx = new Set(x.split(' ').filter(Boolean)), ty = new Set(y.split(' ').filter(Boolean)); let hit = 0; tx.forEach(w => { if (ty.has(w)) hit++; });
+  return hit / Math.max(1, tx.size + ty.size - hit) >= 0.85;
+}
+const _SC_LAZY_RE = /^\(?\s*(giữ nguyên|không (có )?thay đổi|như cũ|n\/?a|chưa rõ|không rõ)\b/i;
+function seedStatusCard(c) {
+  const g = k => _scVal(c && c[k]), out = {};
+  const put = (k, v) => { v = _scVal(v); if (v) out[k] = v.slice(0, 220); };
+  put('age', g('age')); put('appearance', g('appearance'));
+  put('socialStatus', [g('position'), g('role'), g('faction')].filter(Boolean).join('; '));
+  put('occupation', g('occupation')); put('residence', g('residence') || g('home') || g('housing'));
+  put('romance', [g('maritalStatus'), g('spouseName') && ('với ' + g('spouseName')), g('maritalNotes')].filter(Boolean).join('; '));
+  put('weakness', g('weakness')); put('goals', g('goals')); put('publicPersonality', g('personality'));
+  put('physicalState', g('physicalState')); put('mentalState', g('mentalState')); put('knowledge', g('knowledge')); put('cultivation', g('realm'));
+  return out;
+}
+function _scFindState(st, c) {
+  const states = (st && st.statusState && Array.isArray(st.statusState.characterStates)) ? st.statusState.characterStates : [];
+  const nn = normalizeName(c && c.name);
+  return states.find(x => x && ((c.id && String(x.characterId || x.id || '') === String(c.id)) || (nn && normalizeName(x.name || x.characterName || '') === nn))) || null;
+}
+// Thẻ hiện hành = hồ sơ gốc (seed) bị đè bởi giá trị đã tích lũy trong Current Status.
+function currentStatusCard(st, c) {
+  const seed = seedStatusCard(c), prior = _scFindState(st, c), pc = prior && prior.changes && typeof prior.changes === 'object' ? prior.changes : {}, card = {};
+  STATUS_CARD_KEYS.forEach(k => { const v = _scVal(pc[k]) || seed[k]; if (v && !_SC_LAZY_RE.test(v)) card[k] = v; });
+  return card;
+}
+function _scMentioned(name, text) {
+  const w = String(name || '').trim().split(/\s+/).filter(Boolean), t = String(text || '');
+  const has = ph => { if (!ph || ph.length < 2) return false; const esc = ph.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); try { return new RegExp('(^|[^\\p{L}\\p{N}])' + esc + '(?![\\p{L}\\p{N}])', 'u').test(t); } catch (_) { return false; } };
+  return has(w.join(' ')) || (w.length >= 3 && has(w.slice(-2).join(' '))) || (w.length >= 2 && has(w[w.length - 1]) && w[w.length - 1].length >= 3);
+}
+function statusCardTargets(st, text, max) {
+  const pool = [].concat(st && st.mainCharProfile && st.mainCharProfile.name ? [Object.assign({ id: 'main' }, st.mainCharProfile)] : [], Array.isArray(st && st.characters) ? st.characters : []).filter(c => c && c.name && !c.dead);
+  const seen = new Set(), out = [];
+  pool.forEach(c => { const k = normalizeName(c.name); if (seen.has(k)) return; seen.add(k); if (c.id === 'main' || _scMentioned(c.name, text)) out.push(c); });
+  return out.slice(0, max || 8);
+}
+function buildStatusCardPrompt(o) {
+  o = o || {};
+  return [
+    'CẬP NHẬT THẺ NHÂN VẬT (Current Status) SAU CHƯƠNG ' + (o.chapterNumber || '?') + '. Chỉ trả MỘT JSON object, không markdown, tiếng Việt.',
+    'Với MỖI nhân vật trong THẺ HIỆN HÀNH dưới đây, trả ĐỦ thẻ (object "card") gồm mọi khóa hợp lệ. Quy tắc:',
+    '1) Trường chương KHÔNG làm đổi: chép lại ĐÚNG NGUYÊN giá trị hiện hành. Cấm viết "giữ nguyên", "không thay đổi", "như cũ" hay viết tắt.',
+    '2) Trường chương cho thấy ĐÃ ĐỔI hoặc đang ở trạng thái mới (trang phục, cảm xúc, vật dụng đang dùng, dấu vết trên cơ thể, thể trạng, tâm lý, tinh thần, mức phục tùng thường đổi theo cuối chương): ghi giá trị mới VÀ đặt trong "changeEvidence" một trích đoạn NGUYÊN VĂN 5–18 từ của chương chứng minh đúng giá trị đó.',
+    '3) Trường chưa có trong thẻ: chỉ điền khi chương nêu rõ (kèm changeEvidence); nếu không thì để chuỗi rỗng "". TUYỆT ĐỐI không bịa, không suy diễn, không đoán.',
+    '4) Công việc, chức vụ, địa vị, nơi ở, tuổi, tình trạng hôn nhân KHÔNG ĐƯỢC đổi trừ khi chương kể rõ sự kiện làm đổi (và có changeEvidence). Nhân vật chỉ được nhắc thoáng qua thì giữ nguyên thẻ.',
+    '5) Giữ mọi thông tin quan trọng cần nhớ lâu dài của thẻ cũ; chỉ rút gọn chữ thừa, không làm rơi chi tiết.',
+    'KHÓA HỢP LỆ của card: ' + STATUS_CARD_KEYS.join(', ') + '.',
+    'THẺ HIỆN HÀNH:\n' + JSON.stringify((o.cards || []).map(c => ({ characterId: c.id, name: c.name, card: c.card }))),
+    'JSON TRẢ VỀ: {"cards":[{"characterId":"","name":"","card":{"occupation":"","residence":"","...":""},"changeEvidence":{"khóa":"trích đoạn nguyên văn"}}]}',
+    'CHƯƠNG:\n' + String(o.text || '').slice(0, 42000)
+  ].join('\n\n');
+}
+function parseStatusCards(raw) {
+  const t = String(raw || '').replace(/<think(?:ing)?[\s>][\s\S]*?<\/think(?:ing)?>/gi, '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+  const i = t.indexOf('{'), j = t.lastIndexOf('}'); if (i < 0 || j <= i) return null;
+  let obj; try { obj = JSON.parse(t.slice(i, j + 1)); } catch (_) { return null; }
+  return obj && Array.isArray(obj.cards) ? obj.cards : null;
+}
+// Ghép thẻ AI trả vào statusState.characterStates. Trường giống thẻ cũ -> bỏ qua; khác/mới -> cần changeEvidence thật trong chương, nếu không giữ giá trị cũ.
+function acceptStatusCards(st, items, source, targets) {
+  const out = { changed: 0, dropped: 0, characters: 0, droppedFields: [] };
+  if (!st.statusState || typeof st.statusState !== 'object') st.statusState = {};
+  if (!Array.isArray(st.statusState.characterStates)) st.statusState.characterStates = [];
+  const byName = new Map((items || []).filter(x => x && typeof x === 'object').map(x => [normalizeName(x.name || x.characterName || ''), x]));
+  const byId = new Map((items || []).filter(x => x && x.characterId).map(x => [String(x.characterId), x]));
+  (targets || []).forEach(c => {
+    const base = currentStatusCard(st, c), item = byId.get(String(c.id)) || byName.get(normalizeName(c.name)) || null;
+    const card = item && item.card && typeof item.card === 'object' ? item.card : {}, ce = item && item.changeEvidence && typeof item.changeEvidence === 'object' ? item.changeEvidence : {};
+    const result = Object.assign({}, base); let changed = 0, firstEv = '';
+    STATUS_CARD_KEYS.forEach(k => {
+      const v = _scVal(card[k]); if (!v || _SC_LAZY_RE.test(v)) return;
+      if (base[k] && _scSame(base[k], v)) return;
+      const ev = String(ce[k] || (item && item.evidence) || '').trim();
+      if (fieldEvidenceSupports(v, ev, source, 0.4)) { result[k] = v.slice(0, 320); changed++; if (!firstEv) firstEv = ev; }
+      else { out.dropped++; if (out.droppedFields.length < 12) out.droppedFields.push(c.name + '.' + k); }
+    });
+    const prior = _scFindState(st, c), entry = { characterId: c.id, name: c.name, status: changed ? 'updated' : 'unchanged', changes: result, evidence: changed ? firstEv : String((prior && prior.evidence) || '') };
+    if (prior) Object.assign(prior, entry, { characterId: prior.characterId || c.id }); else st.statusState.characterStates.push(entry);
+    out.changed += changed; out.characters++;
+  });
+  return out;
+}
+function statusCharacterLines(states) {
+  const lines = ['- Thông tin nhân vật cập nhật:'];
+  (states || []).forEach(x => {
+    if (!x) return; const ch = x.changes && typeof x.changes === 'object' ? x.changes : {};
+    const parts = STATUS_CARD_KEYS.map(k => { const v = _scVal(ch[k]); return v ? (STATUS_CARD_LABELS[k] || k) + ': ' + v : ''; }).filter(Boolean);
+    lines.push('  • ' + (x.name || x.characterName || 'Nhân vật') + ': ' + (parts.length ? (x.status === 'unchanged' ? 'Không có thay đổi đáng kể | ' : '') + parts.join(' | ') : 'Không có thay đổi đáng kể'));
+  });
+  return lines.join('\n');
+}
+// Thay khối "Thông tin nhân vật cập nhật" trong văn bản Current Status bằng thẻ mới (giữ nguyên các phần khác).
+function replaceStatusCharacterBlock(text, states) {
+  const t = String(text || ''), block = statusCharacterLines(states), head = '- Thông tin nhân vật cập nhật:', i = t.indexOf(head);
+  if (i < 0) return (t ? t.replace(/\s+$/, '') + '\n' : '') + block;
+  const rest = t.slice(i + head.length), m = rest.search(/\n- (?:XUNG ĐỘT|Current Status trước khi|[^\s•][^\n]{0,60}:)/);
+  return t.slice(0, i) + block + (m >= 0 ? rest.slice(m) : '');
+}
+// Chạy một lượt cập nhật thẻ. o: { st, text, n, callText(prompt)->Promise<string>, maxCards }. Lỗi AI/JSON -> không đổi gì.
+async function runStatusCardUpdate(o) {
+  const st = o.st, text = String(o.text || '');
+  const targets = statusCardTargets(st, text, o.maxCards || 8);
+  if (!targets.length) return { ok: false, reason: 'no_targets' };
+  const cards = targets.map(c => ({ id: c.id, name: c.name, card: currentStatusCard(st, c) }));
+  let raw; try { raw = await o.callText(buildStatusCardPrompt({ chapterNumber: o.n, cards, text })); } catch (e) { return { ok: false, reason: 'ai_error: ' + (e && e.message || e) }; }
+  const items = parseStatusCards(raw); if (!items) return { ok: false, reason: 'parse' };
+  const r = acceptStatusCards(st, items, text, targets);
+  st.currentStatus = replaceStatusCharacterBlock(st.currentStatus, st.statusState.characterStates);
+  return Object.assign({ ok: true }, r);
+}
+
 function compactSceneContract(scene) {
   const s = scene || {}, out = {};
   [['id', 20], ['purpose', 260], ['location', 120], ['time', 100], ['mustChange', 240], ['handoff', 240]].forEach(([k, n]) => {
@@ -415,7 +576,7 @@ function parseSceneReviewResponse(raw) {
    Code kiểm tra câu trích có thật trong văn bản (chống bịa). Mục thiếu -> vá CỤC BỘ đúng scene đó; cuối chương chỉ chốt lại bằng sổ này
    (thay cho đối chiếu từ khóa vốn hay báo thừa khi truyện viết ý đó bằng câu chữ khác). */
 function _evNorm(x) { return String(x || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim(); }
-function evidenceInText(evidence, text) {
+function beatEvidenceInText(evidence, text) {
   const e = _evNorm(evidence), t = _evNorm(text);
   if (e.split(' ').filter(Boolean).length < 3) return false;
   if (t.includes(e)) return true;
@@ -447,7 +608,7 @@ function parseBeatEvidence(raw, ns, text) {
     const x = by[n];
     if (!x) { unknown.push(n); return; }
     const ev = String(x.evidence || '').replace(/\s+/g, ' ').trim();
-    const done = x.done === true && evidenceInText(ev, text);
+    const done = x.done === true && beatEvidenceInText(ev, text);
     results.push({ n, done, evidence: done ? ev.slice(0, 200) : '' });
     if (!done) missing.push(n);
   });
@@ -466,11 +627,12 @@ function sceneErrorsPatchable(errors) {
 }
 function buildSceneFixPrompt(o) {
   o = o || {}; const s = o.scene || {}, wc = countWords(o.text || ''), maxAdd = Number(o.maxAdd) || SCENE_FIX_MAX_ADD;
-  const beatNote = (o.errors || []).some(e => /SỰ KIỆN BẮT BUỘC/.test(String(e))) ? 'SỰ KIỆN BẮT BUỘC là việc Outline giao nên ĐƯỢC chèn (không tính là "sự kiện ngoài kế hoạch"): viết thành khoảnh khắc đầy đủ (hành động, lời thoại, phản ứng), đặt ở chỗ hợp lý theo thứ tự nhân quả, TRƯỚC đoạn kết.' : '';
+  const beatNote = (o.errors || []).some(e => /SỰ KIỆN BẮT BUỘC/.test(String(e))) ? 'SỰ KIỆN BẮT BUỘC là việc Outline giao nên ĐƯỢC chèn (không tính là "sự kiện ngoài kế hoạch"): viết thành khoảnh khắc đầy đủ (hành động, lời thoại, phản ứng), đặt ở chỗ hợp lý theo thứ tự nhân quả, TRƯỚC đoạn kết. TUYỆT ĐỐI giữ đúng nhân vật, tên gọi, địa điểm và thời điểm CỦA SCENE NÀY (' + [].concat(s.characters || []).slice(0, 6).join(', ') + (s.location ? ' @ ' + s.location : '') + '): nếu câu sự kiện nhắc nhân vật/nơi chốn khác với scene thì KHÔNG đem tên hay nơi đó vào, chỉ thực hiện phần hành động cho đúng nhân vật có mặt trong scene.' : '';
   return [
     'VÁ CỤC BỘ MỘT SCENE tiểu thuyết bằng cách CHÈN thêm vài câu/đoạn ngắn. KHÔNG viết lại scene, KHÔNG replace/delete, KHÔNG đổi đoạn kết.',
     'LỖI CẦN KHẮC PHỤC (từ bước rà scene):\n' + (o.errors || []).map(e => '- ' + e).join('\n'),
     'SCENE CONTRACT:\n' + JSON.stringify(compactSceneContract(s)),
+    o.profile || '',
     'ĐỊNH DẠNG — chỉ trả các khối sau, không giải thích, không markdown:',
     '>>> SAU: <chép NGUYÊN VĂN 6–20 từ CUỐI của một đoạn có sẵn, đúng từng chữ>',
     '<1–3 câu hoặc một đoạn ngắn văn xuôi tiếng Việt thuần, nối mượt với đoạn trước/sau>',
@@ -598,6 +760,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     sceneBridgeBlock(s, o.prevScene),
     o.sceneScope ? sceneScopedChecklistBlock(s, o.sceneScope) : o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
+    sceneProfileBlock(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
@@ -3191,7 +3354,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     if (accepted === null && lastText && lastAiOnly && deps.sceneAiPatch !== false && (deps.sceneAiReview || beatChecked) && countWords(lastText) >= 80 && sceneErrorsPatchable(lastErrors) && timeLeft() > minSceneMs / 2) {
       try {
         const _beatFix = lastErrors.some(e => /SỰ KIỆN BẮT BUỘC/.test(String(e)));
-        const pr = await callAI(buildSceneFixPrompt({ scene, text: lastText, errors: lastErrors, maxAdd: _beatFix ? 520 : undefined }), {
+        const pr = await callAI(buildSceneFixPrompt({ scene, text: lastText, errors: lastErrors, maxAdd: _beatFix ? 520 : undefined, profile: sceneProfileBlock(st, scene, chapterContract.allowedCharacters) }), {
           maxTokens: _beatFix ? 1500 : 900, temperature: 0.3, modelOverride: route.model, streaming: false
         });
         const fx = applySceneFixInserts(lastText, stripThinkingOutput(String(pr && pr.text || '')), _beatFix ? 520 : undefined);
@@ -3265,7 +3428,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         if (room < 120 || timeLeft() < minTopUpMs / 2) break;
         try {
           const sceneObj = graph.scenes[gr.si] || {};
-          const pr = await callAI(buildSceneFixPrompt({ scene: sceneObj, text: pieces[pi], errors: [beatMissingError(gr.ns.map(n => itemsAll[n - 1]))], maxAdd: room }), { maxTokens: 1500, temperature: 0.3, modelOverride: lastRoute.model, streaming: false });
+          const pr = await callAI(buildSceneFixPrompt({ scene: sceneObj, text: pieces[pi], errors: [beatMissingError(gr.ns.map(n => itemsAll[n - 1]))], maxAdd: room, profile: sceneProfileBlock(st, sceneObj, chapterContract.allowedCharacters) }), { maxTokens: 1500, temperature: 0.3, modelOverride: lastRoute.model, streaming: false });
           const fx = applySceneFixInserts(pieces[pi], stripThinkingOutput(String(pr && pr.text || '')), room);
           if (!fx.ok) { pushSceneWarn((sceneObj.id || 'scene') + ': chèn sự kiện thiếu không thành: ' + fx.reason); continue; }
           const chk3 = checkSceneQuality(fx.text, sceneObj, { contract: chapterContract });
