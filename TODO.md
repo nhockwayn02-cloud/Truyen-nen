@@ -6,7 +6,12 @@
 - [x] Theo dõi tình tiết/thời gian: trạng thái thread do tác giả sửa có lịch sử, mục đã đóng không bị AI/worker mở lại; ghi time log theo chương và giữ gộp dữ liệu local khi hậu kỳ (bằng chứng: `tests/e2e.py` 4g, 15e; `tests/v14_6_postwrite_audit.test.js`).
 - [x] Hậu kiểm sau viết: lưu và hiển thị báo cáo độ dài, continuity/time stall và số thread/foreshadowing chưa giải quyết, không thay canon khi chỉ có cảnh báo (bằng chứng: `tests/e2e.py` 15d; `tests/v14_6_postwrite_audit.test.js`).
 - [x] Giới hạn chữ: min/max theo truyện, từ chối min > max; mở rộng/rút gọn tối đa hai vòng, snapshot bản gốc, đếm lại và giữ bản tốt nhất khi lỗi/vượt ngưỡng; dữ liệu cũ vẫn dùng giới hạn trước đây (bằng chứng: `tests/e2e.py` 4b–4d, 15f; `tests/v14_6_word_bounds.test.js`).
-- [x] Rà soát trước bàn giao: tương thích schema/persistence, parity client-worker, UI desktop/iPhone và pipeline đã xác minh; `npm test` PASS, UI E2E 49/49 PASS (7 E2E phụ của runner bị skip do thiếu dependency riêng).
+- [x] Rà soát trước bàn giao: tương thích schema/persistence, parity client-worker, UI desktop/iPhone và pipeline đã xác minh; `npm test` PASS, UI E2E 52/52 PASS (7 E2E phụ của runner bị skip do thiếu dependency riêng).
+
+## Chế độ Ưu tiên độ chính xác (được yêu cầu)
+- [x] Cài đặt theo từng truyện, mặc định tắt và lưu/khôi phục qua story state/backup; khi bật ép dùng Quality Gate, chặn SOFT_FAIL, bật Required Beat và tối đa 3 lượt review/sửa; truyện cũ giữ hành vi cũ (bằng chứng: `tests/v14_7_accuracy_mode.test.js`, E2E 4h–4j).
+- [x] Kiểm tra beat độc lập trên mọi mã [R#] của Outline/Contract; chỉ chấp nhận trích nguyên văn có trong bản thảo; thiếu mã, trích sai hoặc audit lỗi đều fail-closed, audit phải mới theo fingerprint hiện tại; chặn Sync/Publish/Export Canon đến khi đạt (bằng chứng: `tests/v14_7_accuracy_core.test.js`, `tests/v14_7_accuracy_mode.test.js`, `npm test`).
+- [x] Quét đoạn dài trùng/gần trùng, tạo lỗi có vị trí/bằng chứng; sửa cục bộ với snapshot và review lại, không fallback viết lại toàn chương; giữ bản tốt nhất; chặn retry hậu kỳ không đạt audit và không tạo MANUAL_OVERRIDE trong Accuracy Mode (bằng chứng: accuracy helper/mode tests, hồi quy retry-postprocess, `npm test`; UI E2E 52/52).
 
 ## V14 — Contract-First
 - [x] Chapter Contract bất biến khóa Arc/Outline, required beats, allowed cast, forbidden drift, opening continuity, must-change và ngân sách từ.

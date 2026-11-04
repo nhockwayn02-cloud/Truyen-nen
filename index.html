@@ -473,6 +473,8 @@
 <option value="deep">Sâu đậm (tả kỹ mọi thứ)</option>
 </select>
 </div>
+<div class="toggle-row"><span title="Bật Quality Gate nghiêm ngặt, rà riêng từng beat [R#], tìm đoạn dài trùng và chỉ sửa cục bộ; mỗi vòng cần thêm lượt gọi AI.">🎯 Ưu tiên độ chính xác</span><label class="switch"><input id="accuracyModeToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
+<div class="hint">Khi bật: không nhận SOFT_FAIL, xác minh beat bằng trích dẫn nguyên văn, kiểm tra đoạn lặp và chặn Sync nếu bản thảo chưa được rà. Tốn thêm lượt gọi AI.</div>
 <div class="toggle-row"><span>🛡 Quality Gate (chấm + tự sửa trước khi ghi Canon)</span><label class="switch"><input checked="" id="qualityGateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Tự động sửa các cảnh báo Canon/continuity/Beat rồi chấm lại trước khi ghi Canon">✦ Tạo chương hoàn chỉnh (tự sửa)</span><label class="switch"><input checked id="autoRepairOnCreateToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
 <div class="toggle-row"><span title="Mỗi scene viết xong, AI trích câu bằng chứng cho từng sự kiện Outline được giao; thiếu thì chèn vá đúng scene đó, cuối chương chốt lại bằng sổ bằng chứng. Tốn thêm 1 lượt gọi ngắn/scene. Nếu thấy chương bị lệch tên/nhân vật hơn thì tắt mục này.">📒 Sổ bằng chứng sự kiện Outline (thử nghiệm)</span><label class="switch"><input id="beatLedgerToggle" type="checkbox"/><span class="slider-tg"></span></label></div>
@@ -4717,6 +4719,88 @@ function buildLayeredMemoryContextBlock(st, targetChapter, maxChars) {
   }
   return out.slice(0, budget);
 }
+
+/* V14.7 pure helpers for per-story accuracy mode. */
+function extractRequiredBeatItems(contractText) {
+  const text = String(contractText == null ? "" : contractText), matches = [], re = /\[R(\d+)\]/g;
+  let m;
+  while ((m = re.exec(text))) matches.push({ code: "[R" + m[1] + "]", index: m.index, end: re.lastIndex });
+  const out = [], seen = new Set();
+  matches.forEach((item, i) => {
+    if (seen.has(item.code)) return;
+    seen.add(item.code);
+    const lineStart = text.lastIndexOf("\n", item.index - 1) + 1;
+    const nl = text.indexOf("\n", item.end), lineEnd = nl < 0 ? text.length : nl;
+    let descStart = lineStart;
+    for (let j = i - 1; j >= 0; j--) { if (matches[j].index < lineStart) break; descStart = matches[j].end; break; }
+    let descEnd = lineEnd;
+    for (let j = i + 1; j < matches.length; j++) {
+      if (matches[j].index >= lineEnd) break;
+      descEnd = matches[j].index;
+    }
+    let desc = text.slice(item.end, descEnd).replace(/^\s*(?:[-*•:]|\d+[.)])\s*/u, "").replace(/[.;,|\s]+$/u, "").replace(/\s+/g, " ").trim();
+    const prefix = descStart === lineStart && item.index > lineStart ? text.slice(lineStart, item.index).replace(/^\s*(?:[-*•:]|\d+[.)])\s*/u, "").replace(/[;|,\s]+$/u, "").trim() : "";
+    if (prefix && !/\[R#\]/.test(prefix)) desc = (prefix + (desc ? " " + desc : "")).replace(/\s+/g, " ").trim();
+    out.push({ code: item.code, text: desc });
+  });
+  return out;
+}
+function auditRequiredBeatEvidence(requiredItems, draft, result) {
+  const items = Array.isArray(requiredItems) ? requiredItems : [];
+  const requiredCodes = Array.from(new Set(items.map(x => x && typeof x.code === "string" ? x.code : "").filter(x => /^\[R\d+\]$/.test(x))));
+  const verifiedCodes = [], missingCodes = [], issues = [];
+  if (!requiredCodes.length) return { status: "verified", requiredCodes, verifiedCodes, missingCodes, issues };
+  const validResult = !!result && typeof result === "object" && !Array.isArray(result) && Array.isArray(result.items);
+  if (!validResult) issues.push("Audit result is missing or malformed.");
+  const rows = validResult ? result.items : [], source = typeof draft === "string" ? draft : "";
+  requiredCodes.forEach(code => {
+    const matches = rows.filter(x => x && typeof x === "object" && x.code === code);
+    let ok = false;
+    if (matches.length === 1) {
+      const row = matches[0], evidence = row.evidence;
+      ok = row.status === "present" && typeof evidence === "string" && evidence.length > 0 && source.indexOf(evidence) >= 0;
+      if (!ok) issues.push(code + ": missing, uncertain, invalid status, or non-verbatim evidence.");
+    } else issues.push(code + (matches.length ? ": duplicate audit entries." : ": no audit entry."));
+    (ok ? verifiedCodes : missingCodes).push(code);
+  });
+  return { status: missingCodes.length ? "failed" : "verified", requiredCodes, verifiedCodes, missingCodes, issues };
+}
+function accuracyModeQualityGateOptions(state, options) {
+  const st = state && typeof state === "object" ? state : {}, opts = options && typeof options === "object" ? options : {};
+  const strict = st.accuracyMode === true;
+  return {
+    enabled: strict || st.qualityGateEnabled !== false,
+    allowRewrite: opts.rewrite !== false,
+    maxAttempts: strict ? 3 : st.qualityMaxAttempts,
+    acceptSoft: strict ? false : st.qualityAcceptSoft !== false,
+    requiredBeatBarrier: strict || st.requiredBeatBarrier !== false,
+    forceWarnings: strict || opts.forceWarnings === true
+  };
+}
+function findRepeatedParagraphs(text, options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const minTokens = Math.max(1, Math.floor(Number(opts.minTokens) || 12));
+  const thresholdValue = Number(opts.threshold), threshold = Number.isFinite(thresholdValue) ? Math.max(0, Math.min(1, thresholdValue)) : 0.88;
+  const paragraphs = String(text == null ? "" : text).split(/\n\s*\n+/).map((raw, i) => ({ index: i + 1, raw: raw.trim(), normalized: raw.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() })).filter(x => x.raw);
+  const tokens = x => String(x && x.normalized != null ? x.normalized : x).split(/\s+/u).filter(Boolean);
+  const levRatio = (a, b) => {
+    if (a === b) return 1;
+    const aa = tokens(a), bb = tokens(b), prev = Array.from({ length: bb.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= aa.length; i++) {
+      let diagonal = prev[0]; prev[0] = i;
+      for (let j = 1; j <= bb.length; j++) { const old = prev[j]; prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + (aa[i - 1] === bb[j - 1] ? 0 : 1)); diagonal = old; }
+    }
+    return 1 - prev[bb.length] / Math.max(aa.length, bb.length, 1);
+  };
+  const out = [];
+  for (let i = 0; i < paragraphs.length; i++) for (let j = i + 1; j < paragraphs.length; j++) {
+    const a = paragraphs[i], b = paragraphs[j];
+    if (tokens(a).length < minTokens || tokens(b).length < minTokens) continue;
+    const exact = a.normalized === b.normalized, similarity = exact ? 1 : levRatio(a.normalized, b.normalized);
+    if (exact || similarity >= threshold) out.push({ paragraphs: [a.index, b.index], exact, similarity: Number(similarity.toFixed(4)), excerpt: a.raw.slice(0, 180) });
+  }
+  return out;
+}
 // <<SHARED-CORE:END>>
 function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function stripCodeFences(s){ return (s||"").replace(/```json/gi,"```").replace(/```/g,"").trim(); }
@@ -4977,7 +5061,7 @@ function buildChapterData(source){
     characterStateTracker:s.characterStateTracker||{},
     plotArchive:s.plotArchive||[],
     canonVersion:Number(s.canonVersion||0),
-    qualityGate:{enabled:s.qualityGateEnabled!==false,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||5),autoRepairOnCreate:s.autoRepairOnCreate!==false},
+    qualityGate:{enabled:s.qualityGateEnabled!==false,accuracyMode:s.accuracyMode===true,passScore:Number(s.qualityPassScore||90),softFailScore:Number(s.qualitySoftFailScore||75),maxAttempts:Number(s.qualityMaxAttempts||5),autoRepairOnCreate:s.autoRepairOnCreate!==false},
     version:3
   };
 }
@@ -5008,7 +5092,7 @@ function hydrateFromRecord(record){
     out.chapters=ch.chapters||[];
     out.chapterDrafts=ch.chapterDrafts||[];
     out.canonVersion=Number(ch.canonVersion||0);
-    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||5); out.autoRepairOnCreate=ch.qualityGate?.autoRepairOnCreate!==false;
+    out.qualityGateEnabled=ch.qualityGate?.enabled!==false; out.accuracyMode=ch.qualityGate?.accuracyMode===true; out.qualityPassScore=Number(ch.qualityGate?.passScore||90); out.qualitySoftFailScore=Number(ch.qualityGate?.softFailScore||75); out.qualityMaxAttempts=Number(ch.qualityGate?.maxAttempts||5); out.autoRepairOnCreate=ch.qualityGate?.autoRepairOnCreate!==false;
     out.chapters.forEach(c=>{ if(c && c.sync && c.sync.status==="SYNCED" && !c.status) c.status="SYNCED"; });
     out.scenes=ch.scenes||out.scenes||[];
     out.knowledgeLedger=ch.knowledgeLedger||out.knowledgeLedger||[];
@@ -5139,7 +5223,7 @@ const state = {
   snapshotLimit: 7,
   wakeLockEnabled: true,
   slidingWindowWords: 1500,
-  qualityGateEnabled: false, qualityAcceptSoft: false, requiredBeatBarrier: true, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 2, autoRepairOnCreate: true, adaptiveScenePipeline: true, semanticProseAuto: false, sceneAiReview: false
+  qualityGateEnabled: false, qualityAcceptSoft: false, requiredBeatBarrier: true, accuracyMode: false, qualityPassScore: 90, qualitySoftFailScore: 75, qualityMaxAttempts: 2, autoRepairOnCreate: true, adaptiveScenePipeline: true, semanticProseAuto: false, sceneAiReview: false
 };
 
 function newMainCharProfile(){
@@ -5177,7 +5261,7 @@ function newStoryState(name){
     storyMetaData: { styleBible:{}, storyBible:{}, worldRules:"", lorebook:[], vocabulary:{}, apiSettings:{} },
     characterCards: [], banWords: [], glossaryLock: [], characterStateTracker:{}, plotArchive:[],
     tokenCapPerPrompt:5, snapshotLimit:7, wakeLockEnabled:true, slidingWindowWords:1500,
-    qualityGateEnabled:false, qualityAcceptSoft:false, requiredBeatBarrier:true, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:2, autoRepairOnCreate:true,
+    qualityGateEnabled:false, qualityAcceptSoft:false, requiredBeatBarrier:true, accuracyMode:false, qualityPassScore:90, qualitySoftFailScore:75, qualityMaxAttempts:2, autoRepairOnCreate:true,
     spellCheckEnabled:false, adaptiveScenePipeline:true, semanticProseAuto:false, sceneAiReview:false
   };
 }
@@ -6639,6 +6723,7 @@ function buildContextBlock(options){
   const includeChapterInstructions = contextOptions.includeChapterInstructions !== false;
   /* Ngân sách ngữ cảnh — ưu tiên: status mới nhất + NV chính + đoạn nối; brief được chèn riêng đúng một lần khi viết chương. */
   const lines = [];
+  if(state.accuracyMode===true) lines.push("🎯 ƯU TIÊN ĐỘ CHÍNH XÁC: bám sát mọi beat bắt buộc [R#] trong Outline/Contract; giữ nguyên canon, nhân vật, thời gian và địa điểm đã xác nhận; không tự bịa chi tiết để lấp chỗ trống; tránh lặp lại đoạn văn/hành động đã xuất hiện trong cùng chương.");
   const clip = (s, n) => {
     s = String(s || "");
     if(s.length <= n) return s;
@@ -6999,6 +7084,14 @@ $ID("beatLedgerToggle").addEventListener("change", ()=>{ state.beatLedgerCheck =
 $ID("sceneAiReviewToggle").addEventListener("change", ()=>{ state.sceneAiReview = $ID("sceneAiReviewToggle").checked; persist(); });
 $ID("qualityAcceptSoftToggle").addEventListener("change", ()=>{ state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked; persist(); });
 $ID("requiredBeatBarrierToggle").addEventListener("change", ()=>{ state.requiredBeatBarrier = $ID("requiredBeatBarrierToggle").checked; persist(); });
+function syncAccuracyModeControls(){
+  const strict=state.accuracyMode===true, mode=$ID("accuracyModeToggle");
+  if(mode) mode.checked=strict;
+  [["qualityGateToggle",strict||state.qualityGateEnabled!==false],["autoRepairOnCreateToggle",strict||state.autoRepairOnCreate!==false],["qualityAcceptSoftToggle",strict||state.qualityAcceptSoft===false],["requiredBeatBarrierToggle",strict||state.requiredBeatBarrier!==false]].forEach(([id,checked])=>{
+    const input=$ID(id); if(!input) return; input.checked=checked; input.disabled=strict;
+  });
+}
+$ID("accuracyModeToggle").addEventListener("change", ()=>{ state.accuracyMode=$ID("accuracyModeToggle").checked; syncAccuracyModeControls(); persist(); });
 $ID("outlineBeatGateToggle").addEventListener("change", ()=>{ state.outlineBeatGate = $ID("outlineBeatGateToggle").checked; persist(); });
 autoContinueToggle.addEventListener("change", ()=>{ state.autoContinueEnabled = autoContinueToggle.checked; persist(); });
 autoSummaryToggle.addEventListener("change", ()=>{ state.autoSummaryEnabled = autoSummaryToggle.checked; persist(); });
@@ -9896,14 +9989,45 @@ function renderQualityReview(ch){
   const dims=Object.entries(r.dimensions||{}).map(([k,v])=>escapeHtml(k)+": "+escapeHtml(String(v))).join(" · ");
   const hard=(r.hardFailures||[]).map(x=>"• "+escapeHtml(typeof x==="string"?x:(x.description||x.problem||JSON.stringify(x)))).join("\n");
   const warn=(r.warnings||[]).slice(0,8).map(x=>"• "+escapeHtml(typeof x==="string"?x:(x.description||x.problem||JSON.stringify(x)))).join("\n");
+  const aa=ch.accuracyAudit||null, beatAudit=aa&&aa.beatAudit||{}, required=beatAudit.requiredCodes||[], verified=beatAudit.verifiedCodes||[], repeats=aa&&aa.repeatedParagraphs||[];
+  const accuracyState=!aa?"chưa chạy":aa.status!=="complete"?"audit chưa hoàn tất":aa.draftFingerprint===accuracyTextFingerprint(ch.text)?"bản thảo hiện tại":"bản thảo đã đổi sau audit";
+  const repeatSummary=repeats.slice(0,5).map(x=>"đoạn "+x.paragraphs[0]+"↔"+x.paragraphs[1]).join(", ");
+  const accuracyHtml=(state.accuracyMode||aa)?'<div style="margin-top:7px;"><b>🎯 Ưu tiên độ chính xác:</b> '+escapeHtml(accuracyState)+(beatAudit.status?" · beat "+verified.length+"/"+required.length:"")+" · đoạn lặp "+repeats.length+(repeatSummary?" ("+escapeHtml(repeatSummary)+")":"")+'</div>':'';
   box.className="quality-box "+cls; box.style.display="block";
   box.innerHTML='<b>'+escapeHtml(chapterStatusLabel(status))+'</b> · Quality: <b>'+escapeHtml(score)+'/100</b>'
     +(dims?'<div style="margin-top:5px;">'+dims+'</div>':'')
+    +accuracyHtml
     +(hard?'<div style="margin-top:7px;"><b>Hard failure:</b>\n'+hard+'</div>':'')
     +(warn?'<div style="margin-top:7px;"><b>Cảnh báo:</b>\n'+warn+'</div>':'')
     +((r.rewriteInstructions||[]).length?'<div style="margin-top:7px;"><b>Hướng sửa:</b>\n'+r.rewriteInstructions.map(x=>'• '+escapeHtml(x)).join('\n')+'</div>':'')
     +((r.revisionTrace||[]).length?'<div style="margin-top:7px;"><b>AI đã thử sửa:</b>\n'+r.revisionTrace.slice(-4).map(x=>'• Lượt '+escapeHtml(String(x.attempt))+': '+escapeHtml(String(x.patched||0))+' patch'+(x.trace&&x.trace.length?' — '+x.trace.map(t=>escapeHtml((t.op||'')+(t.anchor?' tại “'+t.anchor+'”':''))).join('; '):'')+(x.skippedReasons&&x.skippedReasons.length?' | bỏ qua: '+escapeHtml(x.skippedReasons.join('; ')):'')).join('\n')+'</div>':'')
     +(ch.sync&&ch.sync.canonVersion?'<div style="margin-top:7px;">Canon v'+escapeHtml(String(ch.sync.canonVersion))+'</div>':'');
+}
+function accuracyTextFingerprint(text){
+  const value=String(text||""); let hash=2166136261;
+  for(let i=0;i<value.length;i++){ hash^=value.charCodeAt(i); hash=Math.imul(hash,16777619); }
+  return "fnv1a:"+(hash>>>0).toString(16)+":"+value.length;
+}
+function buildAccuracyBeatAuditPrompt(requiredItems,draft){
+  const beats=(requiredItems||[]).map(x=>x.code+" "+(x.text||"(không có mô tả thêm)")).join("\n");
+  return [
+    "Bạn là bộ kiểm tra độc lập Required Beat cho tiểu thuyết. Chỉ xác minh các beat dưới đây có thực sự xảy ra trong bản thảo hay không.",
+    "Với từng mã, status chỉ được là present khi sự kiện được thể hiện rõ ràng; nếu thiếu hoặc mơ hồ, chọn missing/uncertain. Không suy diễn từ ý định hoặc Outline.",
+    "Mỗi present phải trích một đoạn NGUYÊN VĂN, liên tục, đúng dấu câu/khoảng trắng từ bản thảo. Không diễn đạt lại. Mỗi mã xuất hiện đúng một lần.",
+    'Chỉ trả JSON: {"items":[{"code":"[R1]","status":"present|missing|uncertain","evidence":"trích nguyên văn hoặc chuỗi rỗng"}]}',
+    "REQUIRED BEATS:\n"+beats,
+    "BẢN THẢO CHƯƠNG (nguồn duy nhất để trích bằng chứng):\n"+String(draft||"")
+  ].join("\n\n");
+}
+async function runAccuracyBeatAudit(chapter,plan){
+  const required=extractRequiredBeatItems(plan||""), draft=String(chapter&&chapter.text||"");
+  if(!required.length) return auditRequiredBeatEvidence([],draft,{items:[]});
+  try{
+    const response=await callAI(buildAccuracyBeatAuditPrompt(required,draft),{maxTokens:1800,temperature:0.1,modelOverride:chapter.modelUsed||state.model});
+    return auditRequiredBeatEvidence(required,draft,safeJsonParse(response&&response.text||""));
+  }catch(error){
+    return {status:"error",requiredCodes:required.map(x=>x.code),verifiedCodes:[],missingCodes:required.map(x=>x.code),issues:["Không gọi được audit Required Beat."],error:String(error&&error.message||error)};
+  }
 }
 async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
   const sc=normalizeStoryControl(state);
@@ -9916,6 +10040,21 @@ async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
     const og=outlineGateCheck(state,chapterNumber,chapter.text,gateKnownNames(state));
     const review=evaluateReview(obj,{maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters,passScore:state.qualityPassScore,softFailScore:state.qualitySoftFailScore,extraHard:hardChecks.filter(x=>!x.ok).map(x=>x.message).concat(og.hard),extraWarnings:og.warn});
     if(!review) return {ok:false,reason:"review_parse"};
+    if(state.accuracyMode===true){
+      const repeatedParagraphs=findRepeatedParagraphs(String(chapter.text||""));
+      const beatAudit=await runAccuracyBeatAudit(chapter,plan);
+      chapter.accuracyAudit={status:beatAudit.status==="error"?"error":"complete",draftFingerprint:accuracyTextFingerprint(chapter.text),beatAudit,repeatedParagraphs,auditedAt:Date.now()};
+      if(beatAudit.status==="error") return {ok:false,reason:"accuracy_beat_audit:"+(beatAudit.error||"unavailable")};
+      const accuracyFailures=[];
+      if(beatAudit.status!=="verified") accuracyFailures.push("Accuracy Mode: thiếu hoặc chưa xác minh Required Beat bằng trích dẫn nguyên văn — "+(beatAudit.missingCodes||[]).join(", ")+". Kiểm tra đủ mọi mã [R#].");
+      repeatedParagraphs.forEach(x=>accuracyFailures.push("Accuracy Mode: đoạn văn "+(x.exact?"trùng nguyên văn":"gần trùng")+" giữa đoạn "+x.paragraphs[0]+" và đoạn "+x.paragraphs[1]+" (độ giống "+Math.round(x.similarity*100)+"%): “"+x.excerpt+"”. Chỉ sửa/xóa phần lặp, giữ nguyên sự kiện riêng."));
+      if(accuracyFailures.length){
+        review.hardFailures=[].concat(review.hardFailures||[],accuracyFailures);
+        review.rewriteInstructions=[].concat(review.rewriteInstructions||[],accuracyFailures);
+        review.verdict="HARD_FAIL";
+        review.score=Math.min(Number(review.score)||100,Math.max(0,Number(state.qualitySoftFailScore||75)-1));
+      }
+    }
     return {ok:true,review};
   }catch(e){ return {ok:false,reason:e.message}; }
 }
@@ -9950,8 +10089,8 @@ async function rewriteDraftFromReview(chapter, review, chapterNumber, plan, cont
   if(pr.ok||pr.stopped) return pr;
   // V12.45: chương dài không thể rewrite toàn bộ trong trần output; chuyển sang sửa đúng một vùng lỗi.
   const fit = wholeRewriteFits(String(chapter.text||""));
-  if(!fit.fits){
-    setStatus("⚙ Vá câu neo không ghép được — AI đang sửa theo vùng lỗi trong chương dài...",true);
+  if(state.accuracyMode===true || !fit.fits){
+    setStatus(state.accuracyMode===true?"🎯 Accuracy Mode: đang sửa đúng vùng lỗi, không viết lại toàn chương...":"⚙ Vá câu neo không ghép được — AI đang sửa theo vùng lỗi trong chương dài...",true);
     try{
       const segPrompt=buildSegmentRepairPrompt({
         chapterNumber, storyControl:storyControlPrompt(state),
@@ -9972,6 +10111,10 @@ async function rewriteDraftFromReview(chapter, review, chapterNumber, plan, cont
       if(e && e.userAbort) return {ok:false,stopped:true,reason:"Đã dừng"};
       console.warn("[Targeted Segment Repair]",e);
     }
+  }
+  if(state.accuracyMode===true){
+    setStatus("⛔ Accuracy Mode: vá cục bộ không áp dụng được; giữ bản tốt nhất, không viết lại toàn chương.",false);
+    return {ok:false,reason:"Accuracy Mode chỉ cho phép vá cục bộ/sửa theo vùng; không fallback viết lại toàn chương."};
   }
   setStatus("⚠ Vá cục bộ không được ("+pr.reason+") — thử viết lại cả chương...",true);
   const wr=await rewriteWholeDraft(chapter,review,chapterNumber,plan,contextSummary);
@@ -10019,7 +10162,7 @@ async function runQualityGate(chapter, chapterNumber, plan, contextSummary, opts
     onStatus:(m)=>setStatus("⚠ "+m,true),
     onChange:()=>renderQualityReview(chapter),
     shouldStop:()=>userStopRequested
-  },{enabled:state.qualityGateEnabled!==false,allowRewrite:opts.rewrite!==false,maxAttempts:state.qualityMaxAttempts,acceptSoft:state.qualityAcceptSoft!==false,forceWarnings:opts.forceWarnings===true});
+  },accuracyModeQualityGateOptions(state,opts));
 }
 /* V12.23: gợi ý chương sau phải HIỆN ở ô Gợi ý (trước đây chỉ lưu vào biến ẩn autoNextChapterHint nên ô luôn trống).
    - Ô trống, hoặc vẫn đúng là gợi ý đã dùng để viết chương vừa xong -> thay bằng gợi ý chương sau.
@@ -10036,8 +10179,22 @@ async function runCanonPostProcess(chapterObj, cn, text, rawForPolish, briefUsed
   await startBackgroundPostProcess(chapterObj, cn, String(chapterObj.text || text || ""), briefUsed);
 }
 
+function chapterAccuracyBarrierStatus(chapter){
+  if(state.accuracyMode!==true) return {ok:true,missing:[]};
+  const missing=[], audit=chapter&&chapter.accuracyAudit;
+  if(!audit||audit.status!=="complete") missing.push("Accuracy audit chưa hoàn tất");
+  else{
+    if(audit.draftFingerprint!==accuracyTextFingerprint(chapter.text)) missing.push("Bản thảo đã đổi sau audit; cần duyệt lại");
+    if(!chapter.review||chapter.review.verdict!=="PASS") missing.push("Quality Gate chưa PASS");
+    const beats=audit.beatAudit||{};
+    if(beats.status!=="verified") missing.push("Required Beat chưa xác minh: "+((beats.missingCodes||[]).join(", ")||"cần chạy lại audit"));
+    const repeats=audit.repeatedParagraphs||[];
+    if(repeats.length) missing.push("Còn "+repeats.length+" cặp đoạn dài trùng/gần trùng");
+  }
+  return {ok:missing.length===0,missing};
+}
 function requiredBeatBarrierStatus(chapter){
-  if(state.requiredBeatBarrier===false) return {ok:true,missing:[]};
+  if(state.requiredBeatBarrier===false&&state.accuracyMode!==true) return {ok:true,missing:[]};
   const review=chapter&&chapter.review||{};
   const items=[].concat(review.hardFailures||[]).map(gateItemText);
   const missing=[];
@@ -10046,6 +10203,8 @@ function requiredBeatBarrierStatus(chapter){
     const codes=t.match(/\[R\d+\]/gi)||[];
     codes.forEach(c=>{ if(!missing.includes(c.toUpperCase())) missing.push(c.toUpperCase()); });
   });
+  const accuracy=chapterAccuracyBarrierStatus(chapter);
+  if(!accuracy.ok) accuracy.missing.forEach(item=>{ if(!missing.includes(item)) missing.push(item); });
   return {ok:missing.length===0,missing};
 }
 function blockIfRequiredBeatsMissing(chapterOrChapters, action){
@@ -10053,7 +10212,8 @@ function blockIfRequiredBeatsMissing(chapterOrChapters, action){
   const missingByChapter=[];
   list.forEach((ch,i)=>{ const b=requiredBeatBarrierStatus(ch); if(!b.ok) missingByChapter.push("Ch"+(i+1)+": "+b.missing.join(", ")); });
   if(missingByChapter.length){
-    setStatus("⛔ Đã chặn "+action+": còn thiếu Required Beat — "+missingByChapter.join("; ")+". Hãy sửa và chạy lại Quality Gate.",false);
+    const label=state.accuracyMode===true?"còn thiếu Required Beat hoặc Accuracy audit":"còn thiếu Required Beat";
+    setStatus("⛔ Đã chặn "+action+": "+label+" — "+missingByChapter.join("; ")+". Hãy sửa và chạy lại Quality Gate.",false);
     return true;
   }
   return false;
@@ -10088,6 +10248,7 @@ async function reviewCurrentChapter(opts){
     if(gate.stopped){ ch.status=wasSynced?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED"; persist(); renderChapterNav(); renderCurrentChapter(); setStatus(autoFix?"Đã dừng tự sửa (bản thảo giữ nguyên hoặc đã vá đến lượt trước; xem 🕘 phiên bản để khôi phục).":"Đã dừng duyệt lại.",false); return; }
     if(blockIfRequiredBeatsMissing(ch,"Sync Canon / xuất bản")) return;
     if(!gate.approved){
+      if(state.accuracyMode===true){ ch.status=wasSynced?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED"; persist(); renderChapterNav(); renderCurrentChapter(); setStatus("⛔ Ưu tiên độ chính xác: Quality Gate chưa PASS; không Manual Override khi chế độ này đang bật. Bản thảo được giữ lại để sửa cục bộ.",false); return; }
       const why=gate.error?("Không đọc được kết quả review ("+gate.error+")"):("Quality Gate: "+((ch.review&&ch.review.verdict)||"chưa đạt"));
       if(!await showConfirm(why+".\nVẫn duyệt thủ công chương "+n+" và đồng bộ vào Canon?")){
         ch.status=wasSynced?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED";
@@ -10571,7 +10732,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(dupWarnings.length) chapterObj.continuityWarnings = dupWarnings;
 
     const reviewContext = buildStoryBibleSummary() + "\n" + characterSummaryForPrompt(relevantCharacters(20));
-    const autonomousRepair = state.autoRepairOnCreate !== false && state.qualityGateEnabled !== false;
+    const autonomousRepair = state.accuracyMode===true || (state.autoRepairOnCreate !== false && state.qualityGateEnabled !== false);
     setStatus(autonomousRepair ? "✦ Đang tự hoàn thiện chương " + chapterNumber + ": Quality Gate + sửa lỗi..." : "🔎 Quality Gate đang kiểm tra chương " + chapterNumber + "...", true); setWriteProgress("gate");
     let gate = await runQualityGate(chapterObj, chapterNumber, plan, reviewContext, {rewrite:autonomousRepair,forceWarnings:autonomousRepair});
     if(gate.approved){
@@ -10638,7 +10799,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
       setStatus("⚠ Không khởi động được hậu kỳ server: " + String(e && e.message || e), false);
     });
     /* Rà chính tả nền: không chặn chương đã lưu, chỉ thay bản nếu chương vẫn còn nguyên. */
-    if(state.spellCheckEnabled){
+    if(state.spellCheckEnabled&&state.accuracyMode!==true){
       const polishSource=String(chapterObj.text||"");
       polishVietnamese(polishSource,{modelOverride:state.model}).then(fixed=>{
         const live=state.chapters[state.currentChapterIndex];
@@ -10801,6 +10962,24 @@ $ID("continueChapterBtn").addEventListener("click", async ()=>{
       setStatus(endNoteC || "Đã viết tiếp.", false);
     }
     const cn = idx + 1;
+    if(state.accuracyMode===true){
+      const accuracyContext=buildStoryBibleSummary()+"\n"+characterSummaryForPrompt(relevantCharacters(20));
+      setStatus("🎯 Ưu tiên độ chính xác: đang review và vá cục bộ phần viết tiếp trước khi Sync...",true);
+      const continuationGate=await runQualityGate(chapter,cn,chapter.plan||"",accuracyContext,{rewrite:true,forceWarnings:true});
+      if(!continuationGate.approved){
+        chapter.status=chapter.sync&&chapter.sync.syncedAt?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED";
+        chapter.postProcess=Object.assign({},chapter.postProcess||{},{status:"BLOCKED_ACCURACY",error:"Chương viết tiếp chưa vượt Quality Gate ở Accuracy Mode."});
+        persist(); renderChapterNav(); renderCurrentChapter();
+        setStatus("⛔ Viết tiếp đã được lưu thành bản nháp nhưng chưa Sync: Accuracy Mode chưa xác minh đủ Required Beat/chất lượng. Dùng 🛠 AI tự sửa hoặc chỉnh tay rồi 🔍 Duyệt lại.",false);
+        return;
+      }
+      if(blockIfRequiredBeatsMissing(chapter,"Sync Canon / xuất bản")){
+        chapter.status=chapter.sync&&chapter.sync.syncedAt?"MODIFIED_AFTER_SYNC":"REVISION_REQUIRED";
+        persist(); renderChapterNav(); renderCurrentChapter(); return;
+      }
+      chapter.status="APPROVED";
+      persist(); renderChapterNav(); renderCurrentChapter();
+    }
     // V12.30: continuation cũng đi qua cùng một job hậu kỳ tổng hợp trên server.
     await startBackgroundPostProcess(chapter, cn, chapter.text, chapter.briefUsed || state.nextChapterHint || "");
     if(endNoteC) setStatus(endNoteC, false);
@@ -11531,6 +11710,7 @@ function hydrateFormFromState(){
   $ID("qualityAcceptSoftToggle").checked = state.qualityAcceptSoft === false;
   $ID("requiredBeatBarrierToggle").checked = state.requiredBeatBarrier !== false;
   $ID("outlineBeatGateToggle").checked = state.outlineBeatGate !== false;
+  syncAccuracyModeControls();
   autoContinueToggle.checked = state.autoContinueEnabled !== false;
   autoSummaryToggle.checked = state.autoSummaryEnabled !== false;
   autoSceneToggle.checked = state.autoSceneEnabled !== false;
@@ -11820,6 +12000,7 @@ function setBgStatus(msg, show){
 
 async function startBackgroundPostProcess(chapterObj, chapterNumber, text, briefUsed){
   if(!chapterObj || !chapterObj.text) throw new Error("Chương hậu kỳ không có nội dung.");
+  if(state.accuracyMode===true&&blockIfRequiredBeatsMissing(chapterObj,"Sync Canon / hậu kỳ")) throw new Error("Accuracy Mode chặn hậu kỳ/Sync vì Quality Gate, Required Beat hoặc audit chưa đạt.");
   const key=(state.apiKey||apiKeyInput.value||"").trim();
   if(!key) throw new Error("Thiếu API Key để chạy hậu kỳ server.");
   if(!state.apiEndpoint&&!apiEndpointInput.value) throw new Error("Thiếu endpoint để chạy hậu kỳ server.");
@@ -11842,7 +12023,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
     c.briefUsed=briefUsed==null?c.briefUsed:briefUsed;
     storyBlob.chapters[chapterNumber-1]=c;
   }
-  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax","spellCheckEnabled","adaptiveScenePipeline","semanticProseAuto","beatLedgerCheck","sceneAiReview","qualityMaxAttempts","stepModels"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
+  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax","spellCheckEnabled","adaptiveScenePipeline","semanticProseAuto","beatLedgerCheck","sceneAiReview","accuracyMode","qualityMaxAttempts","stepModels"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
   const payload={
     mode:"postprocess", chapterNumber:Number(chapterNumber),
     hintStyle:state.hintStyle||"normal", hintFormat:state.hintFormat||"detail",
@@ -12096,12 +12277,13 @@ async function retryBackgroundPostProcess(){
     /* V14.1.1: bấm ☁ Chạy hậu kỳ server = người dùng đã đọc và đồng ý -> tự duyệt chương nháp/cần sửa trước,
        nếu không worker sẽ chặn hậu kỳ (rào chắn Canon chỉ nhận chương đã được chấp nhận). */
     normalizeChapterPipelineState(ch);
+    if(state.accuracyMode===true&&blockIfRequiredBeatsMissing(ch,"hậu kỳ/Sync Canon")) return;
     if(/^(draft|drafted|revision_required|rejected|failed|running|writing)$/i.test(String(ch.status||""))){
       if(/^(revision_required|rejected|failed)$/i.test(String(ch.status))){
         if(!await showConfirm("Chương "+(idx+1)+" đang ở trạng thái "+chapterStatusLabel(String(ch.status).toUpperCase())+".\nVẫn tự duyệt và chạy hậu kỳ/ghi Canon?")) return;
       }
       ch.status="APPROVED";
-      ch.review=Object.assign({},ch.review||{},{verdict:(ch.review&&ch.review.verdict==="PASS")?"PASS":"MANUAL_OVERRIDE",status:"completed",overriddenAt:Date.now()});
+      if(state.accuracyMode!==true) ch.review=Object.assign({},ch.review||{},{verdict:(ch.review&&ch.review.verdict==="PASS")?"PASS":"MANUAL_OVERRIDE",status:"completed",overriddenAt:Date.now()});
       ch.sync=Object.assign(ch.sync||{},{status:"pending"});
       persist(); renderChapterNav(); renderCurrentChapter();
     }
@@ -12154,7 +12336,7 @@ async function startBackgroundDraft(){
     if(!ch||typeof ch!=="object") return ch;
     const o=Object.assign({},ch); BG_HEAVY_CHAPTER_KEYS.forEach(k=>{ delete o[k]; }); return o;
   });
-  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax","spellCheckEnabled","adaptiveScenePipeline","semanticProseAuto","beatLedgerCheck","sceneAiReview","qualityMaxAttempts","stepModels"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
+  ["minChapterWords","descriptionLevel","explicitLevel","nsfwMode","nsfwAutoThreshold","chapterMatureFocus","modelNsfw","advancedRules","includeScenesInPrompt","autoContinueMax","spellCheckEnabled","adaptiveScenePipeline","semanticProseAuto","beatLedgerCheck","sceneAiReview","accuracyMode","qualityMaxAttempts","stepModels"].forEach(k=>{if(state[k]!==undefined)storyBlob[k]=state[k];});
   storyBlob.adaptiveScenePipeline=true; // nháp nền luôn dùng pipeline Contract-first
   const payload={
     mode:"write", draftOnly:true, quickCheck:(($ID("bgQuickCheck")||{}).checked!==false), autoFixQuick:(($ID("bgAutoFixQuick")||{}).checked!==false), chapterNumber,

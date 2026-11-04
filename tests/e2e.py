@@ -62,6 +62,15 @@ with sync_playwright() as p:
     check("4d. Có thể xóa min/max để quay về mặc định tương thích ngược", cleared)
 
     page.select_option("#uiModeSelect", "expert")
+    page.locator("#accuracyModeToggle").evaluate("el=>el.closest('.section').classList.add('open')")
+    mode_default = page.evaluate("()=>({present:!!document.getElementById('accuracyModeToggle'),on:__xta.state.accuracyMode===true,checked:document.getElementById('accuracyModeToggle').checked})")
+    check("4h. Accuracy Mode hiển thị và mặc định tắt", mode_default == {"present": True, "on": False, "checked": False}, str(mode_default))
+    page.evaluate("()=>{const m=document.getElementById('accuracyModeToggle');m.checked=true;m.dispatchEvent(new Event('change',{bubbles:true}));}")
+    strict_ui = page.evaluate("""()=>({on:__xta.state.accuracyMode===true,ids:['qualityGateToggle','autoRepairOnCreateToggle','qualityAcceptSoftToggle','requiredBeatBarrierToggle'].map(id=>{const x=document.getElementById(id);return [x.checked,x.disabled];})})""")
+    check("4i. Bật Accuracy Mode khóa Quality Gate, tự sửa, không SOFT_FAIL và Required Beat", strict_ui["on"] and all(x == [True, True] for x in strict_ui["ids"]), str(strict_ui))
+    page.evaluate("()=>{const m=document.getElementById('accuracyModeToggle');m.checked=false;m.dispatchEvent(new Event('change',{bubbles:true}));}")
+    mode_restored = page.evaluate("()=>!__xta.state.accuracyMode && !document.getElementById('qualityGateToggle').disabled")
+    check("4j. Tắt chế độ khôi phục công tắc cũ", mode_restored)
     page.locator("#organizationNameInput").evaluate("el=>el.closest('.section').querySelector('.section-head').click()")
     page.fill("#organizationNameInput", "Hội Bạch Hạc E2E")
     page.fill("#organizationTypeInput", "Tông môn")
@@ -294,6 +303,12 @@ with sync_playwright() as p:
         page.evaluate("()=>document.getElementById('writeChapterBtn').click()")
         page.wait_for_timeout(800); return wait_idle(timeout)
     last = "()=>{const c=__xta.state.chapters[__xta.state.chapters.length-1]; return {n:__xta.state.chapters.length,status:c.status,verdict:(c.review||{}).verdict,score:(c.review||{}).score,canon:__xta.state.canonVersion||0,len:(c.text||'').length,vers:(c.versions||[]).length,warn:(c.review||{}).warnings||[],sync:(c.sync||{}).status}}"
+    def wait_for_sync(chapter_number, canon_min, timeout=90000):
+        try:
+            page.wait_for_function("""(expected)=>{const s=__xta.state,c=s.chapters[expected.chapter-1];return !!(c&&['SYNCED','SYNCED_WITH_WARNINGS'].includes(c.status)&&c.sync&&c.sync.syncedAt&&Number(s.canonVersion||0)>=expected.canon);}""", arg={"chapter":chapter_number,"canon":canon_min}, timeout=timeout)
+            return True
+        except Exception:
+            return False
     info = page.evaluate(last)
     check("22. Gate PASS: chương ở trạng thái SYNCED, có điểm + canonVersion", info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and info["verdict"] == "PASS" and info["score"] == 95 and info["canon"] >= 1, str(info))
     # V12.47: PASS kèm cảnh báo Canon vẫn phải tự sửa rồi chấm lại khi tạo chương mới.
@@ -326,16 +341,20 @@ with sync_playwright() as p:
     # Duyệt lại bằng nút → Gate đạt → tự Sync Canon
     gate["mode"] = "pass"
     page.evaluate("()=>document.getElementById('reviewChapterBtn').click()")
-    page.wait_for_timeout(800); wait_idle(90)
+    page.wait_for_timeout(800); idle_review = wait_idle(90)
+    synced_review = wait_for_sync(page.evaluate("()=>__xta.state.chapters.length"), canon_before + 1) if idle_review else False
     info = page.evaluate(last)
-    check("28. 🔍 Duyệt lại: Gate đạt → Sync Canon, canonVersion tăng", info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and info["canon"] == canon_before + 1, str(info) + f" canon_before={canon_before}")
+    check("28. 🔍 Duyệt lại: Gate đạt → Sync Canon, canonVersion tăng", synced_review and info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and info["canon"] == canon_before + 1, str(info) + f" canon_before={canon_before}")
     # công tắc tắt Quality Gate
     page.evaluate("()=>{const t=document.getElementById('qualityGateToggle'); t.checked=false; t.dispatchEvent(new Event('change',{bubbles:true}));}")
     off = page.evaluate("()=>__xta.state.qualityGateEnabled")
     gate["mode"] = "fail"
+    canon_before_bypass = page.evaluate("()=>__xta.state.canonVersion||0")
     ok = write_chapter()
+    n_bypass = page.evaluate("()=>__xta.state.chapters.length")
+    synced_bypass = wait_for_sync(n_bypass, canon_before_bypass + 1) if ok else False
     info = page.evaluate(last)
-    check("29. Tắt Quality Gate: chương vẫn Sync, review = BYPASS", off is False and ok and info["verdict"] == "BYPASS" and info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS"), f"off={off} {info}")
+    check("29. Tắt Quality Gate: chương vẫn Sync, review = BYPASS", off is False and ok and synced_bypass and info["verdict"] == "BYPASS" and info["status"] in ("SYNCED","SYNCED_WITH_WARNINGS") and info["canon"] == canon_before_bypass + 1, f"off={off} {info}")
     # ---- v12.18: dọn nhân vật trùng (đúng ca người dùng báo: MC = Bùi Lạc, DB có "nhân vật chính" + "Bùi Lạc" + "Ân") ----
     page.evaluate("""()=>{const s=__xta.state; const {newCharacter,newMainCharProfile,renderCharacters}=__xta; s.mainCharProfile=Object.assign(newMainCharProfile(),{name:'Bùi Lạc',personality:''});
       s.characters=[newCharacter({name:'Ân',tier:'major',role:'antagonist'}),newCharacter({name:'nhân vật chính',tier:'major',role:'bảo vệ, người lập kế hoạch trả thù',personality:'kiên nhẫn, tính toán'}),newCharacter({name:'Bùi Lạc',tier:'major',role:'protagonist',personality:'lặng lẽ, cảnh giác'}),newCharacter({name:'bà chủ trọ',tier:'background'})];

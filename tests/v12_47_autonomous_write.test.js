@@ -6,7 +6,7 @@ assert(/id="writeChapterBtn">✦ Tạo Chương Hoàn Chỉnh/.test(html));
 assert(/id="autoRepairOnCreateToggle"/.test(html));
 assert(/autoRepairOnCreate:true/.test(html));
 assert(/autoRepairOnCreateToggle.*addEventListener/.test(html));
-assert(/const autonomousRepair = state\.autoRepairOnCreate !== false && state\.qualityGateEnabled !== false;/.test(html));
+assert(/const autonomousRepair = state\.accuracyMode===true \|\| \(state\.autoRepairOnCreate !== false && state\.qualityGateEnabled !== false\);/.test(html), 'Accuracy Mode forces repair; otherwise legacy auto-repair preferences remain in force');
 assert(/runQualityGate\(chapterObj, chapterNumber, plan, reviewContext, \{rewrite:autonomousRepair,forceWarnings:autonomousRepair\}\)/.test(html));
 assert(/Semantic Prose Check/.test(html) && /Targeted Segment Repair/.test(html));
 assert(/forceWarnings:\s*job\.storyState\.autoRepairOnCreate !== false/.test(worker));

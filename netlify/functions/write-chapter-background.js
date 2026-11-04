@@ -4036,6 +4036,88 @@ function buildLayeredMemoryContextBlock(st, targetChapter, maxChars) {
   }
   return out.slice(0, budget);
 }
+
+/* V14.7 pure helpers for per-story accuracy mode. */
+function extractRequiredBeatItems(contractText) {
+  const text = String(contractText == null ? "" : contractText), matches = [], re = /\[R(\d+)\]/g;
+  let m;
+  while ((m = re.exec(text))) matches.push({ code: "[R" + m[1] + "]", index: m.index, end: re.lastIndex });
+  const out = [], seen = new Set();
+  matches.forEach((item, i) => {
+    if (seen.has(item.code)) return;
+    seen.add(item.code);
+    const lineStart = text.lastIndexOf("\n", item.index - 1) + 1;
+    const nl = text.indexOf("\n", item.end), lineEnd = nl < 0 ? text.length : nl;
+    let descStart = lineStart;
+    for (let j = i - 1; j >= 0; j--) { if (matches[j].index < lineStart) break; descStart = matches[j].end; break; }
+    let descEnd = lineEnd;
+    for (let j = i + 1; j < matches.length; j++) {
+      if (matches[j].index >= lineEnd) break;
+      descEnd = matches[j].index;
+    }
+    let desc = text.slice(item.end, descEnd).replace(/^\s*(?:[-*•:]|\d+[.)])\s*/u, "").replace(/[.;,|\s]+$/u, "").replace(/\s+/g, " ").trim();
+    const prefix = descStart === lineStart && item.index > lineStart ? text.slice(lineStart, item.index).replace(/^\s*(?:[-*•:]|\d+[.)])\s*/u, "").replace(/[;|,\s]+$/u, "").trim() : "";
+    if (prefix && !/\[R#\]/.test(prefix)) desc = (prefix + (desc ? " " + desc : "")).replace(/\s+/g, " ").trim();
+    out.push({ code: item.code, text: desc });
+  });
+  return out;
+}
+function auditRequiredBeatEvidence(requiredItems, draft, result) {
+  const items = Array.isArray(requiredItems) ? requiredItems : [];
+  const requiredCodes = Array.from(new Set(items.map(x => x && typeof x.code === "string" ? x.code : "").filter(x => /^\[R\d+\]$/.test(x))));
+  const verifiedCodes = [], missingCodes = [], issues = [];
+  if (!requiredCodes.length) return { status: "verified", requiredCodes, verifiedCodes, missingCodes, issues };
+  const validResult = !!result && typeof result === "object" && !Array.isArray(result) && Array.isArray(result.items);
+  if (!validResult) issues.push("Audit result is missing or malformed.");
+  const rows = validResult ? result.items : [], source = typeof draft === "string" ? draft : "";
+  requiredCodes.forEach(code => {
+    const matches = rows.filter(x => x && typeof x === "object" && x.code === code);
+    let ok = false;
+    if (matches.length === 1) {
+      const row = matches[0], evidence = row.evidence;
+      ok = row.status === "present" && typeof evidence === "string" && evidence.length > 0 && source.indexOf(evidence) >= 0;
+      if (!ok) issues.push(code + ": missing, uncertain, invalid status, or non-verbatim evidence.");
+    } else issues.push(code + (matches.length ? ": duplicate audit entries." : ": no audit entry."));
+    (ok ? verifiedCodes : missingCodes).push(code);
+  });
+  return { status: missingCodes.length ? "failed" : "verified", requiredCodes, verifiedCodes, missingCodes, issues };
+}
+function accuracyModeQualityGateOptions(state, options) {
+  const st = state && typeof state === "object" ? state : {}, opts = options && typeof options === "object" ? options : {};
+  const strict = st.accuracyMode === true;
+  return {
+    enabled: strict || st.qualityGateEnabled !== false,
+    allowRewrite: opts.rewrite !== false,
+    maxAttempts: strict ? 3 : st.qualityMaxAttempts,
+    acceptSoft: strict ? false : st.qualityAcceptSoft !== false,
+    requiredBeatBarrier: strict || st.requiredBeatBarrier !== false,
+    forceWarnings: strict || opts.forceWarnings === true
+  };
+}
+function findRepeatedParagraphs(text, options) {
+  const opts = options && typeof options === "object" ? options : {};
+  const minTokens = Math.max(1, Math.floor(Number(opts.minTokens) || 12));
+  const thresholdValue = Number(opts.threshold), threshold = Number.isFinite(thresholdValue) ? Math.max(0, Math.min(1, thresholdValue)) : 0.88;
+  const paragraphs = String(text == null ? "" : text).split(/\n\s*\n+/).map((raw, i) => ({ index: i + 1, raw: raw.trim(), normalized: raw.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() })).filter(x => x.raw);
+  const tokens = x => String(x && x.normalized != null ? x.normalized : x).split(/\s+/u).filter(Boolean);
+  const levRatio = (a, b) => {
+    if (a === b) return 1;
+    const aa = tokens(a), bb = tokens(b), prev = Array.from({ length: bb.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= aa.length; i++) {
+      let diagonal = prev[0]; prev[0] = i;
+      for (let j = 1; j <= bb.length; j++) { const old = prev[j]; prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + (aa[i - 1] === bb[j - 1] ? 0 : 1)); diagonal = old; }
+    }
+    return 1 - prev[bb.length] / Math.max(aa.length, bb.length, 1);
+  };
+  const out = [];
+  for (let i = 0; i < paragraphs.length; i++) for (let j = i + 1; j < paragraphs.length; j++) {
+    const a = paragraphs[i], b = paragraphs[j];
+    if (tokens(a).length < minTokens || tokens(b).length < minTokens) continue;
+    const exact = a.normalized === b.normalized, similarity = exact ? 1 : levRatio(a.normalized, b.normalized);
+    if (exact || similarity >= threshold) out.push({ paragraphs: [a.index, b.index], exact, similarity: Number(similarity.toFixed(4)), excerpt: a.raw.slice(0, 180) });
+  }
+  return out;
+}
 // <<SHARED-CORE:END>>
 // V12.3: hard cap để mục tiêu 5.000 từ không biến thành 8.000+ từ.
 
@@ -4590,6 +4672,7 @@ function buildContextBlock(options){
   const includeChapterInstructions = contextOptions.includeChapterInstructions !== false;
   /* Ngân sách ngữ cảnh — ưu tiên: status mới nhất + NV chính + đoạn nối; brief được chèn riêng đúng một lần khi viết chương. */
   const lines = [];
+  if(state.accuracyMode===true) lines.push("🎯 ƯU TIÊN ĐỘ CHÍNH XÁC: bám sát mọi beat bắt buộc [R#] trong Outline/Contract; giữ nguyên canon, nhân vật, thời gian và địa điểm đã xác nhận; không tự bịa chi tiết để lấp chỗ trống; tránh lặp lại đoạn văn/hành động đã xuất hiện trong cùng chương.");
   const clip = (s, n) => {
     s = String(s || "");
     if(s.length <= n) return s;

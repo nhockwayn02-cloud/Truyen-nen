@@ -5,7 +5,14 @@
 - Thêm CRUD hồ sơ thế lực; cho phép sửa/đóng threads có history, giữ trạng thái do tác giả chọn qua merge worker và lưu mốc thời gian theo chương.
 - Thêm giới hạn min/max theo truyện, rút gọn có snapshot/giữ Outline và bản gốc, báo cáo hậu kiểm độ dài/continuity/time/threads theo từng chương.
 - Cập nhật E2E client cho Scene Graph/telemetry, CRUD thế lực, đóng thread, min/max, condensation, L1 memory và báo cáo hậu kiểm; sửa chuyển chế độ Expert và flex layout để các form settings thực sự mở/tương tác được.
-- Xác minh: `npm test` PASS; `python3 tests/e2e.py` — 49/49 PASS; 7 E2E phụ bị skip do runner thiếu dependency riêng.
+- Xác minh: `npm test` PASS; `python3 tests/e2e.py` — 52/52 PASS; 7 E2E phụ bị skip do runner thiếu dependency riêng.
+
+### Chế độ Ưu tiên độ chính xác
+- Công tắc theo từng truyện, mặc định tắt; khi bật ép Quality Gate PASS, không nhận SOFT_FAIL/Manual Override, bật rào chắn Required Beat và tối đa ba lượt review/sửa.
+- Audit beat độc lập yêu cầu mã [R#] có bằng chứng trích nguyên văn; audit lỗi, thiếu mã, sai trích dẫn hoặc fingerprint cũ đều fail-closed và chặn Sync/Publish/Export Canon.
+- Rà đoạn văn dài trùng/gần trùng, ưu tiên vá cục bộ có snapshot và kiểm tra lại; không fallback viết lại toàn chương. Retry hậu kỳ cũng bị chặn trước khi có thể ghi MANUAL_OVERRIDE.
+- Export backup JSON vẫn được phép để giữ bản nháp; chỉ các luồng xuất bản/Canon bị audit chặn.
+- Xác minh Accuracy Mode: helper, policy, export/sync barriers, retry-postprocess regression và `npm test` PASS; UI E2E 52/52 PASS.
 
 ## [V14.5.15] — Telemetry chi tiết theo scene và đồng bộ metadata phát hành
 - **Telemetry scene:** adaptive pipeline lưu từng scene: số lượt thử/retry, input chars, output words, trạng thái (`accepted`, `patched`, `kept_with_warning`, `rejected`), lỗi rút gọn, số lượt rà AI và thời lượng.

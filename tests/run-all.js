@@ -16,6 +16,8 @@ const dir = __dirname; const suites = [
   ["V14.6 hậu kiểm chương: độ dài, thời gian, threads", process.execPath, ["v14_6_postwrite_audit.test.js"]],
   ["V14.6 bộ nhớ L0–L5: đóng băng, gộp và lưu phiên bản", process.execPath, ["v14_6_layered_memory_flow.test.js"]],
   ["V14.6 continuity, hồ sơ thế lực và luồng độ dài", process.execPath, ["v14_6_long_novel_memory.test.js"]],
+  ["V14.7 Accuracy Mode helpers: trích beat, bằng chứng và đoạn lặp", process.execPath, ["v14_7_accuracy_core.test.js"]],
+  ["V14.7 Accuracy Mode: state, audit beat và rào chắn sync", process.execPath, ["v14_7_accuracy_mode.test.js"]],
   ["V14.5.9 sổ bằng chứng sự kiện Outline", process.execPath, ["v14_5_9_beat_ledger.test.js"]],
   ["V14.5.2 plan: model thinking + mustChange/handoff", process.execPath, ["v14_5_2_plan_thinking.test.js"]],
   ["V14.5.7 outline có ngắt dòng mềm U+2028", process.execPath, ["v14_5_7_outline_soft_linebreak.test.js"]],

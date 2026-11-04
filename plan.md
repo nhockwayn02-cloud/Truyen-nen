@@ -12,6 +12,14 @@ Tiếp tục trên app V14.5.15 hiện tại, giữ UI mobile, IndexedDB, backup
 
 Bổ sung hồ sơ thế lực bên cạnh characters/locations/items; hoàn thiện hồ sơ và trạng thái cho timeline, threads, foreshadowing và mốc thời gian. Sau viết, giữ Quality Gate và lưu báo cáo kiểm tra độ dài/continuity theo bằng chứng. Bổ sung min/max chương; chương ngắn được mở rộng theo scene/đoạn, chương dài được rút gọn theo scene/đoạn, đều bảo toàn Outline/required beat/ending anchor, tạo version trước mỗi chỉnh sửa, tối đa hai vòng rồi giữ bản tốt nhất và báo rõ nếu vẫn ngoài ngưỡng. Truyện cũ giữ giới hạn hiện hành cho tới khi tác giả đặt min/max. Tận dụng UI hiện có, không thay nhà cung cấp AI hay thêm backend/vector DB.
 
+## Chế độ bổ sung — Ưu tiên độ chính xác
+
+Thêm cài đặt theo từng truyện, mặc định tắt để giữ nguyên hành vi cũ. Khi bật, chế độ tự bật/ép dùng Quality Gate, tắt chấp nhận SOFT_FAIL, bật rào chắn Required Beat và tăng tối đa ba lượt review/sửa. Mỗi lượt review có một kiểm tra beat độc lập: lấy mọi mã [R#] từ Outline/Contract, yêu cầu trạng thái cùng trích dẫn bằng chứng nguyên văn; trích dẫn không tồn tại, thiếu mã hoặc API/JSON kiểm tra thất bại đều không được coi là đã xác minh. Bản chưa xác minh beat bắt buộc không được Sync/Publish/Export Canon.
+
+Trong cùng chế độ, quét các đoạn văn dài trùng/gần trùng trong một chương, báo vị trí và đưa lỗi vào targeted patch; tạo snapshot trước khi vá, rà lại sau vá, giữ bản tốt nhất và không fallback sang viết lại cả chương. Lỗi lặp chưa xử lý được hiển thị để tác giả sửa; missing [R#] tiếp tục chặn Sync. Lưu toggle trong story state/backup để mỗi truyện giữ cài đặt riêng; không cần backend mới.
+
+Export backup JSON vẫn được phép để bảo toàn bản nháp; chỉ các luồng xuất bản/Canon bị rào chắn khi audit chưa đạt.
+
 ## Quyết định triển khai
 
 - Một lần gọi AI lập Scene Graph/Scene Contract ngắn.
