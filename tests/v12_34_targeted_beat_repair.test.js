@@ -17,7 +17,7 @@ const prompt=buildPatchPrompt({chapterNumber:5,review:{hardFailures:['Thiếu s�
 assert(/insert_before_end/.test(prompt));
 assert(/beat\/sự kiện bắt buộc/.test(prompt));
 for(const file of ['index.html','netlify/functions/write-chapter-background.js']){
- const s=fs.readFileSync(path.join(root,file),'utf8');
+ const s=file==='index.html'?require('./_read_index.js')():fs.readFileSync(path.join(root,file),'utf8');
  assert(/insert_before_end/.test(s),file+' missing mirrored repair op');
 }
 console.log('PASS V12.34 targeted beat repair');

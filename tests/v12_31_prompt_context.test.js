@@ -3,7 +3,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const source = require('./_read_index.js')();
 const start = source.indexOf('/* V12.31: prompt context audit');
 const end = source.indexOf('/* ========== v11 AGE GUARD', start);
 assert(start >= 0 && end > start, 'V12.31 helpers/context source exists');

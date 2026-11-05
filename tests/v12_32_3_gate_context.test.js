@@ -10,6 +10,6 @@ assert(r.includes('CUỐI_STATUS')&&r.length<=9100,'giữ cuối Current Status,
 const w=sb.__c(ctx,8000,false);
 assert(w.includes('STYLE:')&&w.includes('CẤM TỪ')&&!/MỨC MIÊU TẢ|ĐỘ KHÓ/.test(w),'rewrite giữ STYLE/CẤM TỪ');
 assert(sb.__r({context:ctx,draft:'x'}).length<ctx.length+20000);
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/selfCheck:async\(attempt\)/.test(html)&&/if\(!attempt\|\|attempt<=1\)/.test(html),'continuity AI chỉ ở vòng 1');
 console.log('PASS V12.32.3 gate context + continuity vòng 1');

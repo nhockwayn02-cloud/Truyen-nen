@@ -112,7 +112,7 @@ W.applyWorld({ items: [{ name: 'Hắc Phong Kiếm', kind: 'khác', grade: 'Thư
 assert.ok(it.kind === 'pháp bảo' && it.grade === 'Hạ phẩm pháp khí' && it.bound === true, 'phẩm cấp ổn định, bound không tự tắt');
 
 // 8) index.html: nhãn/ trường/ nút có mặt; mirror & sync
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const html = require('./_read_index.js')();
 ['id="cultivationSystem"', 'id="realmLadder"', 'id="cultSeedBtn"', 'id="mcExtraBox"', 'id="itemGradeInput"', 'id="itemKindInput"', 'id="itemBoundInput"', 'const CULT_UI', 'function genreLabels'].forEach(x => assert.ok(html.includes(x), 'index.html thiếu ' + x));
 assert.ok(wsrc.includes('function cultivationSystemBlock') && wsrc.includes('cultivationSystemBlock(state)'), 'worker có khối tu luyện');
 console.log('PASS V14.1 hệ thống tu luyện (thang 9 tầng, khóa đột phá, hồ sơ khóa, tuổi ngoại hình, vật phẩm, worker)');

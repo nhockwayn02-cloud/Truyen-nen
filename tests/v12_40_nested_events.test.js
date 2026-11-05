@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
 const root=path.join(__dirname,'..');
 const core=fs.readFileSync(path.join(root,'shared/core.js'),'utf8');
-const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const index=require('./_read_index.js')();
 const sb={console};vm.createContext(sb);vm.runInContext(core+'\n;Object.assign(this,{buildChapterPlanPrompt,storyControlPrompt});',sb);
 const plan=sb.buildChapterPlanPrompt({chapterNumber:4,context:'',recent:'',directive:'',hint:'',mainCharName:'A',storyControl:''});
 assert(plan.includes('biến cố lớn lồng bên trong'));

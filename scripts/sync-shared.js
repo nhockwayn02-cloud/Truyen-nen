@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Đồng bộ shared/core.js vào index.html và netlify/functions/write-chapter-background.js
+// Đồng bộ shared/core.js vào app/client.js (client tách khỏi index.html từ V14.7.1) và netlify/functions/write-chapter-background.js
 // (chỉ thay nội dung giữa 2 dòng đánh dấu SHARED-CORE:BEGIN / END). Không cần thư viện ngoài.
 // Dùng:  node scripts/sync-shared.js          -> ghi đè
 //        node scripts/sync-shared.js --check  -> chỉ kiểm tra, thoát mã 1 nếu lệch
@@ -8,7 +8,7 @@ const ROOT = path.join(__dirname, "..");
 const CORE = fs.readFileSync(path.join(ROOT, "shared/core.js"), "utf8").replace(/^(?:\/\/[^\n]*\n)+\n?/, "").trim();
 const BEGIN = "// <<SHARED-CORE:BEGIN>> (tự sinh từ shared/core.js — KHÔNG sửa tay; chạy: node scripts/sync-shared.js)";
 const END = "// <<SHARED-CORE:END>>";
-const TARGETS = ["index.html", "netlify/functions/write-chapter-background.js"];
+const TARGETS = ["app/client.js", "netlify/functions/write-chapter-background.js"];
 function render(text) {
   const i = text.indexOf("// <<SHARED-CORE:BEGIN>>");
   if (i < 0) throw new Error("Thiếu dấu BEGIN");
@@ -26,9 +26,9 @@ for (const rel of TARGETS) {
 }
 
 // ===== V12.23: CLIENT-MIRROR — sao chép NGUYÊN VĂN các hàm dựng ngữ cảnh/prompt viết chương từ index.html vào worker =====
-// Mục đích: viết nền dùng ĐÚNG code của viết thường (buildContextBlock, buildMainWritePrompt...). Nguồn sự thật = index.html.
+// Mục đích: viết nền dùng ĐÚNG code của viết thường (buildContextBlock, buildMainWritePrompt...). Nguồn sự thật = app/client.js.
 const MIRROR_FUNCS = ["buildContextBlock","buildEffectiveRuleBlock","normalizePromptRuleText","promptRuleIsDisabled","_foldPromptAuditText","_promptConstraint","auditPromptInstructions","characterSummaryForPrompt","buildStoryBibleSummary","relevantCharacters","extractCharacterCardsV102","buildStyleBlock","loreBuild","loreScan","loreScanText","loreCards","loreKeyList","loreCompileKey","loreForPrompt","buildSceneHistoryBlock","buildConsentBlock","matureFocusPrompt","characterCardsForPromptV102","currentOutline","currentArc","buildVocabularyBlock","estimateTokens","storyControlPromptClient","characterLockPromptClient","buildMainWritePrompt","buildChapterContractForGeneration","adaptiveRequiredBeatBlock","compactSceneStyleLock","adaptiveSceneRoute","matureFocusAllowsRouting"];
-const M_BEGIN = "// <<CLIENT-MIRROR:BEGIN>> (tự sinh từ index.html — KHÔNG sửa tay; chạy: node scripts/sync-shared.js)";
+const M_BEGIN = "// <<CLIENT-MIRROR:BEGIN>> (tự sinh từ app/client.js — KHÔNG sửa tay; chạy: node scripts/sync-shared.js)";
 const M_END = "// <<CLIENT-MIRROR:END>>";
 function skipString(src, i) { const q = src[i]; i++; while (i < src.length) { const c = src[i]; if (c === "\\") { i += 2; continue; } if (q === "`" && c === "$" && src[i + 1] === "{") { i = skipBraces(src, i + 1); continue; } if (c === q) return i + 1; i++; } return i; }
 function skipBraces(src, i) { // src[i] === "{"
@@ -55,14 +55,14 @@ function skipBraces(src, i) { // src[i] === "{"
 }
 function extractFunction(src, name) {
   const re = new RegExp("(?:^|\\n)([ \\t]*)((?:async\\s+)?function\\s+" + name + "\\s*\\()", "m");
-  const m = re.exec(src); if (!m) throw new Error("Không tìm thấy hàm " + name + " trong index.html");
+  const m = re.exec(src); if (!m) throw new Error("Không tìm thấy hàm " + name + " trong app/client.js");
   const start = m.index + (m[0].startsWith("\n") ? 1 : 0);
   const open = src.indexOf("{", start + m[1].length + m[2].length);
   const end = skipBraces(src, open);
   return src.slice(start, end);
 }
 function renderMirror(workerText) {
-  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const html = fs.readFileSync(path.join(ROOT, "app/client.js"), "utf8");
   const body = MIRROR_FUNCS.map(n => extractFunction(html, n)).join("\n\n");
   const i = workerText.indexOf("// <<CLIENT-MIRROR:BEGIN>>");
   if (i < 0) throw new Error("Thiếu dấu CLIENT-MIRROR:BEGIN trong worker");

@@ -51,7 +51,7 @@ const m=sb.outlineChapterLines(content);
 assert(!sb.textHasNsfwKeyword(m[11])&&sb.textHasNsfwKeyword(m[12]),'cụm "cảnh nóng" phải kích hoạt định tuyến NSFW');
 
 // 5) Handler của nút đã được nối thật vào prompt + bước rà tuổi
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const html=require('./_read_index.js')();
 const i=html.indexOf('$ID("outlineAIGenerateBtn").addEventListener'); assert(i>0);
 const handler=html.slice(i,html.indexOf('function currentOutline()',i));
 assert(/outlineMaturePrompt\(state,\s*10\)/.test(handler),'handler phải gọi outlineMaturePrompt');

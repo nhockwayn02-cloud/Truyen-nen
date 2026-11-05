@@ -1,5 +1,5 @@
 const fs=require('fs'),assert=require('assert'),vm=require('vm'),path=require('path');
-const index=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const index=require('./_read_index.js')();
 const core=fs.readFileSync(path.join(__dirname,'..','shared/core.js'),'utf8');
 assert(index.includes('id="mcMaritalStatusInput"'));
 assert(index.includes('id="mcSpouseNameInput"'));

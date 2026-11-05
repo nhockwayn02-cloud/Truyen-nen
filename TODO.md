@@ -51,4 +51,4 @@
 ## Kế thừa từ V12
 - [x] Age Gate, hardened security, wizard và regression nền giữ nguyên.
 - [ ] E2E lịch sử cần cập nhật theo hợp đồng mới. (các bộ E2E đều đang PASS; mục này chỉ còn là rà soát độ phủ theo Contract-First.)
-- [ ] Tách dần client runtime khỏi `index.html` sau khi pipeline ổn định.
+- [x] Tách client runtime khỏi `index.html` sang `app/client.js` (V14.7.1; bằng chứng: `npm test` PASS, `tests/_read_index.js`). Còn lại: chia nhỏ `app/client.js` thành module theo chức năng (UI, storage, pipeline) khi cần.

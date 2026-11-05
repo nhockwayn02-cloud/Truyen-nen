@@ -1,6 +1,6 @@
 // V14.1.1: nút "Chạy hậu kỳ server" phải tự duyệt chương nháp TRƯỚC khi gửi, nếu không worker chặn hậu kỳ.
 const fs=require('fs'),path=require('path'),assert=require('assert');
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 const i=html.indexOf('async function retryBackgroundPostProcess');
 assert(i>0,'thiếu retryBackgroundPostProcess');
 const body=html.slice(i,i+2500);

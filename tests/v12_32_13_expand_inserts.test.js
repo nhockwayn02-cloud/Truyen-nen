@@ -68,7 +68,7 @@ assert.strictEqual(applyChapterPatches('Anh đứng dậy. Anh bước ra cửa.
 assert.strictEqual(applyChapterPatches('Anh đứng dậy.\n\nTrời mưa.',[{op:'insert_after',find:'Anh đứng dậy',text:'Chiều muộn rồi.'}]).text,'Anh đứng dậy.\n\nChiều muộn rồi.\n\nTrời mưa.');
 
 // ---- nối dây client + worker ----
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'), wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
+const html=require('./_read_index.js')(), wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
 for(const [n,src] of [['client',html],['worker',wk]]){
   assert(/buildExpandInsertPrompt\(\{/.test(src)&&/applyExpandInserts\(/.test(src)&&/acceptExpandInserts\(/.test(src),n+': mở rộng cuối dùng chèn đoạn');
   { const i=src.indexOf('buildExpandInsertPrompt({'), seg=src.slice(i,i+1800); assert(/expandMaxTokens\(/.test(seg)&&!/16000|24000/.test(seg),n+': khối mở rộng xin token vừa đủ, không xin 16000/24000'); }

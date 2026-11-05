@@ -3,7 +3,7 @@
 ## 0. Trước khi làm
 - Cần tài khoản GitHub, Netlify và API key OpenRouter.
 - **Background Functions cần gói Netlify trả phí.** Gói free vẫn dùng được app, nhưng nút "viết nền" có thể không chạy. Khi đó viết trực tiếp trên trình duyệt (giữ màn hình sáng).
-- Gốc repo phải chứa `index.html`, `netlify.toml`, thư mục `netlify/`. Zip tải từ GitHub có thêm thư mục bọc ngoài `Truyen-nen-main/`: hãy upload **nội dung bên trong**, đừng upload thư mục bọc.
+- Gốc repo phải chứa `index.html`, `netlify.toml`, thư mục `app/` (chứa `client.js`, nếu thiếu app sẽ trắng trang) và thư mục `netlify/`. Zip tải từ GitHub có thêm thư mục bọc ngoài `Truyen-nen-main/`: hãy upload **nội dung bên trong**, đừng upload thư mục bọc.
 
 ## 1. Đưa code lên GitHub
 1. Tạo repo mới (nên để **Private**, vì truyện 18+).

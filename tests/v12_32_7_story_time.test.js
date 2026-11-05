@@ -28,7 +28,7 @@ const rv=sb.evaluateReview({score:95,timeStagnation:true,timeNotes:['mâu thuẫ
 assert.notStrictEqual(rv.verdict,'HARD_FAIL','chỉ cảnh báo mềm');
 assert(rv.warnings.some(w=>/Thời gian truyện bất nhất hoặc đứng yên/.test(w)&&/mâu thuẫn ngày/.test(w)));
 // client/worker
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/id="timePace"/.test(html)&&/currentTimeMark\(state\)/.test(html)&&/mục THỜI GIAN TRUYỆN/.test(html),'client');
 const wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
 assert(/status\.timeLog/.test(wk)&&/changes\.time = thời điểm ở CUỐI chương/.test(wk)&&/KHÔNG cập nhật time \(giữ mốc cũ\)/.test(wk),'worker');

@@ -41,7 +41,7 @@ const rv=sb.evaluateReview({score:97,arcStall:true,arcNotes:['chỉ tả cảnh 
 assert.strictEqual(rv.verdict,'HARD_FAIL');assert(rv.hardFailures.some(x=>/Arc\/Outline/.test(x)&&/ăn uống/.test(x)));
 assert(/7a\. TIẾN ĐỘ ARC\/OUTLINE/.test(sb.buildChapterPlanPrompt({chapterNumber:2,context:'',recent:''})));
 // client/worker
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/arcProgressPrompt\(state, _n\)/.test(html)&&/arcProgressPrompt\(state,chapterNumber\)/.test(html)&&/"chapters":\[\{"chapter"/.test(html.replace(/'/g,'"'))||/chapters":\[\{"chapter":/.test(html),'client');
 assert(/outlineCoverageLeft\(state\)/.test(html)&&/mỗi chương một dòng/.test(html));
 const wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');

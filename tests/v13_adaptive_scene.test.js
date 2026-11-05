@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), assert = require('assert'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
-const indexSrc = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+const indexSrc = require('./_read_index.js')();
 const box = { console, state: {} };
 vm.createContext(box);
 vm.runInContext(src + '\n;this.__t={safeDedupeRepeatedScene,dropRepeatedParagraphs,countWords,chapterWordLimits,adaptiveChapterWordLimits,compactSceneTail,compactSceneContract,compactSceneStateDelta,buildAdaptiveScenePlanPrompt,parseAdaptiveScenePlanResponse,normalizeAdaptiveScenePlan,validateAdaptiveScenePlan,validateSceneTextAgainstContract,compactChapterContract,buildAdaptiveSceneWritePrompt,buildAdaptiveSceneTopUpPrompt,gateHardChecks};', box);

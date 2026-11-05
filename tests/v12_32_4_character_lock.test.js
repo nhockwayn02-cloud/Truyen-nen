@@ -22,6 +22,6 @@ assert(sb.buildQualityReviewPrompt({characterLock:lock,draft:'x'}).includes('H�
 assert(!/profileViolation=true CHỈ KHI/.test(sb.buildQualityReviewPrompt({draft:'x'})),'không có hồ sơ thì không thêm luật');
 assert(sb.buildRewritePrompt({chapterNumber:1,characterLock:lock,draft:'x'}).includes('HỒ SƠ KHÓA'),'rewrite có khối khóa');
 assert(/KHÔNG áp dụng cho địa vị/.test(sb.storyControlPrompt({})),'siết câu ĐƯỢC TỰ DO');
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/characterLockPromptClient\(false\)/.test(html)&&(html.match(/characterLockPromptClient\(true\)/g)||[]).length>=3,'prompt viết + 3 prompt viết tiếp');
 console.log('PASS V12.32.4 character lock');

@@ -1,7 +1,7 @@
 const fs=require('fs'),assert=require('assert'),path=require('path');
 const root=path.join(__dirname,'..');
 const core=fs.readFileSync(path.join(root,'shared/core.js'),'utf8');
-const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const index=require('./_read_index.js')();
 assert(core.includes('RETRY VÁ — lượt trước không ghép được patch'));
 assert(core.includes('revisionTrace'));
 assert(index.includes('insert_before_end'));

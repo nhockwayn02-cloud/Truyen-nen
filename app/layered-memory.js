@@ -99,21 +99,24 @@
       const sources = [];
       for (let n = range.startChapter; n <= range.endChapter; n++) {
         let rec = m.summaries.L1.find(x => x && x.chapterNumber === n && x.frozen && !x.stale);
-        if (!rec) rec = await setL1(n);
+        if (!rec) { try { rec = await setL1(n); } catch (e) { failures.push("L1 ch" + n + ": " + String(e.message || e)); } } // V14.7.1: một chương lỗi không được làm sập cả lượt xây
         if (rec) sources.push({ id: rec.id, startChapter: n, endChapter: n, summary: rec.summary });
       }
+      if (sources.length < range.endChapter - range.startChapter + 1) { result.failed++; failures.push(range.id + ": thiếu L1 của " + (range.endChapter - range.startChapter + 1 - sources.length) + " chương — chưa đóng băng L2 để tránh khóa bản tóm tắt thiếu"); continue; }
       try { if (await createLayerSummary("L2", range, sources)) result.built++; }
       catch (e) { result.failed++; failures.push(range.id + ": " + String(e.message || e)); }
     }
     for (const range of ranges.arcs.filter(process)) {
       if (latestLayerRecord(m.summaries.L3, range.id)) continue;
       const sources = range.chunkIds.map(id => latestLayerRecord(m.summaries.L2, id)).filter(Boolean);
+      if (sources.length < range.chunkIds.length) { result.failed++; failures.push(range.id + ": thiếu " + (range.chunkIds.length - sources.length) + " L2 — chưa đóng băng L3"); continue; }
       try { if (await createLayerSummary("L3", range, sources)) result.built++; }
       catch (e) { result.failed++; failures.push(range.id + ": " + String(e.message || e)); }
     }
     for (const range of ranges.volumes.filter(process)) {
       if (latestLayerRecord(m.summaries.L4, range.id)) continue;
       const sources = range.arcIds.map(id => latestLayerRecord(m.summaries.L3, id)).filter(Boolean);
+      if (sources.length < range.arcIds.length) { result.failed++; failures.push(range.id + ": thiếu " + (range.arcIds.length - sources.length) + " L3 — chưa đóng băng L4"); continue; }
       try { if (await createLayerSummary("L4", range, sources)) result.built++; }
       catch (e) { result.failed++; failures.push(range.id + ": " + String(e.message || e)); }
     }

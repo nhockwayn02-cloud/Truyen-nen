@@ -1,6 +1,6 @@
 // V14.0.4: rào chắn tuổi phải có trong prompt viết cảnh và top-up (pipeline Scene Graph).
 const fs = require("fs"), path = require("path");
-const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+const html = require('./_read_index.js')();
 let ok = true; const fail = m => { ok = false; console.log("FAIL " + m); };
 const m = html.match(/function compactSceneStyleLock\(usingNsfw\)\{[\s\S]*?\n\}/);
 if (!m) fail("không thấy compactSceneStyleLock");

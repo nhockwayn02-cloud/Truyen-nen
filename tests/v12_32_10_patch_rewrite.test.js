@@ -72,7 +72,7 @@ const pe=buildPatchPrompt({chapterNumber:5,prevEnding:'Họ đi dọc hành lang
 assert(/ĐOẠN KẾT CHƯƠNG TRƯỚC/.test(pe)&&/hành lang tầng 7/.test(pe)&&/nối tiếp đúng/.test(pe),'patch prompt có đoạn kết chương trước');
 assert(!/ĐOẠN KẾT CHƯƠNG TRƯỚC/.test(buildPatchPrompt({chapterNumber:1,review:{},draft:'D'})),'chương 1 không có đoạn kết trước');
 // --- nối dây trong client + worker ---
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/id="autoFixChapterBtn"/.test(html)&&/reviewCurrentChapter\(\{autoFix:true\}\)/.test(html));
 assert(/runQualityGate\(ch,n,ch\.plan\|\|"",ctx,\{rewrite:autoFix,forceWarnings:autoFix\}\)/.test(html));
 assert(/patchDraftFromReview[\s\S]{0,900}prevEnding:/.test(html)&&/rewriteWholeDraft[\s\S]{0,900}prevEnding:/.test(html),'client truyền prevEnding cho cả vá và viết lại');

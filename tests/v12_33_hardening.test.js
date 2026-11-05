@@ -10,7 +10,7 @@ const full=sec.securityAudit({JOB_SECRET:'x'.repeat(32),APP_PASSCODE:'pass',ALLO
 assert.strictEqual(full.hardened,true);
 assert(full.checks.every(x=>x.ok));
 
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/id="ageGate"/.test(html),'age gate markup');
 assert(/AGE_GATE_KEY/.test(html)&&/ageGateContinue/.test(html),'age gate logic');
 assert(/id="uiModeSelect"/.test(html)&&/ui-simple/.test(html),'simple/expert mode');

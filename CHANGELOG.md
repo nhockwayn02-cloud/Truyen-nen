@@ -1,6 +1,14 @@
 # CHANGELOG — Xưởng Truyện AI
 
-## [Unreleased] — Bộ nhớ truyện dài L0–L5, continuity và min/max chương
+## [V14.7.1] — Chốt bản phát hành, tách client, sửa lỗi Accuracy/Memory, nâng hợp đồng văn xuôi
+- **Chốt phát hành:** đồng bộ phiên bản (package.json, README, CHANGELOG, tiêu đề/nhãn UI, header X-Title); mục `[Unreleased]` cũ được đổi thành `[V14.6–V14.7.0]`; gỡ test lỗi thời `v12_26_fast_write` (kiểm tra tính năng đã bị thay thế, 0/7 PASS và không nằm trong `npm test`).
+- **Tách client khỏi `index.html`:** toàn bộ script (~830KB) chuyển sang `app/client.js`; `index.html` chỉ còn khung HTML (~50KB) và thẻ `<script src="app/client.js?v=14.7.1">`. `scripts/sync-shared.js` nay đồng bộ `SHARED-CORE`/`CLIENT-MIRROR` vào `app/client.js`. Test cũ đọc qua `tests/_read_index.js` (nhúng lại client vào HTML) nên các kiểm tra regex giữ nguyên ngữ nghĩa. **Khi deploy phải upload cả thư mục `app/`.** Khi đổi `app/client.js`, tăng `?v=` trong `index.html` để trình duyệt/iPhone không dùng bản cache cũ.
+- **Sửa lỗi Accuracy Mode:** (1) worker nền tự dựng cấu hình Quality Gate nên bỏ qua Accuracy Mode (vẫn nhận SOFT_FAIL, Gate có thể tắt) — nay dùng chung `accuracyModeQualityGateOptions` và, khi Accuracy Mode bật, worker ép về bản nháp (không tự Sync Canon vì worker không có audit beat `[R#]`); (2) bằng chứng beat một ký tự cũng được coi là xác minh — nay yêu cầu trích dẫn ≥12 ký tự và ≥3 từ; (3) so khớp trích dẫn nay chuẩn hóa Unicode NFC và gộp khoảng trắng, tránh báo sai do dấu tiếng Việt dạng NFC/NFD; prompt audit nói rõ yêu cầu này; (4) bộ quét đoạn lặp bỏ qua cặp có độ dài chênh quá ngưỡng trước khi tính khoảng cách chỉnh sửa.
+- **Sửa lỗi bộ nhớ L0–L5:** L2/L3/L4 không còn bị đóng băng khi thiếu chương/tầng nguồn (trước đây tóm tắt thiếu bị khóa vĩnh viễn và làm lệch các tầng trên); lỗi API khi bù L1 trong vòng L2 không còn làm sập cả lượt xây — được ghi vào báo cáo và xây bù được ở lần sau.
+- **Văn xuôi tiếng Việt:** `vietnameseNovelWritingPrompt()` (dùng chung viết thường, worker, scene) thêm 5 nguyên tắc: scene có mong muốn–vật cản–giá phải trả–thay đổi; thoại có ẩn ý; chi tiết cảm giác riêng và không chỉ thị giác; chậm nhịp ở khoảnh khắc nặng và có dư âm; kết cảnh bằng bước ngoặt thay vì tóm tắt cảm xúc.
+- **Test mới:** `v14_7_1_accuracy_hardening`, `v14_7_1_memory_partial_sources`, `v14_7_1_prose_contract`; cập nhật `v12_47_autonomous_write` theo chính sách Gate dùng chung.
+
+## [V14.6–V14.7.0] — Bộ nhớ truyện dài L0–L5, continuity, min/max chương và Accuracy Mode
 - Thêm snapshots L1–L4 đóng băng theo tầng, L2/L3/L4 gộp theo 4/20/60 chương, L5 có version history; hỗ trợ xây bù và chỉ đưa summary quá khứ vào prompt trong ngân sách giới hạn.
 - Thêm CRUD hồ sơ thế lực; cho phép sửa/đóng threads có history, giữ trạng thái do tác giả chọn qua merge worker và lưu mốc thời gian theo chương.
 - Thêm giới hạn min/max theo truyện, rút gọn có snapshot/giữ Outline và bản gốc, báo cáo hậu kiểm độ dài/continuity/time/threads theo từng chương.

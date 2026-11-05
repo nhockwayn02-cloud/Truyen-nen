@@ -1,5 +1,5 @@
 const fs=require('fs'),assert=require('assert'),path=require('path');
-const s=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const s=require('./_read_index.js')();
 assert(s.includes('requiredBeatBarrier: true'));
 assert(s.includes('requiredBeatBarrierToggle'));
 assert(s.includes('function requiredBeatBarrierStatus'));

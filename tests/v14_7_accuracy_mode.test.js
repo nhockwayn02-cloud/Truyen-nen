@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const index = require('./_read_index.js')();
 const coreSource = fs.readFileSync(path.join(root, 'shared/core.js'), 'utf8');
 const coreContext = vm.createContext({});
 vm.runInContext(coreSource + '\n;globalThis.__accuracyPolicy = typeof accuracyModeQualityGateOptions === "function" ? accuracyModeQualityGateOptions : null;', coreContext);

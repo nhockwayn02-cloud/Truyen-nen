@@ -1,7 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
-const source = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+const source = require('./_read_index.js')();
 const start = source.indexOf('async function callAI(prompt, opts){');
 assert(start >= 0, 'callAI function exists');
 const end = source.indexOf('\n}\n', start);

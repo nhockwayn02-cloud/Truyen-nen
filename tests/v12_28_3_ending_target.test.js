@@ -1,6 +1,6 @@
 const fs = require('fs');
 const assert = require('assert');
-const index = fs.readFileSync('index.html','utf8');
+const index = require('./_read_index.js')();
 const core = fs.readFileSync('shared/core.js','utf8');
 const worker = fs.readFileSync('netlify/functions/write-chapter-background.js','utf8');
 

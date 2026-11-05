@@ -10,7 +10,7 @@ assert(plan.includes('LEDGER_ORDER'));
 const review=sb.buildQualityReviewPrompt({storyControl:'',characterLock:'',contract:'[B1] Mỹ Duyên đến phòng trọ | [B2] Bùi Lạc phát hiện gã vest xám',context:'',warnings:[],draft:'',prevEnding:'',knownNames:[],maxMainEvents:3,maxNamedCharacters:4});
 assert(review.includes('BEAT LEDGER AUDIT'));
 for(const file of ['index.html','netlify/functions/write-chapter-background.js']){
- const s=fs.readFileSync(path.join(root,file),'utf8');
+ const s=file==='index.html'?require('./_read_index.js')():fs.readFileSync(path.join(root,file),'utf8');
  assert(s.includes('BEAT LEDGER — CÁCH THI HÀNH'),file+' missing write enforcement');
 }
 console.log('PASS V12.35 Beat Ledger prompts');

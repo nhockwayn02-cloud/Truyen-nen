@@ -49,7 +49,7 @@ assert.strictEqual(C.reviewIsBetter(after, soft), true); assert.strictEqual(C.re
   // 3) nối vào hệ thống
   const w = fs.readFileSync(path.join(ROOT, 'netlify/functions/write-chapter-background.js'), 'utf8');
   assert.ok(/transitionFixReview\(rv\)/.test(w) && /patchWorkerDraft\(job, chapter, n, tr\)/.test(w), 'worker dùng vá chèn câu chuyển cảnh');
-  const h = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const h = require('./_read_index.js')();
   assert.ok(/reviewActionAdvice\(ch\.review\)/.test(h), 'dòng trạng thái bản nháp dùng gợi ý hành động');
   console.log('PASS V14.1.6 tự chèn câu chuyển cảnh + gợi ý hành động');
 })().catch(e => { console.error('FAIL', e.message); process.exit(1); });

@@ -1,6 +1,6 @@
 const fs=require('fs'),assert=require('assert'),path=require('path');
 const core=fs.readFileSync(path.join(__dirname,'..','shared/core.js'),'utf8');
-const index=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const index=require('./_read_index.js')();
 assert(core.includes('đánh mã [R1], [R2]'));
 assert(core.includes('Mã [S1], [S2]'));
 assert(core.includes('THỨ TỰ ƯU TIÊN'));

@@ -1,6 +1,6 @@
 // V12.32.14: kiểm tra dọn dẹp — tài liệu đã gộp, hàm chết không quay lại, site không phát công khai file nội bộ.
 const fs=require('fs'),path=require('path'),assert=require('assert');
-const root=path.join(__dirname,'..'), rd=f=>fs.readFileSync(path.join(root,f),'utf8');
+const root=path.join(__dirname,'..'), rd=f=>f==='index.html'?require('./_read_index.js')():fs.readFileSync(path.join(root,f),'utf8'); // V14.7.1: client nằm ở app/client.js
 const removed={"index.html": ["extractBalancedJson", "idbGetAll", "loadStoryStateFromDisk", "syncMainCharCoreFromProfile", "buildFemaleDefinitionBlock", "matureFocusLabel", "timingSummary", "runFastPostTasks", "normalizeStoryControlClient", "qualityHardCheck", "applyNextChapterHint", "previewNextChapterHint", "beginCanonSync", "completeCanonSync", "checkCheckpoint", "startBackgroundWrite", "_fmtDur", "enqueueTask", "showCheckpointBanner", "runQueue", "hideCheckpointBanner"], "worker": ["genSecret", "encryptText", "recentContext", "generateSummary", "generateNextChapterHint", "updateCharacters", "updateWorld", "formatStatus", "updateCurrentStatus", "updateLongMemory", "scanScenes", "parseArrayWithRepair", "parseObjectWithRepair", "extractModelFor", "compactCharacterList", "repairJsonWithAI"]};
 // 1) tài liệu
 assert(fs.existsSync(path.join(root,'CHANGELOG.md'))&&fs.existsSync(path.join(root,'docs/ARCHITECTURE.md'))&&fs.existsSync(path.join(root,'docs/PROMPT_V12.22.md')),'thiếu CHANGELOG/docs');

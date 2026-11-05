@@ -29,6 +29,6 @@ assert.strictEqual(sb.storySoFarPrompt([{summary:'x'}],2800),'','một chương 
 const ol=sb.openLoopsPrompt({statusState:{currentState:{unresolved:'Ai gửi thư?',nextHooks:'Gặp Lan'},longTerm:{conflict:'Hùng vs Minh'}}});
 assert(/Ai gửi thư/.test(ol)&&/Gặp Lan/.test(ol)&&/Hùng vs Minh/.test(ol));
 assert.strictEqual(sb.openLoopsPrompt({}),'');
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/progressRulesPrompt\(state\)/.test(html)&&/storySoFarPrompt\(/.test(html)&&/openLoopsPrompt\(state\)/.test(html)&&/priorChapters: isRegen/.test(html),'đã nối vào client');
 console.log('PASS V12.32.5 progress + memory');

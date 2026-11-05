@@ -1,6 +1,6 @@
 // V14.3.6: gợi ý chương sau nhận dàn ý chương đó làm nguồn chuẩn (trước đây chỉ lọt trong ngữ cảnh, dễ bị cắt/lệch).
 const fs = require('fs'), path = require('path'), assert = require('assert');
-const src = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+const src = require('./_read_index.js')();
 const i = src.indexOf('async function generateNextChapterHint'); assert(i > 0);
 const fn = src.slice(i, i + 9000);
 assert(fn.includes('arcProgressPrompt(state, chapterNumber+1)'), 'prompt gợi ý phải lấy dàn ý chương sau');

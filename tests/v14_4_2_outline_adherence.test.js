@@ -44,7 +44,7 @@ console.log('OK ' + pass + ' test');
     assert.ok(/MỌI sự kiện chính của Outline PHẢI có mặt và được viết ĐẦY ĐỦ/.test(p) && /vẫn được thêm chi tiết/.test(p) && /THREADS\/FORESHADOWING chỉ là bối cảnh tham khảo/.test(p));
   });
   t2('buildContextBlock có dòng LƯU Ý ƯU TIÊN cho THREADS/FORESHADOWING (cả bản mirror của worker)', () => {
-    const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8'), wk = fs.readFileSync(path.join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
+    const html = require('./_read_index.js')(), wk = fs.readFileSync(path.join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
     [html, wk].forEach(x => assert.ok(x.includes('LƯU Ý ƯU TIÊN: THREADS / FORESHADOWING / TIMELINE / KIẾN THỨC')));
     assert.ok(html.indexOf('LƯU Ý ƯU TIÊN: THREADS') < html.indexOf('"THREADS:\\n"'));
   });

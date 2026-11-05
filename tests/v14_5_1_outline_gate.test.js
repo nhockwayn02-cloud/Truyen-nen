@@ -43,7 +43,7 @@ t('đi qua evaluateReview: lỗi nặng của Outline làm verdict HARD_FAIL dù
   assert.strictEqual(ok.verdict, 'PASS'); assert.ok(ok.warnings.some(x => /Outline chương 6/.test(x)));
 });
 t('đã gắn vào client + worker và có công tắc giao diện', () => {
-  const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8'), wk = fs.readFileSync(path.join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
+  const html = require('./_read_index.js')(), wk = fs.readFileSync(path.join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
   assert.ok(/outlineGateCheck\(state,chapterNumber,chapter\.text,gateKnownNames\(state\)\)/.test(html) && /outlineBeatGateToggle/.test(html));
   assert.ok(/outlineGateCheck\(job\.storyState, n, chapter\.text, gateKnownNames\(job\.storyState\)\)/.test(wk));
 });

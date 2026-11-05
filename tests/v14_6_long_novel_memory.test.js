@@ -1,7 +1,7 @@
 // V14.6 integration contracts for long-novel memory and continuity features.
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const index = require('./_read_index.js')();
 const core = fs.readFileSync(path.join(root, 'shared/core.js'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'netlify/functions/write-chapter-background.js'), 'utf8');
 const memoryModule = fs.readFileSync(path.join(root, 'app/layered-memory.js'), 'utf8');

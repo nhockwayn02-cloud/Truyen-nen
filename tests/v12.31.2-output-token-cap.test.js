@@ -1,6 +1,6 @@
 const fs = require('fs');
 const assert = require('assert');
-const html = fs.readFileSync('index.html','utf8');
+const html = require('./_read_index.js')();
 const bg = fs.readFileSync('netlify/functions/write-chapter-background.js','utf8');
 // V14.3: giới hạn nay nằm ở một hằng số dùng chung (AI_MAX_OUTPUT_TOKENS) trong shared/core.js, được đồng bộ vào client và worker.
 for (const [name, src] of [['client', html], ['worker', bg]]) {

@@ -723,6 +723,11 @@ function vietnameseNovelWritingPrompt() {
     '- Tách người nói thành đoạn riêng; khi đổi người nói, đổi hành động trọng tâm hoặc đổi nhịp cảm xúc thì xuống đoạn. Ưu tiên đoạn ngắn-vừa dễ đọc trên điện thoại.',
     '- Thể hiện cảm xúc bằng hành động, phản ứng cơ thể, lựa chọn và chi tiết quan sát được; tránh liên tục gọi tên cảm xúc hoặc dùng tính từ chung chung.',
     '- Xen kẽ câu ngắn và câu dài có kiểm soát; không dồn quá nhiều mệnh đề, không mở liên tiếp nhiều câu bằng cùng một chủ ngữ/cấu trúc.',
+    '- Mỗi scene phải có điều nhân vật muốn, vật cản, một lựa chọn có giá phải trả và một thay đổi (quyền lực, hiểu biết, niềm tin, nguy hiểm hoặc quan hệ); không viết thành chuỗi sự kiện liệt kê.',
+    '- Thoại có ẩn ý: người nói né tránh, ngắt lời, nói lệch hoặc im lặng khi bị dồn; không giải thích cốt truyện hay cảm xúc thành lời thoại diễn thuyết.',
+    '- Chi tiết cảm giác phải cụ thể và riêng của cảnh (mùi, âm thanh, xúc giác, nhiệt độ, vật cản trong tay), không chỉ thị giác; không dùng sáo ngữ cảm giác có sẵn.',
+    '- Chậm nhịp ở khoảnh khắc nặng (phản bội, mất mát, thú nhận, thân mật, quyết định không đảo ngược) và để lại dư âm trước khi chuyển cảnh; nén nhịp ở phần chuyển tiếp.',
+    '- Kết cảnh bằng bước ngoặt, câu hỏi mở hoặc hậu quả đang tới; không kết bằng đoạn tóm tắt cảm xúc, bài học hay lời bình của người kể.',
     '- Không recap đầu chương nếu không cần; không chèn nhãn ngày giờ, tiêu đề scene, metadata, lời giải thích hay ghi chú của AI vào văn xuôi.'
   ].join('\n');
 }
@@ -4006,13 +4011,17 @@ function auditRequiredBeatEvidence(requiredItems, draft, result) {
   if (!requiredCodes.length) return { status: "verified", requiredCodes, verifiedCodes, missingCodes, issues };
   const validResult = !!result && typeof result === "object" && !Array.isArray(result) && Array.isArray(result.items);
   if (!validResult) issues.push("Audit result is missing or malformed.");
-  const rows = validResult ? result.items : [], source = typeof draft === "string" ? draft : "";
+  // V14.7.1: so khớp trích dẫn sau khi chuẩn hóa Unicode NFC + gộp khoảng trắng (tiếng Việt có thể ở dạng NFC hoặc NFD) và đòi trích dẫn đủ dài để có nghĩa.
+  const normEv = x => String(x == null ? "" : x).normalize("NFC").replace(/\s+/gu, " ").trim();
+  const evidenceUsable = x => x.length >= 12 && (x.match(/[\p{L}\p{N}]+/gu) || []).length >= 3;
+  const rows = validResult ? result.items : [], source = normEv(typeof draft === "string" ? draft : "");
   requiredCodes.forEach(code => {
     const matches = rows.filter(x => x && typeof x === "object" && x.code === code);
     let ok = false;
     if (matches.length === 1) {
       const row = matches[0], evidence = row.evidence;
-      ok = row.status === "present" && typeof evidence === "string" && evidence.length > 0 && source.indexOf(evidence) >= 0;
+      const ev = typeof evidence === "string" ? normEv(evidence) : "";
+      ok = row.status === "present" && evidenceUsable(ev) && source.indexOf(ev) >= 0;
       if (!ok) issues.push(code + ": missing, uncertain, invalid status, or non-verbatim evidence.");
     } else issues.push(code + (matches.length ? ": duplicate audit entries." : ": no audit entry."));
     (ok ? verifiedCodes : missingCodes).push(code);
@@ -4049,7 +4058,9 @@ function findRepeatedParagraphs(text, options) {
   const out = [];
   for (let i = 0; i < paragraphs.length; i++) for (let j = i + 1; j < paragraphs.length; j++) {
     const a = paragraphs[i], b = paragraphs[j];
-    if (tokens(a).length < minTokens || tokens(b).length < minTokens) continue;
+    const la = tokens(a).length, lb = tokens(b).length;
+    if (la < minTokens || lb < minTokens) continue;
+    if (a.normalized !== b.normalized && Math.min(la, lb) / Math.max(la, lb) < threshold) continue; // chênh độ dài quá lớn thì không thể đạt ngưỡng giống
     const exact = a.normalized === b.normalized, similarity = exact ? 1 : levRatio(a.normalized, b.normalized);
     if (exact || similarity >= threshold) out.push({ paragraphs: [a.index, b.index], exact, similarity: Number(similarity.toFixed(4)), excerpt: a.raw.slice(0, 180) });
   }

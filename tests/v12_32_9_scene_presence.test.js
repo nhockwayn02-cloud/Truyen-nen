@@ -13,6 +13,6 @@ assert.strictEqual(sb.evaluateReview({score:98},{}).verdict,'PASS');
 assert.strictEqual(sb.cleanProseArtifacts('Cô đưa ra {phương án tài chính} cho anh.'),'Cô đưa ra phương án tài chính cho anh.');
 assert.strictEqual(sb.cleanProseArtifacts('Anh nói {{kế hoạch}} xong.'),'Anh nói kế hoạch xong.');
 assert.strictEqual(sb.cleanProseArtifacts('Cô gật đầu.'),'Cô gật đầu.');
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/CẢNH & NGƯỜI CÓ MẶT/.test(html));
 console.log('PASS V12.32.9 scene presence');

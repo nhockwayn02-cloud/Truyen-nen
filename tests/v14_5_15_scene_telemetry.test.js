@@ -1,7 +1,7 @@
 // V14.5.15: telemetry adaptive theo từng scene phải được tạo, trả về trong stats và lưu ở client/worker.
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const core = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
-const index = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+const index = require('./_read_index.js')();
 const worker = fs.readFileSync(path.join(__dirname, '../netlify/functions/write-chapter-background.js'), 'utf8');
 let pass = 0;
 function t(name, fn) { fn(); console.log('PASS ' + name); pass++; }

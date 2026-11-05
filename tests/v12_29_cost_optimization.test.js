@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const html = require('./_read_index.js')();
 const worker = fs.readFileSync(path.join(root, 'netlify/functions/write-chapter-background.js'), 'utf8');
 function assert(ok, msg) { if (!ok) throw new Error(msg); }
 assert(html.includes('V12.30: một job hậu kỳ tổng hợp'), 'client does not route automatic canon postprocess through the unified job');

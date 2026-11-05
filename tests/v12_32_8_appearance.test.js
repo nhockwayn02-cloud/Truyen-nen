@@ -13,7 +13,7 @@ assert(/NGOẠI LỆ: ngoại hình/.test(sb.characterLockPrompt({name:'A',occup
 assert(/appearanceVague/.test(sb.GATE_REVIEW_SCHEMA)&&/appearanceVague=true CHỈ KHI/.test(sb.buildQualityReviewPrompt({draft:'x'})));
 const rv=sb.evaluateReview({score:95,appearanceVague:true,appearanceNotes:['Lan']},{});
 assert.notStrictEqual(rv.verdict,'HARD_FAIL');assert(rv.warnings.some(w=>/ngoại hình chung chung/.test(w)&&/Lan/.test(w)));
-const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+const html=require('./_read_index.js')();
 assert(/id="mcMeasurementsInput"/.test(html)&&/mcMeasurementsInput:"measurements"/.test(html)&&/appearanceAnchorPrompt\(state, usingNsfw\)/.test(html)&&/\["measurements","Số đo/.test(html)&&/SỐ ĐO:/.test(html));
 const wk=fs.readFileSync(path.join(__dirname,'../netlify/functions/write-chapter-background.js'),'utf8');
 assert(/measurements: u\.measurements/.test(wk)&&/"measurements","hair"/.test(wk)&&/appearanceAnchorPrompt\(state, usingNsfw\)/.test(wk),'worker');
