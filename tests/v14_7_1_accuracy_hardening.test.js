@@ -47,5 +47,15 @@ test('worker dùng accuracyModeQualityGateOptions và ép nháp khi Accuracy Mod
   assert.match(w, /accuracyMode === true\) job\.draftOnly = true/);
   assert.ok(!/acceptSoft: job\.storyState\.qualityAcceptSoft !== false,\s*\n\s*forceWarnings/.test(w), 'worker không được tự dựng acceptSoft nữa');
 });
+test('worker: lỗi gọi model đi qua redactApiKey (không lộ key vào trạng thái job)', () => {
+  const w = fs.readFileSync(path.join(root, 'netlify/functions/write-chapter-background.js'), 'utf8');
+  assert.match(w, /async function callOpenRouter\(args\)\s*\{\s*try \{ return await callOpenRouterRaw\(args\)/);
+  const fn = w.slice(w.indexOf('function redactApiKey'), w.indexOf('async function callOpenRouter(args)'));
+  const redact = vm.runInNewContext(fn + ';redactApiKey', {});
+  const K = 'sk-test-SECRET-1234567890abcdef';
+  assert.ok(!redact('Incorrect API key provided: ' + K + '.', K).includes(K));
+  assert.ok(!redact('Authorization: Bearer abcdefghijklmnop1234', 'zzz').includes('abcdefghijklmnop1234'));
+  assert.equal(redact('HTTP 503 down', K), 'HTTP 503 down');
+});
 console.log(bad ? 'FAIL ' + bad : 'PASS V14.7.1 accuracy hardening');
 process.exit(bad ? 1 : 0);

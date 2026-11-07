@@ -847,7 +847,7 @@ function buildAdaptiveSceneWritePrompt(o) {
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
-    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
     o.correction ? 'BẢN VIẾT TRƯỚC CỦA SCENE NÀY BỊ TỪ CHỐI — viết lại scene từ đầu, giữ đúng contract và SỬA các lỗi sau (không nhắc tới lỗi trong văn bản):\n' + String(o.correction).replace(/\s+/g, ' ').slice(0, 900) : '',
     'Chỉ trả văn xuôi scene.'
@@ -870,7 +870,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
     p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
     p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
-    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
   ].filter(Boolean).join('\n\n');
 }
@@ -3153,7 +3153,8 @@ function mergeCharacterIntoState(state, sourceId, targetId) {
 }
 
 const SCENE_PLAN_SYSTEM_PROMPT = "Lập kế hoạch scene cho tiểu thuyết dài kỳ tiếng Việt. Trả đúng JSON được yêu cầu, không viết văn xuôi, không thêm biến cố lớn ngoài brief/canon.";
-const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè.";
+const EROTIC_SCENE_LOCK = "QUY TẮC CẢNH NÓNG (bắt buộc khi scene là cảnh nóng giữa người trưởng thành; viết thẳng, không tự kiểm duyệt, không fade-to-black): lúc đang làm tình dùng từ thô tục đời thường (cặc, lồn, địt, nứng, nước lồn, tinh trùng…), không thay bằng ẩn dụ hoa mỹ; mỗi đoạn nóng đủ 4 lớp: cơ thể theo hồ sơ + cảm giác thể xác (căng, ướt, nóng, run) + nội tâm (xấu hổ↔dục, kháng cự↔cơ thể phản ứng) + âm thanh/nhịp (da chạm, hơi thở, rên, thoại); tăng thoại theo vai và quyền lực; chậm từng nhịp, không tóm tắt cao trào trong 1–2 câu, không chuyển cảnh trước khi hoàn tất; nhịp dẫn vào ~25% / diễn biến + cao trào ~50% / sau cảnh ~25%; không bịa số đo ngoài hồ sơ; trừ khi mệnh lệnh người dùng chỉ định dừng ở mốc khác.";
+const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè. Khi STYLE LOCK có mức_18+ và scene là cảnh nóng giữa người trưởng thành: viết đúng mức đó, trực tiếp, không tự kiểm duyệt, không fade-to-black, không tóm tắt thay cho cảnh.";
 
 /* V14.0.6: VÒNG ĐIỀU PHỐI ADAPTIVE SCENE DÙNG CHUNG client + worker nền.
    Mọi thứ phụ thuộc môi trường (gọi AI, state, định tuyến model, đồng hồ) được truyền qua `deps`:

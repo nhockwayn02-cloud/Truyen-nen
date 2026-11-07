@@ -1,5 +1,19 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.3] — Truyện 18+ bị viết nhạt/né tránh trong pipeline từng scene
+- **Nguyên nhân gốc (đã tái hiện bằng test trước khi sửa):** pipeline viết theo scene (`compactSceneStyleLock` + `SCENE_SYSTEM_PROMPT`, dùng chung client và worker nền) chỉ gửi cho model một dòng `mức_18+` bị cắt 330 ký tự; mức **Cực mạnh (wild) bị hạ xuống Mạnh**; bộ quy tắc erotic (từ thô tục, 4 lớp cơ thể–cảm giác–nội tâm–âm thanh, nhịp 3 phần, không tóm tắt cao trào) KHÔNG hề tới model viết scene, trong khi system prompt chỉ nói "show, don't tell". Vì vậy thử trực tiếp với model uncensored viết được nhưng viết trong truyện thì nhạt.
+- **Sửa:** scene dùng đúng mức người dùng chọn (`EXPLICIT_PROMPTS[level]`, không hạ cấp); mức Mạnh/Cực mạnh thêm `EROTIC_SCENE_LOCK` (mức Nhẹ/Gợi cảm/Rõ ràng giữ nguyên, không bị ép); `SCENE_SYSTEM_PROMPT` thêm chỉ dẫn viết thẳng cho cảnh nóng giữa người trưởng thành; STYLE LOCK trong prompt scene nâng giới hạn 1500 → 2800 ký tự. Rào chắn tuổi (≥18) vẫn luôn bật và có ưu tiên cao nhất.
+- **Chế độ NSFW "Luôn dùng":** `adultModelFor` (tóm tắt, gợi ý chương) nay chuyển model 18+ không cần từ khóa khi chế độ là "Luôn dùng" (trước đó vẫn đòi từ khóa).
+- **Lưu ý cấu hình:** để viết truyện thuần 18+ cần bật "Cho phép trưởng thành", Trọng tâm = PRIMARY (NONE chèn lệnh cấm nội dung trưởng thành và tắt chuyển model), NSFW = "Luôn dùng", mức 18+ = Mạnh hoặc Cực mạnh.
+- **Test mới:** `v14_7_3_adult_scene_style` (12 kiểm tra, client + worker).
+
+## [V14.7.2] — Che API key trong thông báo lỗi, xử lý phản hồi không phải JSON, bài kiểm tra nâng cấp
+- **Lỗi bảo mật (P0, đã tái hiện bằng test trước khi sửa):** `callAI` ghép nguyên văn thông báo của nhà cung cấp (401 thường lặp lại API key) và `networkErr.message` vào lỗi hiển thị cho người dùng. Nay mọi thông báo lỗi đi qua `redactKey` (che key đang dùng, dạng `sk-…`/`Bearer …`).
+- **Worker nền:** `callOpenRouter` được bọc `redactApiKey` nên lỗi ghi vào trạng thái job cũng không còn lộ key.
+- **Lỗi phản hồi 200 không phải JSON** (proxy/gateway trả trang HTML): trước đây lộ `Unexpected token < in JSON`; nay báo tiếng Việt rõ ràng, không retry ghi lặp.
+- **Test mới:** `v14_7_1_callai_api` (9 kịch bản bằng fetch giả: 200, 401/403/404 không retry, 429+Retry-After, 503 hết lượt retry, lỗi mạng, key rò rỉ, JSON hỏng, rỗng, thiếu key); `e2e_upgrade_compat.py` (tạo record bằng app V14.5.15 gốc qua `UPGRADE_OLD_DIR`, nạp vào bản hiện tại; kiểm tra Accuracy Mode, min/max, thế lực, L1 và trạng thái thread sống sót qua lưu/nạp). Cầu nối test `__xta` (chỉ bật khi `__XTA_TEST__`) bổ sung `hydrateFromRecord`.
+- Khi đổi `app/client.js` nhớ tăng `?v=` trong `index.html` (nay `14.7.2`).
+
 ## [V14.7.1] — Chốt bản phát hành, tách client, sửa lỗi Accuracy/Memory, nâng hợp đồng văn xuôi
 - **Chốt phát hành:** đồng bộ phiên bản (package.json, README, CHANGELOG, tiêu đề/nhãn UI, header X-Title); mục `[Unreleased]` cũ được đổi thành `[V14.6–V14.7.0]`; gỡ test lỗi thời `v12_26_fast_write` (kiểm tra tính năng đã bị thay thế, 0/7 PASS và không nằm trong `npm test`).
 - **Tách client khỏi `index.html`:** toàn bộ script (~830KB) chuyển sang `app/client.js`; `index.html` chỉ còn khung HTML (~50KB) và thẻ `<script src="app/client.js?v=14.7.1">`. `scripts/sync-shared.js` nay đồng bộ `SHARED-CORE`/`CLIENT-MIRROR` vào `app/client.js`. Test cũ đọc qua `tests/_read_index.js` (nhúng lại client vào HTML) nên các kiểm tra regex giữ nguyên ngữ nghĩa. **Khi deploy phải upload cả thư mục `app/`.** Khi đổi `app/client.js`, tăng `?v=` trong `index.html` để trình duyệt/iPhone không dùng bản cache cũ.

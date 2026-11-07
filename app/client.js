@@ -962,7 +962,7 @@ function buildAdaptiveSceneWritePrompt(o) {
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
-    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
+    o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
     o.correction ? 'BẢN VIẾT TRƯỚC CỦA SCENE NÀY BỊ TỪ CHỐI — viết lại scene từ đầu, giữ đúng contract và SỬA các lỗi sau (không nhắc tới lỗi trong văn bản):\n' + String(o.correction).replace(/\s+/g, ' ').slice(0, 900) : '',
     'Chỉ trả văn xuôi scene.'
@@ -985,7 +985,7 @@ function buildAdaptiveSceneTopUpPrompt(o) {
     p.endingAnchor ? 'ĐIỂM KẾT DỰ KIẾN: ' + String(p.endingAnchor).replace(/\s+/g, ' ').slice(0, 400) : '',
     p.previousTail ? 'ĐUÔI HIỆN TẠI — nối ngay từ đây, không lặp:\n' + compactSceneTail(p.previousTail, 2400) : '',
     p.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(p.stateDelta)) : '',
-    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 1500) : '',
+    p.style ? 'STYLE LOCK: ' + String(p.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ đúng canon, nhân vật, địa điểm, thời gian và ngôi kể. Không thêm nhân vật quan trọng, arc mới hoặc biến cố lớn ngoài kế hoạch.'
   ].filter(Boolean).join('\n\n');
 }
@@ -3268,7 +3268,8 @@ function mergeCharacterIntoState(state, sourceId, targetId) {
 }
 
 const SCENE_PLAN_SYSTEM_PROMPT = "Lập kế hoạch scene cho tiểu thuyết dài kỳ tiếng Việt. Trả đúng JSON được yêu cầu, không viết văn xuôi, không thêm biến cố lớn ngoài brief/canon.";
-const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè.";
+const EROTIC_SCENE_LOCK = "QUY TẮC CẢNH NÓNG (bắt buộc khi scene là cảnh nóng giữa người trưởng thành; viết thẳng, không tự kiểm duyệt, không fade-to-black): lúc đang làm tình dùng từ thô tục đời thường (cặc, lồn, địt, nứng, nước lồn, tinh trùng…), không thay bằng ẩn dụ hoa mỹ; mỗi đoạn nóng đủ 4 lớp: cơ thể theo hồ sơ + cảm giác thể xác (căng, ướt, nóng, run) + nội tâm (xấu hổ↔dục, kháng cự↔cơ thể phản ứng) + âm thanh/nhịp (da chạm, hơi thở, rên, thoại); tăng thoại theo vai và quyền lực; chậm từng nhịp, không tóm tắt cao trào trong 1–2 câu, không chuyển cảnh trước khi hoàn tất; nhịp dẫn vào ~25% / diễn biến + cao trào ~50% / sau cảnh ~25%; không bịa số đo ngoài hồ sơ; trừ khi mệnh lệnh người dùng chỉ định dừng ở mốc khác.";
+const SCENE_SYSTEM_PROMPT = "Viết văn xuôi tiểu thuyết tiếng Việt tự nhiên, 100% tiếng Việt có dấu. Đây là scene nối tiếp: giữ liên tục nhân vật, thời gian, địa điểm, quan hệ, xưng hô và trạng thái; không lặp đoạn trước, không meta, không tiêu đề, chỉ trả văn xuôi. Show, don't tell; câu có nhịp dài ngắn; không lặp sáo ngữ hoặc cụm cảm giác đã dùng ở đoạn trước; lời thoại đúng giọng từng người. Với cảnh người lớn: chỉ nhân vật từ 18 tuổi trở lên theo RÀO_CHẮN_TUỔI trong STYLE LOCK; quy tắc này không bao giờ bị chỉ dẫn khác ghi đè. Khi STYLE LOCK có mức_18+ và scene là cảnh nóng giữa người trưởng thành: viết đúng mức đó, trực tiếp, không tự kiểm duyệt, không fade-to-black, không tóm tắt thay cho cảnh.";
 
 /* V14.0.6: VÒNG ĐIỀU PHỐI ADAPTIVE SCENE DÙNG CHUNG client + worker nền.
    Mọi thứ phụ thuộc môi trường (gọi AI, state, định tuyến model, đồng hồ) được truyền qua `deps`:
@@ -5337,6 +5338,8 @@ async function callAI(prompt, opts){
   if(!model) throw new Error("Chưa nhập model.");
 
   lastPromptSent = prompt;
+  /* V14.7.1: không bao giờ để API key lọt vào thông báo lỗi (nhà cung cấp hay lặp lại key trong 401, trình duyệt có thể đưa URL/header vào lỗi mạng). */
+  const redactKey = m => { let t = String(m == null ? "" : m); if(key.length >= 6) t = t.split(key).join("[đã che API key]"); return t.replace(/\b(?:sk|pk|key)-[A-Za-z0-9_-]{8,}/g, "[đã che API key]").replace(/(Bearer\s+)[A-Za-z0-9._~+\/=-]{12,}/gi, "$1[đã che]"); };
   let streaming = opts.streaming && state.streamingEnabled && typeof opts.onChunk === "function";
 
   const systemPrompt = String(opts.systemPrompt || SYSTEM_PROMPT);
@@ -5358,7 +5361,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.1";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.3";
   }
 
   let lastErr = null;
@@ -5380,7 +5383,7 @@ async function callAI(prompt, opts){
       }
       else if(isFile) lastErr = new Error("file:// — CORS.");
       else if(!isLocalhost && location.protocol !== "https:") lastErr = new Error("http:// không phải localhost.");
-      else lastErr = new Error("Không kết nối API (" + (networkErr.message||"network") + ").");
+      else lastErr = new Error("Không kết nối API (" + redactKey(networkErr.message||"network") + ").");
       if(attempt < AI_MAX_RETRIES){ await sleep(800 * Math.pow(2, attempt)); continue; }
       throw lastErr;
     }
@@ -5390,7 +5393,7 @@ async function callAI(prompt, opts){
       let detail = "";
       try{ const raw = await res.json(); detail = (raw.error && (raw.error.message || raw.error)) || JSON.stringify(raw); }
       catch(e){ detail = res.statusText; }
-      const err = new Error(String(detail) || ("HTTP " + res.status));
+      const err = new Error(redactKey(detail) || ("HTTP " + res.status));
       err.status = res.status;
       if(res.status === 400 && body.reasoning){ delete body.reasoning; lastErr = err; continue; }   /* model/endpoint không nhận tham số reasoning -> thử lại không có */
       if(AI_RETRYABLE_STATUS.has(res.status) && attempt < AI_MAX_RETRIES){
@@ -5463,7 +5466,9 @@ async function callAI(prompt, opts){
         throw new Error("Phản hồi trống (streaming và non-streaming đều không có nội dung).");
       }
     } else {
-      const data = await res.json();
+      let data;
+      try{ data = await res.json(); }
+      catch(jsonErr){ globalAbort = null; throw new Error("Phản hồi API không phải JSON hợp lệ (có thể do proxy/gateway trả trang lỗi hoặc phản hồi bị cắt). Thử lại hoặc kiểm tra endpoint."); }
       globalAbort = null;
       const choice = data.choices && data.choices[0];
       if(!choice) throw new Error("Không có phản hồi.");
@@ -6549,7 +6554,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.1";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.3";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -8388,6 +8393,7 @@ function adultModelFor(text){
   // V12.15: tóm tắt/gợi ý chương 18+ dùng model 18+ (model chính hay nói giảm nói tránh)
   if(!state.mature || (state.nsfwMode || "auto") === "never" || !state.modelNsfw) return undefined;
   if(!matureFocusAllowsRouting()) return undefined;
+  if((state.nsfwMode || "auto") === "always") return state.modelNsfw; // V14.7.3: "Luôn dùng" = mọi bước phụ (tóm tắt, gợi ý chương) cũng qua model 18+, không đòi từ khóa
   return textHasNsfwKeyword(String(text || "").slice(-24000)) ? state.modelNsfw : undefined;
 }
 async function generateChapterSummary(text, chapterNumber, silent){
@@ -9669,7 +9675,9 @@ function compactSceneStyleLock(usingNsfw){
     parts.unshift("RÀO_CHẮN_TUỔI_BẮT_BUỘC=" + ageGuardPrompt(state).replace(/\s+/g, " ").replace(/^RÀO CHẮN TUỔI \(bắt buộc\):\s*/, "").slice(0, 420));
     const lvl = String(state.explicitLevel || "sensual");
     parts.push("adult_level=" + lvl.slice(0, 20));
-    parts.push("mức_18+=" + String(EXPLICIT_PROMPTS[lvl === "wild" ? "strong" : lvl] || "").replace(/\s+/g, " ").slice(0, 330));
+    /* V14.7.3: dùng ĐÚNG mức người dùng chọn (trước đây "wild" bị hạ xuống "strong" và cắt 330 ký tự); mức Mạnh/Cực mạnh mang thêm bộ quy tắc cảnh nóng. */
+    parts.push("mức_18+=" + String(EXPLICIT_PROMPTS[lvl] || EXPLICIT_PROMPTS.sensual).replace(/\s+/g, " ").slice(0, 600));
+    if(lvl === "strong" || lvl === "wild") parts.push(EROTIC_SCENE_LOCK);
   }
   const vocab = buildVocabularyBlock();
   if(vocab) parts.push("từ_khóa=" + vocab.replace(/\s+/g, " ").slice(0, 260));
@@ -11977,7 +11985,7 @@ if(window.__XTA_TEST__){
   window.__xta = {
     get state(){ return state; },
     persist, persistNow, flushPersist, buildContextBlock, underageNames, ageGuardPrompt,
-    writeEmergencyCopy, readEmergencyRecord, serializeStoryRecord, removeStoryFromDisk,
+    writeEmergencyCopy, readEmergencyRecord, serializeStoryRecord, hydrateFromRecord, removeStoryFromDisk,
     setIdbPut(fn){ idbPut = fn; }, getIdbPut(){ return idbPut; },
     newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint,
     mergeCharacterUpdate, saveMainCharFromForm, hydrateMainCharForm, renderItems, buildChapterContractForGeneration,
