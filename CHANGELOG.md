@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.4] — Scene tả ngoại hình chung chung, thiếu kích thước theo hồ sơ
+- **Nguyên nhân gốc (đã tái hiện bằng test trước khi sửa):** cảnh báo "Miêu tả ngoại hình chung chung, thiếu kích thước/chi tiết cụ thể" là đúng. Trong pipeline viết từng scene, `sceneProfileBlock` chỉ gửi `ngoại hình` cắt 110 ký tự và KHÔNG gửi chiều cao, dáng, SỐ ĐO, tóc, mắt, da, giọng, mùi, phong cách, sẹo, xăm; khối "NEO NGOẠI HÌNH" chỉ có ở đường viết thường. Model viết scene không có dữ kiện để tả nên viết "gương mặt căng thẳng", "váy ngắn bó sát".
+- **Sửa (shared/core.js, dùng chung client + worker nền):** hồ sơ scene mang thêm các trường hình thể (ngoại hình nâng lên 160 ký tự; tổng khối hồ sơ 2400 → 3800 để nhân vật thứ 5 không bị cắt); thêm `SCENE_APPEARANCE_ANCHOR` (dùng ĐÚNG hồ sơ, tả bằng con số/so sánh cụ thể, cấm tính từ trống thay cho hình thể, trang phục tả kèm cách ôm/hở trên đúng phần cơ thể) — chỉ chèn khi scene có nhân vật có hồ sơ. Rào chắn tuổi không đổi.
+- **Lưu ý dữ liệu:** trường hồ sơ trống thì model tự đặt chi tiết rồi giữ nhất quán; muốn bám đúng số đo, điền Chiều cao / Dáng người / Số đo trong thẻ nhân vật.
+- **Test mới:** `v14_7_4_scene_body_profile` (5 kiểm tra).
+
 ## [V14.7.3] — Truyện 18+ bị viết nhạt/né tránh trong pipeline từng scene
 - **Nguyên nhân gốc (đã tái hiện bằng test trước khi sửa):** pipeline viết theo scene (`compactSceneStyleLock` + `SCENE_SYSTEM_PROMPT`, dùng chung client và worker nền) chỉ gửi cho model một dòng `mức_18+` bị cắt 330 ký tự; mức **Cực mạnh (wild) bị hạ xuống Mạnh**; bộ quy tắc erotic (từ thô tục, 4 lớp cơ thể–cảm giác–nội tâm–âm thanh, nhịp 3 phần, không tóm tắt cao trào) KHÔNG hề tới model viết scene, trong khi system prompt chỉ nói "show, don't tell". Vì vậy thử trực tiếp với model uncensored viết được nhưng viết trong truyện thì nhạt.
 - **Sửa:** scene dùng đúng mức người dùng chọn (`EXPLICIT_PROMPTS[level]`, không hạ cấp); mức Mạnh/Cực mạnh thêm `EROTIC_SCENE_LOCK` (mức Nhẹ/Gợi cảm/Rõ ràng giữ nguyên, không bị ép); `SCENE_SYSTEM_PROMPT` thêm chỉ dẫn viết thẳng cho cảnh nóng giữa người trưởng thành; STYLE LOCK trong prompt scene nâng giới hạn 1500 → 2800 ký tự. Rào chắn tuổi (≥18) vẫn luôn bật và có ưu tiên cao nhất.

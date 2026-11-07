@@ -53,8 +53,11 @@ function compactSceneTail(text, maxChars) {
    nên model tự bịa (thư ký riêng chủ tịch thành giúp việc, căn hộ cao cấp thành nhà tồi tàn) rồi Gate bắt lỗi "vượt hồ sơ". Khối này đưa hồ sơ của đúng các nhân vật có mặt trong scene vào prompt. */
 const SCENE_PROFILE_FIELDS = [['position', 'chức vụ/địa vị', 70], ['occupation', 'nghề', 60], ['role', 'vai trò', 60], ['faction', 'tổ chức', 50], ['age', 'tuổi', 12], ['gender', 'giới tính', 14],
   ['maritalStatus', 'hôn nhân', 30], ['spouseName', 'người yêu/phối ngẫu', 40], ['residence', 'nơi ở', 90], ['home', 'nơi ở', 90], ['housing', 'nơi ở', 90], ['currentLocation', 'đang ở', 60],
-  ['wealth', 'tài sản/mức sống', 70], ['assets', 'tài sản', 70], ['income', 'thu nhập', 50], ['notes', 'ghi chú hồ sơ', 220], ['appearance', 'ngoại hình', 110], ['personality', 'tính cách', 90],
+  ['wealth', 'tài sản/mức sống', 70], ['assets', 'tài sản', 70], ['income', 'thu nhập', 50], ['notes', 'ghi chú hồ sơ', 220], ['appearance', 'ngoại hình', 160], ['height', 'chiều cao', 24], ['bodyType', 'dáng người', 50], ['measurements', 'SỐ ĐO', 90], ['hair', 'tóc', 40], ['eyes', 'mắt', 30], ['skin', 'da', 30], ['voice', 'giọng', 40], ['scent', 'mùi', 30], ['style', 'phong cách ăn mặc', 60], ['scars', 'sẹo', 40], ['tattoos', 'xăm', 40], ['personality', 'tính cách', 90],
   ['speech', 'cách nói', 70], ['goals', 'mục tiêu', 70], ['relevanceToMC', 'quan hệ với NVC', 70]];
+/* V14.7.4: neo ngoại hình cho đường viết từng scene (trước đây chỉ đường viết thường có): hồ sơ hình thể phải ra được thành chữ cụ thể. */
+const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: khi nhân vật xuất hiện lần đầu trong chương, hoặc khi cảnh tả cơ thể/trang phục, nêu chiều cao, dáng, SỐ ĐO/kích thước, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA bằng con số hoặc so sánh cụ thể. Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và kích thước cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau.';
+function sceneProfileWithAnchor(st, scene, castNames) { const b = sceneProfileBlock(st, scene, castNames); return b ? b + '\n\n' + SCENE_APPEARANCE_ANCHOR : ''; }
 function sceneProfileBlock(st, scene, castNames) {
   st = st || {};
   const names = [].concat((scene && scene.characters) || [], (!scene || !(scene.characters || []).length) ? (castNames || []) : []).map(x => String(x || '').trim()).filter(Boolean);
@@ -86,7 +89,7 @@ function sceneProfileBlock(st, scene, castNames) {
   if (!rows.length && !srows.length) return '';
   const statusPart = srows.length ? '\nTRẠNG THÁI HIỆN TẠI (Current Status mới nhất — nếu khác hồ sơ gốc thì theo mục này):\n' + srows.join('\n').slice(0, 2200) : '';
   if (!rows.length) return 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart;
-  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 2400) + statusPart;
+  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Hình thể (chiều cao, dáng, SỐ ĐO, tóc, mắt, da…) có trong hồ sơ thì dùng ĐÚNG, không bịa số khác. Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 3800) + statusPart;
 }
 
 /* ===== V14.5.13 — THẺ NHÂN VẬT TRONG CURRENT STATUS (toàn thẻ, tích lũy) =====
@@ -839,7 +842,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     sceneBridgeBlock(s, o.prevScene),
     o.sceneScope ? sceneScopedChecklistBlock(s, o.sceneScope) : o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
-    sceneProfileBlock(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
+    sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
