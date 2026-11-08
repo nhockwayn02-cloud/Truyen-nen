@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v14.7.4 — Contract-First</title>
+<title>Xưởng Truyện AI Pro Max v14.7.7 — Contract-First</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="app/app.css" rel="stylesheet"/>
@@ -25,7 +25,7 @@
 <div class="brand">
 <div class="brand-mark"></div>
 <div>
-<div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.7.4</span></div>
+<div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.7.7</span></div>
 <div class="brand-sub">v14.0.20 · Contract-First · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
 </div>
 </div>
@@ -221,6 +221,7 @@
 <button class="btn btn-purple btn-sm" id="saveFemaleDefinitionBtn" style="margin-top:5px;">💾 Lưu định nghĩa chung</button>
 </div>
 <div class="hint" id="charDedupeBanner" style="display:none;margin:8px 0;color:var(--amber,#e6b34a);font-weight:600;"></div>
+<div style="margin:8px 0"><button type="button" id="castPlannerBtn" class="btn">🎭 AI đề xuất dàn nhân vật mới (người lớn)</button> <span id="castPlannerStatus" class="muted" style="font-size:12px"></span></div>
 <div class="char-list" id="charList"><div class="empty-note">Chưa có.</div></div>
 <button class="btn btn-amber" id="charDedupeBtn" style="margin-top:6px;">🧹 Dọn nhân vật trùng</button>
 <button class="btn btn-ghost" id="charGraphBtn" style="margin-top:6px;">🕸️ Sơ đồ quan hệ nhân vật</button>
@@ -337,6 +338,9 @@
 <button class="btn btn-ghost btn-sm" id="saveClockBtn" style="width:auto;flex:none;">Lưu</button>
 </div>
 <div style="font-size:11px;color:var(--muted,#888);margin-top:4px;">Không bắt buộc. Chỉ để AI giữ dòng thời gian nhất quán — AI KHÔNG ghi nó ra thành nhãn trong văn. Để trống: app tự suy ra từ mạch truyện sau mỗi chương.</div>
+<label style="margin-top:8px">👥 Số nhân vật có tên tối đa mỗi chương</label>
+<select id="maxNamedChars"><option value="4">4 (gọn)</option><option value="5">5</option><option value="6">6 (mặc định)</option><option value="8">8</option><option value="10">10</option><option value="12">12 (dàn đông)</option></select>
+<div style="font-size:11px;color:var(--muted,#888);margin-top:4px;">Tính cả nhân vật chính. Vượt mức này thì Quality Gate báo lỗi cứng. Truyện dài nhiều tuyến nên chọn 8–10.</div>
 <label style="margin-top:8px">⏳ Nhịp thời gian giữa các chương</label>
 <select id="timePace"><option value="">Tự do (AI tự quyết)</option><option value="scene">Cùng ngày (vài giờ/chương)</option><option value="day">Khoảng 1 ngày/chương</option><option value="fewdays">Vài ngày/chương</option><option value="week">Khoảng 1 tuần/chương</option></select>
 </div>
@@ -630,7 +634,7 @@
 </div>
 </div>
 <div class="floating-rewrite" id="floatingRewrite">✨ Viết lại đoạn này</div>
-<script src="app/client.js?v=14.7.4"></script>
+<script src="app/client.js?v=14.7.7"></script>
 <script src="app/features.js"></script>
 <script src="app/layered-memory.js"></script>
 </html>

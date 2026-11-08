@@ -59,12 +59,12 @@ t("gateMaxAttempts: 1..5", () => { assert.strictEqual(T.gateMaxAttempts(undefine
 
 /* ---- Story Control ---- */
 t("normalizeStoryControl: mặc định + kẹp giới hạn", () => {
-  const d = T.normalizeStoryControl({}); assert.strictEqual(d.maxMainEvents, 3); assert.strictEqual(d.maxNamedCharacters, 4); assert(d.noRetcon);
-  const c = T.normalizeStoryControl({ storyControl: { maxMainEvents: 9, maxNamedCharacters: 99, maxNewThreads: 50, noRetcon: false } });
-  assert.strictEqual(c.maxMainEvents, 3); assert.strictEqual(c.maxNamedCharacters, 6); assert.strictEqual(c.maxNewThreads, 5); assert.strictEqual(c.noRetcon, false);
+  const d = T.normalizeStoryControl({}); assert.strictEqual(d.maxMainEvents, 3); assert.strictEqual(d.maxNamedCharacters, 6); assert(d.noRetcon); // V14.7.5: mặc định 6
+  const c = T.normalizeStoryControl({ storyControl: { maxMainEvents: 9, maxNamedCharacters: 99, castCapUserSet: true, maxNewThreads: 50, noRetcon: false } });
+  assert.strictEqual(c.maxMainEvents, 3); assert.strictEqual(c.maxNamedCharacters, 12); // V14.7.5: trần 12 assert.strictEqual(c.maxNewThreads, 5); assert.strictEqual(c.noRetcon, false);
 });
 t("storyControlPrompt: nêu đúng ngân sách; tắt NO RETCON thì bỏ dòng đó", () => {
-  const p = T.storyControlPrompt({ storyControl: { maxMainEvents: 2, maxNamedCharacters: 5, noRetcon: false } });
+  const p = T.storyControlPrompt({ storyControl: { maxMainEvents: 2, maxNamedCharacters: 5, castCapUserSet: true, noRetcon: false } });
   assert(p.includes("tối đa 2 sự kiện trục chính") && p.includes("tối đa: 5") === false && p.includes("tối đa 5;")); assert(!p.includes("NO RETCON"));
   assert(T.storyControlPrompt(null).includes("NO RETCON"));
 });

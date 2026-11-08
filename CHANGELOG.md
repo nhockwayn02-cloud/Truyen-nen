@@ -1,5 +1,22 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.7] — Truyện PRIMARY nhưng chương 3–6 không có cảnh 18+
+- **Tái hiện từ bản truyện thật (6 chương):** chỉ chương 2 có cảnh nóng; chương 3–6 hoàn toàn không. Model uncensored và mức 18+ không phải nguyên nhân (chương 2 viết rất thẳng).
+- **Nguyên nhân gốc:** bước lập kế hoạch chương chỉ có dòng "nếu có cảnh trưởng thành" (tùy chọn) và không hề biết Trọng tâm trưởng thành; khi có brief/mệnh lệnh thì còn bị cấm thêm sự kiện, nên AI không lên cảnh nóng nào.
+- **Sửa (shared/core.js → client + worker):** khối **LỊCH CẢNH NÓNG** trong prompt kế hoạch: PRIMARY bắt buộc có beat "cảnh nóng" (2 nhân vật ≥18 tuổi, đổi quan hệ/quyền lực), thêm dưới dạng [S] để không lệch brief; SECONDARY chỉ gợi ý nhưng bắt buộc sau 3 chương liền không có cảnh nóng. Tắt 18+ hoặc focus NONE thì không thêm gì.
+- **Test mới:** `v14_7_7_mature_plan` (4 kiểm tra). Chưa kiểm chứng với model thật.
+
+## [V14.7.6] — Cast Planner: AI đề xuất dàn nhân vật mới bám truyện
+- **Vấn đề:** nhân vật mới chỉ được ghi nhận sau khi đã xuất hiện trong chương, nên dàn nhân vật phụ nghèo nàn và Gate cấm người "lạ".
+- **Thêm:** nút **🎭 AI đề xuất dàn nhân vật mới (người lớn)** ở tab Nhân vật. AI dựng ~6 nhân vật dựa trên cốt truyện, thể loại, nhân vật chính, outline và dàn đã có; tự nạp thành **bản nháp** (không khóa hồ sơ) để tác giả sửa sau. Mỗi thẻ gồm vai trò + quan hệ với NVC + mong muốn + bí mật, ngoại hình + chiều cao/vóc dáng/số đo, cách nói + xưng hô.
+- **An toàn:** chỉ nhận nhân vật có tuổi ghi bằng số ≥ 18; thiếu tuổi hoặc < 18 bị loại và báo lý do; không ghi đè/trùng tên nhân vật đã có (kể cả NVC, không phân biệt hoa-thường/dấu). Rào chắn tuổi hiện có giữ nguyên.
+- **Test mới:** `v14_7_6_cast_planner` (5 kiểm tra). Chưa kiểm chứng với model thật.
+
+## [V14.7.5] — Dàn nhân vật bị bóp nghẹt (7 chương chỉ có 1 nhân vật chính + 2 phụ)
+- **Nguyên nhân gốc:** (1) giới hạn cứng "tối đa 4 nhân vật có tên riêng mỗi chương" (tính cả nhân vật chính, trần cứng 6, không có ô chỉnh trong giao diện), vượt thì Quality Gate báo lỗi cứng bắt viết lại; (2) khi chưa có nhân vật phụ nào, prompt viết chương bảo model "ưu tiên nhân vật KHÔNG TÊN"; (3) nhiều câu "không tùy tiện tạo nhân vật mới" và `unauthorizedImportantCharacter` khiến model chọn an toàn là không thêm ai. Kết hợp lại, dàn nhân vật gần như không lớn lên.
+- **Sửa:** mặc định mới 6; trần 12; thêm ô **👥 Số nhân vật có tên tối đa mỗi chương** (4/5/6/8/10/12, cạnh "Nhịp thời gian"), lưu theo từng truyện trong `storyControl` với cờ `castCapUserSet`. Truyện cũ còn giá trị 4 do mặc định cũ KHÔNG bị coi là lựa chọn của tác giả nên tự lên 6; tác giả đã chọn thì giữ nguyên. Prompt viết chương: người thoáng qua để không tên, nhân vật có vai trò lặp lại (đối tác, người thân, đồng nghiệp, đối thủ, người tình, cấp trên) thì đặt tên riêng ngay; truyện dài được giới thiệu thêm một nhân vật phụ có vai trò lặp lại khi brief/outline cho phép. Gate chỉ báo lỗi cứng khi vượt giới hạn hiện hành; `unauthorizedImportantCharacter` giữ nguyên.
+- **Test mới:** `v14_7_5_cast_limit` (7 kiểm tra) và 2 kiểm tra E2E (chọn trên giao diện → lưu → nạp lại) trong `e2e_upgrade_compat.py`.
+
 ## [V14.7.4] — Scene tả ngoại hình chung chung, thiếu kích thước theo hồ sơ
 - **Nguyên nhân gốc (đã tái hiện bằng test trước khi sửa):** cảnh báo "Miêu tả ngoại hình chung chung, thiếu kích thước/chi tiết cụ thể" là đúng. Trong pipeline viết từng scene, `sceneProfileBlock` chỉ gửi `ngoại hình` cắt 110 ký tự và KHÔNG gửi chiều cao, dáng, SỐ ĐO, tóc, mắt, da, giọng, mùi, phong cách, sẹo, xăm; khối "NEO NGOẠI HÌNH" chỉ có ở đường viết thường. Model viết scene không có dữ kiện để tả nên viết "gương mặt căng thẳng", "váy ngắn bó sát".
 - **Sửa (shared/core.js, dùng chung client + worker nền):** hồ sơ scene mang thêm các trường hình thể (ngoại hình nâng lên 160 ký tự; tổng khối hồ sơ 2400 → 3800 để nhân vật thứ 5 không bị cắt); thêm `SCENE_APPEARANCE_ANCHOR` (dùng ĐÚNG hồ sơ, tả bằng con số/so sánh cụ thể, cấm tính từ trống thay cho hình thể, trang phục tả kèm cách ôm/hở trên đúng phần cơ thể) — chỉ chèn khi scene có nhân vật có hồ sơ. Rào chắn tuổi không đổi.

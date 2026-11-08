@@ -1036,11 +1036,28 @@ function buildRecentBlocks(priorChapters) {
 }
 
 // Prompt lập KẾ HOẠCH chương. Có brief của người dùng: giữ ĐỦ mọi nhịp (không còn giới hạn 3 sự kiện / 5 beat làm nén gợi ý nhiều nhịp).
+// V14.7.7: kế hoạch chương phải LÊN LỊCH cảnh nóng theo Trọng tâm trưởng thành. Trước đây mục 8 chỉ ghi "nếu có cảnh trưởng thành" và brief
+// của người dùng cấm thêm sự kiện, nên AI bỏ cảnh nóng ở mọi chương không được brief nhắc tới (truyện PRIMARY vẫn 0 cảnh 18+ từ chương 3).
+function matureChapterPlanBlock(o) {
+  if (!o || !o.mature) return "";
+  const mf = normalizeChapterMatureFocus(o.matureFocus);
+  if (mf === "none") return "";
+  const streak = Math.max(0, Number(o.heatFreeStreak) || 0), primary = mf === "primary";
+  const must = primary || streak >= 3;
+  return [
+    "LỊCH CẢNH NÓNG (truyện người lớn, Trọng tâm trưởng thành = " + mf.toUpperCase() + (streak ? "; " + streak + " chương gần nhất chưa có cảnh nóng" : "") + "):",
+    must
+      ? "- Kế hoạch PHẢI có ít nhất MỘT beat là CẢNH NÓNG. Ghi đúng cụm \"cảnh nóng\" trong beat, nêu 2 nhân vật tham gia (đều từ 18 tuổi, theo tên trong hồ sơ), địa điểm, tình huống đưa tới cảnh, và điều cảnh đó làm đổi (quan hệ/quyền lực/bí mật/hậu quả)."
+      : "- Nên có một beat CẢNH NÓNG nếu quan hệ/tình huống đã tích tụ đủ; nếu có, ghi đúng cụm \"cảnh nóng\" trong beat và nêu 2 nhân vật tham gia (đều từ 18 tuổi).",
+    "- Nếu brief/mệnh lệnh của người dùng không nhắc cảnh nóng: vẫn thêm beat này dưới dạng [S] (beat hỗ trợ, bám đúng tình huống và nhân vật đang có), KHÔNG tính là sự kiện chính thứ 4 và KHÔNG làm lệch các mốc A/B của brief. Cảnh nóng đặt SAU các mốc bắt buộc hoặc xen vào nhịp phù hợp.",
+    "- Mỗi cảnh nóng phải đổi hướng quan hệ hoặc thế lực, không lặp lại cảnh trước (đổi bối cảnh, tư thế, động lực, cảm xúc)."
+  ].join("\n");
+}
 function buildChapterPlanPrompt(o) {
   const userDirective = String(o.directive || "").trim(), userHint = String(o.hint || "").trim();
   const hintVerified = o.hintVerified !== false;
   const effectiveHint = hintVerified ? userHint : "";
-  const maxNamedCharacters = Math.max(1, Math.min(6, Number(o.maxNamedCharacters) || 4));
+  const maxNamedCharacters = Math.max(1, Math.min(12, Number(o.maxNamedCharacters) || 6));
   const hasUserBrief = !!(userDirective || effectiveHint);
   return [
     "BẮT BUỘC: TIẾNG VIỆT 100%.", "",
@@ -1081,6 +1098,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "QUY TẮC CỨNG: Không thêm sự kiện lớn ngoài brief. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có."
                  : "QUY TẮC CỨNG: Không thêm sự kiện lớn thứ 4. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có.",
     hasUserBrief ? "ƯU TIÊN ĐỘ TRUNG THÀNH VỚI BRIEF: Không 'sáng tạo thêm cho hay'. Nhiệm vụ là chuyển brief thành kế hoạch có thể viết được, không phải mở rộng phạm vi truyện." : "",
+    matureChapterPlanBlock(o),
     "KHÔNG viết văn xuôi. Chỉ bullet points."
   ].filter(Boolean).join("\n");
 }
@@ -1342,6 +1360,59 @@ function ageGuardPrompt(s) {
   const u = underageNames(s);
   return "RÀO CHẮN TUỔI (bắt buộc): chỉ nhân vật đã trưởng thành (từ 18 tuổi trở lên) mới được tham gia cảnh tình dục/khiêu dâm. Tuyệt đối không viết nội dung tình dục với nhân vật dưới 18 tuổi hoặc được mô tả như trẻ em."
     + (u.length ? (" Nhân vật KHÔNG được xuất hiện trong cảnh 18+: " + u.join(", ") + ".") : "");
+}
+
+// V14.7.6 Cast Planner: AI đề xuất dàn nhân vật phụ bám truyện (chỉ người trưởng thành), tự nạp thành bản nháp để tác giả sửa sau.
+const CAST_PLANNER_FIELDS = ["name","age","gender","role","relationship","desire","secret","appearance","height","bodyType","measurements","hair","eyes","skin","voice","scent","speech","addressTerms","personality","occupation"];
+function buildCastPlannerPrompt(st, opts) {
+  st = st || {}; opts = opts || {};
+  const n = Math.max(3, Math.min(10, Number(opts.count) || 6));
+  const mc = st.mainCharProfile || {};
+  const known = [mc.name].concat((st.characters || []).map(c => c && c.name)).filter(Boolean);
+  const mcLine = [mc.name, mc.age ? "tuổi " + mc.age : "", mc.gender, mc.occupation, mc.goals ? "mục tiêu: " + mc.goals : "", mc.personality].filter(Boolean).join(" | ");
+  const outline = (st.outlinePlans || []).slice(0, 12).map(o => typeof o === "string" ? o : (o && (o.beat || o.title || o.summary || o.text)) || "").filter(Boolean).join("\n").slice(0, 1500);
+  return [
+    "Bạn là biên kịch dựng dàn nhân vật cho tiểu thuyết tiếng Việt. Hãy ĐỀ XUẤT " + n + " nhân vật mới, bám sát truyện, để câu chuyện có thêm xung đột, quan hệ và biến cố.",
+    st.genre ? "THỂ LOẠI: " + st.genre : "",
+    st.mainPlot ? "CỐT TRUYỆN: " + String(st.mainPlot).slice(0, 1500) : "",
+    st.worldSetting ? "THẾ GIỚI: " + String(st.worldSetting).slice(0, 800) : "",
+    mcLine ? "NHÂN VẬT CHÍNH: " + mcLine : "",
+    outline ? "OUTLINE/CHẶNG TRUYỆN:\n" + outline : "",
+    known.length ? "NHÂN VẬT ĐÃ CÓ (KHÔNG trùng tên, KHÔNG viết lại): " + known.join(", ") : "",
+    st.mature ? "Truyện người lớn 18+: các nhân vật nên có sức hút, ham muốn, quan hệ quyền lực/cảm xúc đủ để triển khai cảnh nóng sau này." : "",
+    "QUY TẮC BẮT BUỘC:",
+    "- TẤT CẢ nhân vật phải là người trưởng thành, tuổi ghi rõ bằng SỐ từ 18 trở lên. Không đề xuất ai dưới 18, không dùng ngoại hình/vai trò học sinh/trẻ con.",
+    "- Mỗi người phải có quan hệ cụ thể với nhân vật chính hoặc với nhau, một mong muốn rõ và một bí mật có thể bị lộ về sau.",
+    "- Đa dạng vai trò (đồng minh, đối thủ, người cám dỗ, người cản đường, người giữ bí mật...), không trùng tính cách.",
+    "- Ngoại hình cụ thể: chiều cao, vóc dáng, số đo (nếu hợp thể loại), tóc, mắt, da, giọng, mùi hương, dấu hiệu nhận dạng. Không dùng từ chung chung.",
+    "- Cách nói và xưng hô riêng (gọi nhân vật chính là gì, tự xưng gì, giọng điệu).",
+    "CHỈ TRẢ VỀ JSON thuần, một mảng, mỗi phần tử có các khóa: " + CAST_PLANNER_FIELDS.join(", ") + ". Không thêm giải thích."
+  ].filter(Boolean).join("\n");
+}
+function normalizeCastPlannerCards(cards, st) {
+  st = st || {};
+  const accepted = [], rejected = [];
+  const seen = new Set([(st.mainCharProfile && st.mainCharProfile.name)].concat((st.characters || []).map(c => c && c.name)).map(normalizeName).filter(Boolean));
+  const str = v => (v == null ? "" : String(v)).trim();
+  (Array.isArray(cards) ? cards : []).forEach(raw => {
+    if (!raw || typeof raw !== "object") return;
+    const name = str(raw.name);
+    if (!name) return;
+    const key = normalizeName(name);
+    if (seen.has(key)) { rejected.push({ name, reason: "trùng tên nhân vật đã có" }); return; }
+    const age = parseAgeNum(raw.age);
+    if (age === null) { rejected.push({ name, reason: "thiếu tuổi (phải ghi số ≥ 18)" }); return; }
+    if (age < 18) { rejected.push({ name, reason: "dưới 18 tuổi" }); return; }
+    seen.add(key);
+    const speech = [str(raw.speech), str(raw.addressTerms) ? "Xưng hô: " + str(raw.addressTerms) : ""].filter(Boolean).join(" | ");
+    accepted.push({
+      name, tier: "supporting", age: String(age), gender: str(raw.gender), role: str(raw.role), relevanceToMC: str(raw.relationship),
+      goals: str(raw.desire), secret: str(raw.secret), appearance: str(raw.appearance), height: str(raw.height), bodyType: str(raw.bodyType),
+      measurements: str(raw.measurements), hair: str(raw.hair), eyes: str(raw.eyes), skin: str(raw.skin), voice: str(raw.voice), scent: str(raw.scent),
+      speech, personality: str(raw.personality), occupation: str(raw.occupation), locked: false
+    });
+  });
+  return { accepted, rejected };
 }
 
 // V14.0.20 post-audit: nút "AI đề xuất" của Outline phải theo cài đặt 18+ của truyện (trước đây prompt không đọc
@@ -1958,7 +2029,7 @@ function isNoopAuditNote(text) {
 function evaluateReview(obj, opts) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
   opts = opts || {};
-  const maxEv = Number(opts.maxMainEvents) || 3, maxCh = Number(opts.maxNamedCharacters) || 4;
+  const maxEv = Number(opts.maxMainEvents) || 3, maxCh = Number(opts.maxNamedCharacters) || 6;
   const passScore = Number(opts.passScore) || 90, softScore = Number(opts.softFailScore) || 75;
   const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
   // Một số Auditor đặt câu kiểm tra đạt vào hardFailures dù đây không phải lỗi.
@@ -2310,7 +2381,9 @@ function normalizeStoryControl(st) {
   return {
     schemaVersion: Number(sc.schemaVersion) || 1,
     maxMainEvents: Math.max(1, Math.min(3, Number(sc.maxMainEvents) || 3)),
-    maxNamedCharacters: Math.max(1, Math.min(6, Number(sc.maxNamedCharacters) || 4)),
+    /* V14.7.5: mặc định nới (6) và tác giả chỉnh được (tới 12). Giá trị 4 cũ do mặc định cũ lưu lại không được coi là lựa chọn của tác giả (castCapUserSet). */
+    maxNamedCharacters: Math.max(1, Math.min(12, sc.castCapUserSet === true ? (Number(sc.maxNamedCharacters) || 6) : Math.max(6, Number(sc.maxNamedCharacters) || 0))),
+    castCapUserSet: sc.castCapUserSet === true,
     maxNewThreads: Math.max(0, Math.min(5, Number(sc.maxNewThreads) || 3)),
     noRetcon: sc.noRetcon !== false,
     timePace: ["scene","day","fewdays","week"].includes(sc.timePace) ? sc.timePace : "",
@@ -2776,7 +2849,7 @@ function compactGateContext(ctx, maxChars, forReview) {
   return s.slice(0, Math.floor(maxChars * 0.4)) + "\n[...]\n" + s.slice(-Math.floor(maxChars * 0.6));
 }
 function buildQualityReviewPrompt(p) {
-  const evN = Number(p.maxMainEvents) || 3, chN = Number(p.maxNamedCharacters) || 4;
+  const evN = Number(p.maxMainEvents) || 3, chN = Number(p.maxNamedCharacters) || 6;
   const known = (p.knownNames || []);
   return [
     "Bạn là QUALITY AUDITOR cho tiểu thuyết dài kỳ.",
@@ -5235,7 +5308,7 @@ function buildMainWritePrompt(o){
     "- Nếu một nhân vật mới không thực sự cần cho cốt truyện, KHÔNG được tạo chỉ để lấp cảnh, đối thoại hoặc làm nền.",
     "- Nhân vật mới có vai trò quan trọng chỉ được xuất hiện khi kế hoạch đã chứng minh nhu cầu cốt truyện; nếu không có trong kế hoạch, không tự ý nâng một nhân vật mới thành nhân vật quan trọng.",
     "- TRƯỚC KHI VIẾT: tự đếm lại số nhân vật có tên riêng dự kiến xuất hiện; nếu quá " + normalizeStoryControl(state).maxNamedCharacters + ", cắt bớt hoặc chuyển bớt sang không tên.",
-    (relevantCharacters(1).length === 0) ? "- CHƯA CÓ NHÂN VẬT PHỤ NÀO ĐƯỢC KHAI BÁO TRƯỚC. Nếu cảnh cần người ngoài NVC, ưu tiên nhân vật KHÔNG TÊN RIÊNG (chức danh chung: 'người gác cổng', 'cô gái lạ mặt', 'một thương nhân'...). CHỈ đặt tên riêng cho một nhân vật mới khi họ thực sự sẽ quay lại các chương sau; nếu đặt tên, phải cho họ vai trò/lý do rõ ràng." : "",
+    (relevantCharacters(1).length === 0) ? "- CHƯA CÓ NHÂN VẬT PHỤ NÀO ĐƯỢC KHAI BÁO TRƯỚC. Người chỉ thoáng qua (người gác cổng, khách quán, người qua đường) để KHÔNG TÊN. Nhân vật có vai trò lặp lại hoặc gắn với mạch truyện (đối tác, người thân, đồng nghiệp, đối thủ, người tình, cấp trên) thì ĐẶT TÊN RIÊNG ngay khi xuất hiện, kèm vai trò/lý do rõ ràng để hồ sơ ghi nhận. Truyện dài cần dàn nhân vật mở rộng dần theo outline: nếu brief/outline cho phép, được giới thiệu thêm một nhân vật phụ có tên và có vai trò lặp lại khi cốt truyện cần." : "",
     isRegen ? ("\nVIẾT LẠI chương " + chapterNumber + ". Chế độ: " + (regenInstructions[regenMode]||regenInstructions.full)) : "",
     vocabBlock ? ("\n" + vocabBlock) : "",
     "",
@@ -5589,7 +5662,9 @@ async function generateOneChapter(job) {
       const hintMeta = chapterHintVerification(state, chapterNumber);
       const planPrompt = buildChapterPlanPrompt({ chapterNumber, context: mirrorContext, recent: recentBlocks.recentFullText, directive: state.directive, hint: hintMeta.text,
         hintVerified: hintMeta.verified, maxNamedCharacters: normalizeStoryControl(state).maxNamedCharacters,
-        mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPrompt(state) });
+        mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPrompt(state),
+        mature: !!state.mature, matureFocus: state.chapterMatureFocus,
+        heatFreeStreak: (() => { let n = 0; for (let i = chapterNumber - 2; i >= 0; i--) { const t = String(((state.chapters || [])[i] || {}).text || ""); if (!t || textHasNsfwKeyword(t)) break; n++; } return n; })() });
       const pr = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "user", content: planPrompt }], maxTokens: 1400, temperature: 0.45 }, 1);
       chapterPlan = String(pr.text || "").trim();
     } catch (_) { chapterPlan = ""; }

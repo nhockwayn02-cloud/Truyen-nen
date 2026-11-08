@@ -50,5 +50,12 @@ with sync_playwright() as p:
     check("Hồ sơ thế lực sống sót", back["org"]==["Huyết Minh"])
     check("Bộ nhớ L1 đóng băng sống sót", back["l1"]==1)
     check("Trạng thái thread do tác giả đóng sống sót", back["th"]=="closed")
+    # C) ô "Số nhân vật có tên tối đa" (V14.7.5): chọn trên giao diện → state → lưu → nạp lại
+    new.evaluate("()=>{const e=document.getElementById('maxNamedChars'); e.value='10'; e.dispatchEvent(new Event('change',{bubbles:true}));}")
+    sc=new.evaluate("()=>({m:__xta.state.storyControl.maxNamedCharacters,u:__xta.state.storyControl.castCapUserSet})")
+    check("Chọn 10 trong giao diện được ghi vào storyControl", sc["m"]==10 and sc["u"] is True, json.dumps(sc))
+    rec3=run(new)
+    back3=new.evaluate("(r)=>{const h=__xta.hydrateFromRecord(r);return h.storyControl&&{m:h.storyControl.maxNamedCharacters,u:h.storyControl.castCapUserSet}}",rec3)
+    check("Giới hạn nhân vật do tác giả chọn sống sót qua lưu/nạp", back3 and back3["m"]==10 and back3["u"] is True, json.dumps(back3))
     b.close()
 bad=res.count(False); print(f"\n{len(res)-bad}/{len(res)} PASS"); sys.exit(1 if bad else 0)
