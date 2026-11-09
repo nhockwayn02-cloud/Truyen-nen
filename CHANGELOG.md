@@ -1,5 +1,17 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.9] — 5 chương chỉ có 2 nhân vật
+- **Nguyên nhân:** outline chỉ có "hắn" và "ả"; Cast Planner (V14.7.6) phải bấm tay nên không ai bấm; kế hoạch chương không biết có nhân vật phụ nào để đưa vào.
+- **Sửa:** (1) khi bắt đầu chương ≥ 2 mà có < 3 người ngoài NVC, app **tự chạy Cast Planner một lần** (cả viết thường lẫn viết nền; lỗi thì bỏ qua, không chặn viết); (2) kế hoạch chương nhận danh sách nhân vật phụ đã khai báo nhưng chưa/lâu chưa xuất hiện và được yêu cầu cho ít nhất một người xuất hiện/được nhắc nếu hợp mạch, không phá mốc brief, không tạo tên ngoài hồ sơ.
+- **Test mới:** `v14_7_9_cast_auto` (5 kiểm tra). Chưa thử với model thật.
+
+## [V14.7.8] — create-job không phản hồi sau 90 giây (đã tải lên xong 100%)
+- **Triệu chứng:** "create-job không phản hồi sau 90 giây… tải lên ĐÃ xong… server Netlify vẫn tới được".
+- **Phân tích:** create-job là hàm đồng bộ (Netlify mặc định ~10 giây); ngân sách cũ có thể cộng tới 11,5 giây (dọn job 1,5 + ghi Blobs 6 + kích hoạt 4) nên có thể vượt giới hạn, và khi phản hồi bị mất app không biết job đã tạo hay chưa. Không có log Netlify nên chưa xác định chắc nguyên nhân phía server.
+- **Sửa:** (1) ngân sách mới ≤ 8,8 giây (dọn 0,8 + ghi 5 + kích hoạt 3); (2) app tự sinh jobId + accessToken gửi kèm, server dùng nếu đúng định dạng; hết giờ sau khi đã tải lên xong thì app hỏi job-status tối đa 5 lần/4 giây, thấy job thì coi như thành công và theo dõi bình thường (không tạo job trùng); không thấy mới báo lỗi như cũ.
+- **Outline dạng chặng:** tiêu đề "Chương 2–3" (nhiều chương chung một khối, các dòng Beat/18+/Hậu quả/Móc kết bên dưới) trước đây không được đọc: chương 2 bị gán nội dung "3…", chương 3+ không có dòng outline nên kế hoạch chương không thấy outline. Nay mỗi chương trong chặng nhận nội dung chặng kèm nhãn "phần k/n — chỉ làm bước k"; dòng chương đơn lẻ luôn thắng. Test `v14_7_8_outline_range` (5 kiểm tra).
+- **Test mới:** `v14_7_8_create_job_recovery` (7 kiểm tra, có chạy thật hàm khôi phục với fetch giả). Chưa thử trên Netlify thật.
+
 ## [V14.7.7] — Truyện PRIMARY nhưng chương 3–6 không có cảnh 18+
 - **Tái hiện từ bản truyện thật (6 chương):** chỉ chương 2 có cảnh nóng; chương 3–6 hoàn toàn không. Model uncensored và mức 18+ không phải nguyên nhân (chương 2 viết rất thẳng).
 - **Nguyên nhân gốc:** bước lập kế hoạch chương chỉ có dòng "nếu có cảnh trưởng thành" (tùy chọn) và không hề biết Trọng tâm trưởng thành; khi có brief/mệnh lệnh thì còn bị cấm thêm sự kiện, nên AI không lên cảnh nóng nào.

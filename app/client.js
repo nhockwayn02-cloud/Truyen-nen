@@ -1151,6 +1151,7 @@ function buildChapterPlanPrompt(o) {
                  : "QUY TẮC CỨNG: Không thêm sự kiện lớn thứ 4. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có.",
     hasUserBrief ? "ƯU TIÊN ĐỘ TRUNG THÀNH VỚI BRIEF: Không 'sáng tạo thêm cho hay'. Nhiệm vụ là chuyển brief thành kế hoạch có thể viết được, không phải mở rộng phạm vi truyện." : "",
     matureChapterPlanBlock(o),
+    castPoolBlock(o.castPool),
     "KHÔNG viết văn xuôi. Chỉ bullet points."
   ].filter(Boolean).join("\n");
 }
@@ -1415,6 +1416,26 @@ function ageGuardPrompt(s) {
 }
 
 // V14.7.6 Cast Planner: AI đề xuất dàn nhân vật phụ bám truyện (chỉ người trưởng thành), tự nạp thành bản nháp để tác giả sửa sau.
+// V14.7.9: dàn nhân vật mỏng (chỉ NVC + 1 người) thì tự nạp Cast Planner; kế hoạch chương phải LUÂN PHIÊN đưa nhân vật đã khai báo vào truyện.
+function castIsThin(st) {
+  st = st || {};
+  const main = normalizeName(st.mainCharProfile && st.mainCharProfile.name || "");
+  const others = (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main);
+  return others.length < 3;
+}
+function castPoolForPlan(st, chapterNumber) {
+  st = st || {};
+  const main = normalizeName(st.mainCharProfile && st.mainCharProfile.name || "");
+  const done = Math.max(0, (Number(chapterNumber) || 1) - 1);
+  return (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main)
+    .filter(c => c.lastAppearance == null || done - Number(c.lastAppearance) >= 2)
+    .slice(0, 4).map(c => ({ name: String(c.name), role: String(c.role || c.relevanceToMC || "").slice(0, 80) }));
+}
+function castPoolBlock(pool) {
+  if (!Array.isArray(pool) || !pool.length) return "";
+  return "NHÂN VẬT PHỤ ĐÃ KHAI BÁO NHƯNG CHƯA/LÂU CHƯA XUẤT HIỆN: " + pool.map(c => c.name + (c.role ? " (" + c.role + ")" : "")).join("; ") +
+    ".\n- Nếu hợp mạch, cho ÍT NHẤT MỘT người trong số này xuất hiện, được nhắc tới hoặc tác động vào tình huống của chương (ghi đúng tên hồ sơ trong beat [S]); đừng phá các mốc bắt buộc của brief. Không tạo thêm nhân vật có tên ngoài hồ sơ.";
+}
 const CAST_PLANNER_FIELDS = ["name","age","gender","role","relationship","desire","secret","appearance","height","bodyType","measurements","hair","eyes","skin","voice","scent","speech","addressTerms","personality","occupation"];
 function buildCastPlannerPrompt(st, opts) {
   st = st || {}; opts = opts || {};
@@ -2435,7 +2456,7 @@ function normalizeStoryControl(st) {
     maxMainEvents: Math.max(1, Math.min(3, Number(sc.maxMainEvents) || 3)),
     /* V14.7.5: mặc định nới (6) và tác giả chỉnh được (tới 12). Giá trị 4 cũ do mặc định cũ lưu lại không được coi là lựa chọn của tác giả (castCapUserSet). */
     maxNamedCharacters: Math.max(1, Math.min(12, sc.castCapUserSet === true ? (Number(sc.maxNamedCharacters) || 6) : Math.max(6, Number(sc.maxNamedCharacters) || 0))),
-    castCapUserSet: sc.castCapUserSet === true,
+    castCapUserSet: sc.castCapUserSet === true, castAutoPlanned: sc.castAutoPlanned === true,
     maxNewThreads: Math.max(0, Math.min(5, Number(sc.maxNewThreads) || 3)),
     noRetcon: sc.noRetcon !== false,
     timePace: ["scene","day","fewdays","week"].includes(sc.timePace) ? sc.timePace : "",
@@ -2695,14 +2716,35 @@ function _outlineRemapLocal(map, ol) {
 }
 function outlineChapterLines(content, ol) {
   const map = {}; let cur = 0;
+  /* V14.7.8: tiêu đề CHẶNG "Chương 2–3" / "Ch 4-5: ..." (nhiều chương chung một khối) trước đây bị đọc nhầm thành chương 2 với nội dung "3…" hoặc bị bỏ,
+     nên outline dạng chặng không tới được kế hoạch từng chương. Nay: mọi dòng dưới tiêu đề chặng là nội dung chặng; chia đều cho các chương trong chặng,
+     mỗi chương nhận nguyên nội dung kèm nhãn "phần k/n" để chỉ làm bước k, không dồn cả chặng vào một chương. */
+  let range = null; const ranges = [];
+  const closeRange = () => { if (range && range.body.length) ranges.push(range); range = null; };
   outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim();
+    const rm = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)(\d{1,4})\s*[–—-]\s*(\d{1,4})\s*(?:[:.)]\s*)?(.*)$/i);
+    if (rm && Number(rm[2]) > Number(rm[1]) && Number(rm[2]) - Number(rm[1]) <= 30) {
+      closeRange(); cur = 0;
+      range = { a: Number(rm[1]), b: Number(rm[2]), body: [] };
+      if (rm[3] && rm[3].trim()) range.body.push(rm[3].trim());
+      return;
+    }
     const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
-    if (m && m[2] && m[2].trim().length >= 8) { cur = Number(m[1]); map[cur] = m[2].trim(); return; }
-    /* V14.4.1: dòng gạch đầu dòng (•, -, *, –, ·) nằm dưới tiêu đề chương là PHẦN CỦA chương đó. Trước đây chỉ lấy đúng dòng tiêu đề nên mọi gạch đầu dòng (cảnh chính, Kháng cự, Hậu quả, Móc kết…) không vào prompt. */
+    if (m && m[2] && m[2].trim().length >= 8) { closeRange(); cur = Number(m[1]); map[cur] = m[2].trim(); return; }
+    if (range) { if (line) range.body.push(line.replace(/^[•\-*–·▪◦●]\s*/, "")); return; }
+    /* V14.4.1: dòng gạch đầu dòng (•, -, *, –, ·) nằm dưới tiêu đề chương là PHẦN CỦA chương đó. */
     if (cur && /^[•\-*–·▪◦●]\s*\S/.test(line)) {
       const piece = line.replace(/^[•\-*–·▪◦●]\s*/, "").trim();
       map[cur] += (/[.!?…;:]$/.test(map[cur]) ? " " : "; ") + piece;
+    }
+  });
+  closeRange();
+  ranges.forEach(r => {
+    const n = r.b - r.a + 1, text = r.body.join(" ").replace(/\s+/g, " ").trim();
+    for (let k = r.a; k <= r.b; k++) {
+      if (map[k]) continue; // dòng chương riêng lẻ luôn thắng khối chặng
+      map[k] = "[Chặng " + r.a + "–" + r.b + ", chương này là phần " + (k - r.a + 1) + "/" + n + " — chỉ thực hiện bước thứ " + (k - r.a + 1) + " của chặng, các phần còn lại để dành cho chương sau; mỗi chương nên đổi địa điểm/tình huống/mức độ] " + text;
     }
   });
   return _outlineRemapLocal(map, ol);
@@ -5437,7 +5479,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.7";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.9";
   }
 
   let lastErr = null;
@@ -6636,7 +6678,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.7";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.9";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -7411,24 +7453,41 @@ $ID("charGraphBtn").addEventListener("click", openRelationshipGraph);
 /* ========== DỌN NHÂN VẬT TRÙNG (v12.18) ========== */
 let charMergeUndo = null; /* chỉ giữ trong bộ nhớ: hoàn tác 1 lần gộp gần nhất (mất khi tải lại trang) */
 /* V14.7.6 Cast Planner: AI đề xuất nhân vật mới, tự nạp thành bản nháp (locked=false) để tác giả sửa sau. */
-async function runCastPlanner(){
+async function runCastPlanner(opts){
+  opts = (opts && typeof opts === "object" && !opts.target) ? opts : {};
   const btn = $ID("castPlannerBtn"), st = $ID("castPlannerStatus");
   if(btn) btn.disabled = true;
-  if(st) st.textContent = "Đang nhờ AI dựng dàn nhân vật…";
+  if(st) st.textContent = opts.auto ? "Dàn nhân vật còn mỏng — đang tự dựng thêm nhân vật…" : "Đang nhờ AI dựng dàn nhân vật…";
+  let added = 0;
   try{
     const raw = await callAI(buildCastPlannerPrompt(state, {count:6}), {maxTokens:6000, temperature:0.9});
     const parsed = safeJsonParse(raw);
     const arr = Array.isArray(parsed) ? parsed : (parsed && (parsed.characters || parsed.cast || parsed.nhan_vat)) || [];
     const res = normalizeCastPlannerCards(arr, state);
     res.accepted.forEach(p=>{ const ch = newCharacter(p); ch.locked = false; ch.coreLocked = false; state.characters.push(ch); });
+    added = res.accepted.length;
+    if(added){ state.storyControl = Object.assign({}, state.storyControl, {castAutoPlanned:true}); }
     persist(); renderCharacters();
     const rej = res.rejected.length ? " Bỏ qua " + res.rejected.length + " (" + res.rejected.map(r=>r.name+": "+r.reason).join("; ") + ")." : "";
-    if(st) st.textContent = res.accepted.length ? "Đã thêm " + res.accepted.length + " nhân vật nháp — bấm vào thẻ để sửa." + rej : "Không có nhân vật hợp lệ." + rej;
+    if(st) st.textContent = added ? "Đã thêm " + added + " nhân vật nháp — bấm vào thẻ để sửa." + rej : "Không có nhân vật hợp lệ." + rej;
   }catch(e){
     if(st) st.textContent = "Lỗi: " + String(e && e.message || e).slice(0, 200);
   }finally{ if(btn) btn.disabled = false; }
+  return added;
 }
-(function(){ const b = $ID("castPlannerBtn"); if(b) b.addEventListener("click", runCastPlanner); })();
+/* V14.7.9: tự nạp Cast Planner đúng một lần khi bắt đầu chương ≥ 2 mà dàn nhân vật còn mỏng (< 3 người ngoài NVC). Lỗi thì bỏ qua, không chặn việc viết. */
+let _castAutoTried = false;
+async function ensureCastPlanned(chapterNumber){
+  try{
+    if(_castAutoTried || window.__XTA_TEST__) return;
+    if(Number(chapterNumber) < 2 || !castIsThin(state)) return;
+    if(normalizeStoryControl(state).castAutoPlanned) return;
+    _castAutoTried = true;
+    setStatus("🎭 Dàn nhân vật còn mỏng — tự dựng thêm nhân vật trước khi viết…", true);
+    await runCastPlanner({auto:true});
+  }catch(_){}
+}
+(function(){ const b = $ID("castPlannerBtn"); if(b) b.addEventListener("click", ()=>runCastPlanner()); })();
 
 function updateCharDedupeUI(){
   let n = 0;
@@ -8886,7 +8945,7 @@ async function buildChapterPlan(context, recent, chapterNumber){
   const prompt = buildChapterPlanPrompt({ chapterNumber, context, recent, directive: state.directive, hint: hintMeta.text,
     hintVerified: hintMeta.verified, maxNamedCharacters: normalizeStoryControl(state).maxNamedCharacters,
     mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPromptClient(),
-    mature: !!state.mature, matureFocus: state.chapterMatureFocus, heatFreeStreak: heatFreeStreakBefore(chapterNumber) });
+    mature: !!state.mature, matureFocus: state.chapterMatureFocus, heatFreeStreak: heatFreeStreakBefore(chapterNumber), castPool: castPoolForPlan(state, chapterNumber) });
   try{
     let r = await callAI(prompt, {maxTokens:2400, temperature:0.4});
     if(String(r && r.finishReason || "").toLowerCase()==="length"){
@@ -10026,6 +10085,7 @@ async function generateChapter(regenIndex, regenMode, forceNsfw){
     if(!ok){ return; }
   }
   if(!(await outlinePreflight(isRegen ? regenIndex + 1 : state.chapters.length + 1))) return;
+  if(!isRegen) await ensureCastPlanned(state.chapters.length + 1);
   const basePick = pickWritingModel(!!forceNsfw);
   if(!basePick.model){ setStatus("Chưa cấu hình model.", false); return; }
   normalizeAllChapterPipelineState();
@@ -11469,6 +11529,35 @@ async function bgPostCreateJob(url, headers, bodyStr, timeoutMs){
     xhr.send(payload);
   });
 }
+/* V14.7.8: create-job im lặng sau khi tải lên xong thường là phản hồi bị mất chứ job đã tạo. App tự sinh jobId + token,
+   khi hết giờ thì hỏi job-status vài lần; thấy job thì coi như tạo thành công (khỏi bắt người dùng gửi lại và tạo job trùng). */
+function bgNewJobCreds(){
+  const rnd=n=>{ try{ const a=new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a,x=>(x%36).toString(36)).join(""); }catch(_){ let s=""; for(let i=0;i<n;i++) s+=Math.floor(Math.random()*36).toString(36); return s; } };
+  return { jobId:"job_"+Date.now().toString(36)+"_"+rnd(12), token:rnd(48) };
+}
+async function bgRecoverJob(cr, tries, waitMs){
+  for(let i=0;i<(tries||5);i++){
+    await new Promise(r=>setTimeout(r, waitMs==null?4000:waitMs));
+    try{
+      const r=await fetch(BG_FUNCTIONS_BASE+"/job-status?jobId="+encodeURIComponent(cr.jobId)+"&token="+encodeURIComponent(cr.token));
+      if(r.status===200) return true;
+    }catch(_){}
+  }
+  return false;
+}
+async function bgPostCreateJobRecover(url, headers, bodyStr, timeoutMs, cr){
+  try{ return await bgPostCreateJob(url, headers, bodyStr, timeoutMs); }
+  catch(e){
+    if(e && e.name==="AbortError" && cr && e.bgInfo && e.bgInfo.uploadDone){
+      try{ setBgStatus("☁ Server chưa trả lời — đang kiểm tra xem job đã được tạo chưa…",true); }catch(_){}
+      if(await bgRecoverJob(cr)){
+        const body=JSON.stringify({success:true, jobId:cr.jobId, accessToken:cr.token, warnings:["Phản hồi create-job bị mất nhưng job đã được tạo (tự khôi phục)."]});
+        return { status:200, ok:true, text:async()=>body, bgInfo:e.bgInfo };
+      }
+    }
+    throw e;
+  }
+}
 function bgUploadNote(e){
   const i=e&&e.bgInfo; if(!i) return "";
   const pct=Math.round(100*i.sent/Math.max(1,i.wireBytes));
@@ -11539,6 +11628,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
   /* V14.1.9: Netlify chặn request > ~6MB (Safari chỉ báo "Load failed"). Tiếng Việt UTF-8 ~2 byte/ký tự nên phải đo BYTE, không đo số ký tự.
      Quá ~1.5MB: rút gọn văn bản các chương cũ (giữ chương đang hậu kỳ + 2 chương trước + tóm tắt); phần rút gọn được khôi phục từ bản local khi hợp nhất. */
   const _bytes=s=>{ try{ return new TextEncoder().encode(s).length; }catch(_){ return s.length*2; } };
+  const _cr=bgNewJobCreds(); payload.clientJobId=_cr.jobId; payload.clientAccessToken=_cr.token;
   let bodyStr=JSON.stringify(payload), bodyBytes=_bytes(bodyStr), trimmedN=0;
   if(bodyBytes>1500000 && Array.isArray(storyBlob.chapters)){
     storyBlob.chapters=storyBlob.chapters.map((c,i)=>{
@@ -11553,7 +11643,7 @@ async function startBackgroundPostProcess(chapterObj, chapterNumber, text, brief
   setBgStatus("☁ Đang gửi hậu kỳ lên server...",true);
   const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   let res;
-  try{ res=await bgPostCreateJob(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000); }
+  try{ res=await bgPostCreateJobRecover(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000,_cr); }
   catch(e){
     if(e&&e.name==="AbortError"){
       /* V14.1.10: kèm phân tích dung lượng để biết phần nào nặng (upload chậm trên mạng di động là nguyên nhân thường gặp). */
@@ -11825,6 +11915,7 @@ async function startBackgroundDraft(){
   if(!state.apiEndpoint&&!apiEndpointInput.value){ setStatus("Thiếu endpoint để viết nền.",false); return; }
   if(localStorage.getItem(BG_JOB_KEY)){ setStatus("Đã có Background Job khác đang chạy. Hãy chờ job đó xong.",false); return; }
   if(!(await outlinePreflight(state.chapters.length + 1))) return;
+  await ensureCastPlanned(state.chapters.length + 1);
   normalizeAllChapterPipelineState();
   const last=state.chapters[state.chapters.length-1];
   if(last && !["SYNCED","SYNCED_WITH_WARNINGS","MODIFIED_AFTER_SYNC"].includes(last.status||"SYNCED")){
@@ -11852,6 +11943,7 @@ async function startBackgroundDraft(){
   };
   /* V14.2.2: như hậu kỳ — đo BYTE (Netlify ~6MB) và rút gọn văn bản chương cũ khi payload nặng (giữ 3 chương cuối đầy đủ); văn bản đầy đủ khôi phục từ bản local khi hợp nhất. */
   const _bytes=x=>{ try{ return new TextEncoder().encode(x).length; }catch(_){ return x.length*2; } };
+  const _cr=bgNewJobCreds(); payload.clientJobId=_cr.jobId; payload.clientAccessToken=_cr.token;
   let bodyStr=JSON.stringify(payload), bodyBytes=_bytes(bodyStr), trimmedN=0;
   if(bodyBytes>1500000 && Array.isArray(storyBlob.chapters)){
     const nCh=storyBlob.chapters.length;
@@ -11868,7 +11960,7 @@ async function startBackgroundDraft(){
   const ac=new AbortController(); const timer=setTimeout(()=>ac.abort(),90000);
   try{
     let res;
-    try{ res=await bgPostCreateJob(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000); }
+    try{ res=await bgPostCreateJobRecover(BG_FUNCTIONS_BASE+"/create-job",headers,bodyStr,90000,_cr); }
     catch(e){
       let top=""; try{ top=Object.keys(storyBlob).map(k=>[k,JSON.stringify(storyBlob[k]||"").length]).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]+" "+Math.round(x[1]/1024)+"KB").join(", "); }catch(_){}
       const info=" (đã gửi "+Math.round(bodyBytes/1024)+" KB"+(trimmedN?", đã rút gọn "+trimmedN+" chương cũ":"")+"; nặng nhất: "+top+")";

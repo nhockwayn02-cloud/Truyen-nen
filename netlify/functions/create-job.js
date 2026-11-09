@@ -69,9 +69,11 @@ exports.handler = async (event) => {
     const T0 = Date.now(); const timings = { payloadKB: Math.round((event.body || "").length / 1024) };
     const store = getJobStore(event);
     /* V14.1.10: dọn job cũ chỉ là best-effort — không được kéo dài create-job (hàm đồng bộ Netlify mặc định chỉ 10 giây). Tối đa 1,5 giây, 10 job mỗi lần. */
-    await Promise.race([sec.purgeOldJobs(store, { max: 10 }), new Promise(r => setTimeout(r, 1500))]).catch(() => {}); // job quá hạn (mặc định 48 giờ, chỉnh bằng JOB_TTL_HOURS)
-    const jobId = "job_" + Date.now().toString(36) + "_" + crypto.randomBytes(6).toString("hex");
-    const accessToken = genSecret();
+    await Promise.race([sec.purgeOldJobs(store, { max: 10 }), new Promise(r => setTimeout(r, 800))]).catch(() => {}); // job quá hạn (mặc định 48 giờ, chỉnh bằng JOB_TTL_HOURS)
+    /* V14.7.8: app có thể tự sinh jobId + accessToken để KHÔI PHỤC khi phản hồi create-job bị mất (job vẫn tạo được nhưng app không nhận được trả lời). */
+    const cid = String(body.clientJobId || ""), ctk = String(body.clientAccessToken || "");
+    const jobId = /^job_[a-z0-9_]{10,64}$/.test(cid) ? cid : "job_" + Date.now().toString(36) + "_" + crypto.randomBytes(6).toString("hex");
+    const accessToken = /^[A-Za-z0-9_-]{32,128}$/.test(ctk) ? ctk : genSecret();
     const workerToken = genSecret();
     const apiKeyEncrypted = encryptApiKey(apiKey);
     const now = Date.now();
@@ -107,7 +109,7 @@ exports.handler = async (event) => {
     };
     timings.purgeMs = Date.now() - T0;
     const T1 = Date.now();
-    try { await withTimeout(store.setJSON(jobId, job), 6000, "Ghi Netlify Blobs"); }
+    try { await withTimeout(store.setJSON(jobId, job), 5000, "Ghi Netlify Blobs"); }
     catch (e) { timings.saveMs = Date.now() - T1; console.error("[create-job] save failed", JSON.stringify(timings), e && e.message); return jsonResponse(504, { error: (e && e.message) + ". Kiểm tra Netlify Blobs (cấu hình, hạn mức) rồi thử lại.", timings }); }
     timings.saveMs = Date.now() - T1;
 
@@ -125,7 +127,7 @@ exports.handler = async (event) => {
       triedUrl = b + "/.netlify/functions/write-chapter-background";
       // Background Function bình thường trả 202 trong < 1 giây. Chờ tối đa 4 giây rồi trả lời app (job vẫn được theo dõi bằng job-status)
       // để người dùng không bị treo ở "Đang tạo job…" và có thể tắt máy.
-      const ac = new AbortController(); const timer = setTimeout(() => ac.abort(), Number(process.env.TRIGGER_TIMEOUT_MS) || 4000);
+      const ac = new AbortController(); const timer = setTimeout(() => ac.abort(), Number(process.env.TRIGGER_TIMEOUT_MS) || 3000);
       try {
         trigger = await fetch(triedUrl, {
           method:"POST",

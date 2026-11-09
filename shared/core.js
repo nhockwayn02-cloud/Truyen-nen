@@ -1036,6 +1036,7 @@ function buildChapterPlanPrompt(o) {
                  : "QUY TẮC CỨNG: Không thêm sự kiện lớn thứ 4. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có.",
     hasUserBrief ? "ƯU TIÊN ĐỘ TRUNG THÀNH VỚI BRIEF: Không 'sáng tạo thêm cho hay'. Nhiệm vụ là chuyển brief thành kế hoạch có thể viết được, không phải mở rộng phạm vi truyện." : "",
     matureChapterPlanBlock(o),
+    castPoolBlock(o.castPool),
     "KHÔNG viết văn xuôi. Chỉ bullet points."
   ].filter(Boolean).join("\n");
 }
@@ -1300,6 +1301,26 @@ function ageGuardPrompt(s) {
 }
 
 // V14.7.6 Cast Planner: AI đề xuất dàn nhân vật phụ bám truyện (chỉ người trưởng thành), tự nạp thành bản nháp để tác giả sửa sau.
+// V14.7.9: dàn nhân vật mỏng (chỉ NVC + 1 người) thì tự nạp Cast Planner; kế hoạch chương phải LUÂN PHIÊN đưa nhân vật đã khai báo vào truyện.
+function castIsThin(st) {
+  st = st || {};
+  const main = normalizeName(st.mainCharProfile && st.mainCharProfile.name || "");
+  const others = (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main);
+  return others.length < 3;
+}
+function castPoolForPlan(st, chapterNumber) {
+  st = st || {};
+  const main = normalizeName(st.mainCharProfile && st.mainCharProfile.name || "");
+  const done = Math.max(0, (Number(chapterNumber) || 1) - 1);
+  return (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main)
+    .filter(c => c.lastAppearance == null || done - Number(c.lastAppearance) >= 2)
+    .slice(0, 4).map(c => ({ name: String(c.name), role: String(c.role || c.relevanceToMC || "").slice(0, 80) }));
+}
+function castPoolBlock(pool) {
+  if (!Array.isArray(pool) || !pool.length) return "";
+  return "NHÂN VẬT PHỤ ĐÃ KHAI BÁO NHƯNG CHƯA/LÂU CHƯA XUẤT HIỆN: " + pool.map(c => c.name + (c.role ? " (" + c.role + ")" : "")).join("; ") +
+    ".\n- Nếu hợp mạch, cho ÍT NHẤT MỘT người trong số này xuất hiện, được nhắc tới hoặc tác động vào tình huống của chương (ghi đúng tên hồ sơ trong beat [S]); đừng phá các mốc bắt buộc của brief. Không tạo thêm nhân vật có tên ngoài hồ sơ.";
+}
 const CAST_PLANNER_FIELDS = ["name","age","gender","role","relationship","desire","secret","appearance","height","bodyType","measurements","hair","eyes","skin","voice","scent","speech","addressTerms","personality","occupation"];
 function buildCastPlannerPrompt(st, opts) {
   st = st || {}; opts = opts || {};
@@ -2320,7 +2341,7 @@ function normalizeStoryControl(st) {
     maxMainEvents: Math.max(1, Math.min(3, Number(sc.maxMainEvents) || 3)),
     /* V14.7.5: mặc định nới (6) và tác giả chỉnh được (tới 12). Giá trị 4 cũ do mặc định cũ lưu lại không được coi là lựa chọn của tác giả (castCapUserSet). */
     maxNamedCharacters: Math.max(1, Math.min(12, sc.castCapUserSet === true ? (Number(sc.maxNamedCharacters) || 6) : Math.max(6, Number(sc.maxNamedCharacters) || 0))),
-    castCapUserSet: sc.castCapUserSet === true,
+    castCapUserSet: sc.castCapUserSet === true, castAutoPlanned: sc.castAutoPlanned === true,
     maxNewThreads: Math.max(0, Math.min(5, Number(sc.maxNewThreads) || 3)),
     noRetcon: sc.noRetcon !== false,
     timePace: ["scene","day","fewdays","week"].includes(sc.timePace) ? sc.timePace : "",
@@ -2580,14 +2601,35 @@ function _outlineRemapLocal(map, ol) {
 }
 function outlineChapterLines(content, ol) {
   const map = {}; let cur = 0;
+  /* V14.7.8: tiêu đề CHẶNG "Chương 2–3" / "Ch 4-5: ..." (nhiều chương chung một khối) trước đây bị đọc nhầm thành chương 2 với nội dung "3…" hoặc bị bỏ,
+     nên outline dạng chặng không tới được kế hoạch từng chương. Nay: mọi dòng dưới tiêu đề chặng là nội dung chặng; chia đều cho các chương trong chặng,
+     mỗi chương nhận nguyên nội dung kèm nhãn "phần k/n" để chỉ làm bước k, không dồn cả chặng vào một chương. */
+  let range = null; const ranges = [];
+  const closeRange = () => { if (range && range.body.length) ranges.push(range); range = null; };
   outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim();
+    const rm = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)(\d{1,4})\s*[–—-]\s*(\d{1,4})\s*(?:[:.)]\s*)?(.*)$/i);
+    if (rm && Number(rm[2]) > Number(rm[1]) && Number(rm[2]) - Number(rm[1]) <= 30) {
+      closeRange(); cur = 0;
+      range = { a: Number(rm[1]), b: Number(rm[2]), body: [] };
+      if (rm[3] && rm[3].trim()) range.body.push(rm[3].trim());
+      return;
+    }
     const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
-    if (m && m[2] && m[2].trim().length >= 8) { cur = Number(m[1]); map[cur] = m[2].trim(); return; }
-    /* V14.4.1: dòng gạch đầu dòng (•, -, *, –, ·) nằm dưới tiêu đề chương là PHẦN CỦA chương đó. Trước đây chỉ lấy đúng dòng tiêu đề nên mọi gạch đầu dòng (cảnh chính, Kháng cự, Hậu quả, Móc kết…) không vào prompt. */
+    if (m && m[2] && m[2].trim().length >= 8) { closeRange(); cur = Number(m[1]); map[cur] = m[2].trim(); return; }
+    if (range) { if (line) range.body.push(line.replace(/^[•\-*–·▪◦●]\s*/, "")); return; }
+    /* V14.4.1: dòng gạch đầu dòng (•, -, *, –, ·) nằm dưới tiêu đề chương là PHẦN CỦA chương đó. */
     if (cur && /^[•\-*–·▪◦●]\s*\S/.test(line)) {
       const piece = line.replace(/^[•\-*–·▪◦●]\s*/, "").trim();
       map[cur] += (/[.!?…;:]$/.test(map[cur]) ? " " : "; ") + piece;
+    }
+  });
+  closeRange();
+  ranges.forEach(r => {
+    const n = r.b - r.a + 1, text = r.body.join(" ").replace(/\s+/g, " ").trim();
+    for (let k = r.a; k <= r.b; k++) {
+      if (map[k]) continue; // dòng chương riêng lẻ luôn thắng khối chặng
+      map[k] = "[Chặng " + r.a + "–" + r.b + ", chương này là phần " + (k - r.a + 1) + "/" + n + " — chỉ thực hiện bước thứ " + (k - r.a + 1) + " của chặng, các phần còn lại để dành cho chương sau; mỗi chương nên đổi địa điểm/tình huống/mức độ] " + text;
     }
   });
   return _outlineRemapLocal(map, ol);
