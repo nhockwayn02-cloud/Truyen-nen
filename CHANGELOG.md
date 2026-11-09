@@ -3,7 +3,8 @@
 ## [V14.7.9] — 5 chương chỉ có 2 nhân vật
 - **Nguyên nhân:** outline chỉ có "hắn" và "ả"; Cast Planner (V14.7.6) phải bấm tay nên không ai bấm; kế hoạch chương không biết có nhân vật phụ nào để đưa vào.
 - **Sửa:** (1) khi bắt đầu chương ≥ 2 mà có < 3 người ngoài NVC, app **tự chạy Cast Planner một lần** (cả viết thường lẫn viết nền; lỗi thì bỏ qua, không chặn viết); (2) kế hoạch chương nhận danh sách nhân vật phụ đã khai báo nhưng chưa/lâu chưa xuất hiện và được yêu cầu cho ít nhất một người xuất hiện/được nhắc nếu hợp mạch, không phá mốc brief, không tạo tên ngoài hồ sơ.
-- **Test mới:** `v14_7_9_cast_auto` (5 kiểm tra). Chưa thử với model thật.
+- **Sửa lỗi V14.7.6:** Cast Planner báo `(s||"").replace is not a function` vì đưa kết quả `callAI` (object {text, finishReason}) thẳng vào `safeJsonParse`; nay đọc `.text`. Lỗi này khiến nút 🎭 và tự nạp không bao giờ thêm được nhân vật.
+- **Test mới:** `v14_7_9_cast_auto` (6 kiểm tra). Chưa thử với model thật.
 
 ## [V14.7.8] — create-job không phản hồi sau 90 giây (đã tải lên xong 100%)
 - **Triệu chứng:** "create-job không phản hồi sau 90 giây… tải lên ĐÃ xong… server Netlify vẫn tới được".

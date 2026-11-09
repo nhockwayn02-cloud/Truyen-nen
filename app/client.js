@@ -7461,7 +7461,7 @@ async function runCastPlanner(opts){
   let added = 0;
   try{
     const raw = await callAI(buildCastPlannerPrompt(state, {count:6}), {maxTokens:6000, temperature:0.9});
-    const parsed = safeJsonParse(raw);
+    const parsed = safeJsonParse(typeof raw === "string" ? raw : String(raw && raw.text || ""));
     const arr = Array.isArray(parsed) ? parsed : (parsed && (parsed.characters || parsed.cast || parsed.nhan_vat)) || [];
     const res = normalizeCastPlannerCards(arr, state);
     res.accepted.forEach(p=>{ const ch = newCharacter(p); ch.locked = false; ch.coreLocked = false; state.characters.push(ch); });

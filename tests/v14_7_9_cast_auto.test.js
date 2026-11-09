@@ -24,4 +24,9 @@ t('storyControl giữ cờ castAutoPlanned', () => { assert.equal(F.normalizeSto
 t('client gọi ensureCastPlanned ở cả viết thường và viết nền; worker truyền castPool', () => {
   assert.match(client, /if\(!isRegen\) await ensureCastPlanned/); assert.match(client, /await ensureCastPlanned\(state\.chapters\.length \+ 1\)/); assert.match(client, /castPool: castPoolForPlan\(state, chapterNumber\)/); assert.match(worker, /castPool: castPoolForPlan/);
 });
+// callAI trả về OBJECT {text, finishReason}, không phải chuỗi: Cast Planner phải đọc .text (lỗi "(s||"").replace is not a function").
+t('Cast Planner đọc .text của kết quả callAI (không đưa object vào safeJsonParse)', () => {
+  assert.match(client, /safeJsonParse\(typeof raw === "string" \? raw : String\(raw && raw\.text/);
+  assert.ok(!/const parsed = safeJsonParse\(raw\);/.test(client.slice(client.indexOf('async function runCastPlanner'), client.indexOf('let _castAutoTried'))));
+});
 process.exit(bad ? 1 : 0);
