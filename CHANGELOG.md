@@ -1,5 +1,18 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.11] — Hồ sơ 18+ (kích thước...) không xuất hiện trong cảnh nóng
+- **Nguyên nhân:** đường viết từng scene chỉ đưa các trường nghề/ngoại hình/số đo vào prompt, **không đưa `sexualExperience` ("Đặc điểm 18+"), `preferences`, `boundaries`...** nên model không hề thấy dữ kiện "24–25 cm". Đường viết thường lại cắt "Đặc điểm 18+" còn 120 ký tự. Ngoài ra không có chỉ dẫn tả phản ứng của người chứng kiến nên chỉ ra "to lớn".
+- **Sửa (shared/core.js):** scene nóng (truyện bật 18+ và beat/contract có từ khóa 18+) nhận thêm các trường 18+ (320 ký tự cho Đặc điểm 18+) và **NEO CƠ THỂ 18+**: tả cụ thể theo số liệu hồ sơ, rồi tả phản ứng/cảm giác/cảm xúc của người tiếp nhận, không lặp mẫu câu. Scene thường và truyện tắt 18+ không bị lẫn. Đường viết thường nới 120→320 ký tự.
+- **Neo cơ thể áp cho MỌI người trong cảnh nóng** (không chỉ khi có trường 18+): nêu rõ ngực, núm vú, mông, đùi, âm hộ/lồn, dương vật; gọi thẳng tên theo mức 18+ của STYLE LOCK, tả theo số đo/hồ sơ, không né bằng ẩn dụ.
+- **Tối ưu:** `findRepeatedParagraphs` tách từ một lần và loại sớm cặp đoạn có quá ít từ chung (kết quả y hệt) — bài kiểm tra tốc độ trước đó sát ngưỡng 3 giây nên lúc đạt lúc trượt khi máy bận.
+- **Test mới:** `v14_7_11_adult_profile` (5 kiểm tra). Chưa thử với model thật.
+
+## [V14.7.10] — Nội dung chương không vào Character Database
+- **Nguyên nhân (2 chỗ):** (1) trang phục, dấu vết cơ thể, đồ chơi đang dùng, cảm xúc, mức phục tùng... chỉ nằm trong thẻ Current Status (`statusState`), thẻ nhân vật không có chỗ chứa nên tab Nhân vật trông "đứng yên"; (2) mọi nhân vật mặc định **khóa hồ sơ gốc** (`coreLocked`): ngoại hình/tính cách/mục tiêu đã có giá trị thì chi tiết mới từ chương bị bỏ hẳn, không ghi ở đâu.
+- **Sửa:** trường mới **currentState** (tự phản chiếu từ thẻ Status đã qua kiểm bằng chứng) và **newDetails** (chi tiết mới có bằng chứng bị khóa chặn — ghi riêng, không ghi đè hồ sơ gốc, không lặp). Cả hai hiện trong thẻ nhân vật, đi qua server hậu kỳ và so sánh canon. Hàm dùng chung `characterStateLine`/`divertLockedDetail` ở `shared/core.js`; client và worker cùng gọi.
+- **Giữ nguyên:** hồ sơ gốc khóa vẫn không bị ghi đè; mọi giá trị vẫn phải có bằng chứng trích từ chương.
+- **Test mới:** `v14_7_10_character_state` (4 kiểm tra). Chưa thử với model thật.
+
 ## [V14.7.9] — 5 chương chỉ có 2 nhân vật
 - **Nguyên nhân:** outline chỉ có "hắn" và "ả"; Cast Planner (V14.7.6) phải bấm tay nên không ai bấm; kế hoạch chương không biết có nhân vật phụ nào để đưa vào.
 - **Sửa:** (1) khi bắt đầu chương ≥ 2 mà có < 3 người ngoài NVC, app **tự chạy Cast Planner một lần** (cả viết thường lẫn viết nền; lỗi thì bỏ qua, không chặn viết); (2) kế hoạch chương nhận danh sách nhân vật phụ đã khai báo nhưng chưa/lâu chưa xuất hiện và được yêu cầu cho ít nhất một người xuất hiện/được nhắc nếu hợp mạch, không phá mốc brief, không tạo tên ngoài hồ sơ.

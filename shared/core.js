@@ -57,7 +57,15 @@ const SCENE_PROFILE_FIELDS = [['position', 'chức vụ/địa vị', 70], ['occ
   ['speech', 'cách nói', 70], ['goals', 'mục tiêu', 70], ['relevanceToMC', 'quan hệ với NVC', 70]];
 /* V14.7.4: neo ngoại hình cho đường viết từng scene (trước đây chỉ đường viết thường có): hồ sơ hình thể phải ra được thành chữ cụ thể. */
 const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: khi nhân vật xuất hiện lần đầu trong chương, hoặc khi cảnh tả cơ thể/trang phục, nêu chiều cao, dáng, SỐ ĐO/kích thước, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA bằng con số hoặc so sánh cụ thể. Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và kích thước cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau.';
-function sceneProfileWithAnchor(st, scene, castNames) { const b = sceneProfileBlock(st, scene, castNames); return b ? b + '\n\n' + SCENE_APPEARANCE_ANCHOR : ''; }
+/* V14.7.10: hồ sơ 18+ (đặc điểm cơ thể/kích thước, sở thích, giới hạn) trước đây KHÔNG vào prompt viết từng scene nên cảnh nóng không có dữ kiện để tả,
+   và không có chỉ dẫn tả phản ứng người chứng kiến (chỉ "to lớn"). Nay: scene nóng của truyện 18+ nhận các trường này + neo tả cụ thể. */
+const SCENE_ADULT_PROFILE_FIELDS = [['sexualExperience', 'đặc điểm/kinh nghiệm 18+', 320], ['preferences', 'sở thích 18+', 140], ['boundaries', 'giới hạn', 90], ['taboos', 'cấm kỵ', 80], ['attractionToMC', 'hấp dẫn với NVC', 90], ['tensionWithMC', 'căng thẳng với NVC', 90]];
+const SCENE_ADULT_BODY_ANCHOR = 'NEO CƠ THỂ 18+ — MỌI người tham gia cảnh nóng đều phải có thân thể cụ thể: lần đầu mỗi bộ phận lộ ra/được chạm/được nhìn (ngực, núm vú, mông, đùi, âm hộ/lồn, dương vật...), gọi thẳng tên bằng từ ngữ hợp mức 18+ của STYLE LOCK và tả theo hồ sơ (số đo, dáng, màu da, độ đầy, độ ướt/nóng/cứng, phản ứng co thắt/run), không né bằng ẩn dụ mơ hồ. Dữ kiện "đặc điểm 18+" trong hồ sơ (kích thước, hình dáng, sức bền...) là dữ kiện phải ra chữ: lần đầu bộ phận đó lộ ra/được chạm/được nhìn trong scene, tả CỤ THỂ theo đúng số liệu hồ sơ (độ dài, chu vi, hình dáng, độ nóng/cứng, gân, mùi...) bằng so sánh hình ảnh, rồi tả PHẢN ỨNG của người chứng kiến/tiếp nhận: ánh mắt, hơi thở, cơ thể co/giãn, cảm giác cụ thể khi chạm/vào, và cảm xúc thật (sốc, sợ, nhục, tò mò, thèm — đúng tính cách và hoàn cảnh nhân vật). Cấm chỉ viết "to lớn", "khổng lồ" rồi bỏ qua. Mỗi lần nhắc dùng chi tiết/góc nhìn khác, không lặp một mẫu câu; nhân vật nữ tả bằng cảm nhận của chính cô, không chỉ bằng con số.';
+function sceneIsAdult(st, scene) { return !!(st && st.mature) && textHasNsfwKeyword(JSON.stringify(scene || {})); }
+function sceneProfileWithAnchor(st, scene, castNames) {
+  const b = sceneProfileBlock(st, scene, castNames); if (!b) return '';
+  return b + '\n\n' + SCENE_APPEARANCE_ANCHOR + (sceneIsAdult(st, scene) ? '\n\n' + SCENE_ADULT_BODY_ANCHOR : '');
+}
 function sceneProfileBlock(st, scene, castNames) {
   st = st || {};
   const names = [].concat((scene && scene.characters) || [], (!scene || !(scene.characters || []).length) ? (castNames || []) : []).map(x => String(x || '').trim()).filter(Boolean);
@@ -72,7 +80,7 @@ function sceneProfileBlock(st, scene, castNames) {
   const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
   const rows = pick.slice(0, 5).map(c => {
     const f = [], used = new Set();
-    SCENE_PROFILE_FIELDS.forEach(([k, label, n]) => { const v = cut(c[k], n); if (v && !used.has(label + v)) { used.add(label + v); f.push(label + ': ' + v); } });
+    SCENE_PROFILE_FIELDS.concat(sceneIsAdult(st, scene) ? SCENE_ADULT_PROFILE_FIELDS : []).forEach(([k, label, n]) => { const v = cut(c[k], n); if (v && !used.has(label + v)) { used.add(label + v); f.push(label + ': ' + v); } });
     return f.length ? '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + ' | ' + f.join(' | ') : '';
   }).filter(Boolean);
   /* Trạng thái hiện tại tích lũy từ Current Status (mới hơn hồ sơ gốc; ưu tiên khi khác nhau): nghề, nơi ở, trang phục, địa vị, tính cách công khai/riêng tư... */
@@ -160,6 +168,23 @@ function parseStatusCards(raw) {
   let obj; try { obj = JSON.parse(t.slice(i, j + 1)); } catch (_) { return null; }
   return obj && Array.isArray(obj.cards) ? obj.cards : null;
 }
+// V14.7.10: Character Database không có chỗ chứa trạng thái động (trang phục, dấu vết, đồ chơi, mức phục tùng, cảm xúc...) — chúng chỉ nằm trong thẻ Current Status
+// nên mở tab Nhân vật thấy hồ sơ "đứng yên". Nay phản chiếu thẻ đã duyệt (có bằng chứng) sang trường currentState của nhân vật.
+const CHAR_STATE_MIRROR_KEYS = ['body', 'clothing', 'marks', 'emotion', 'submission', 'ruleCompliance', 'items', 'physicalState', 'mentalState', 'residence'];
+function characterStateLine(card) {
+  card = card && typeof card === 'object' ? card : {};
+  return CHAR_STATE_MIRROR_KEYS.map(k => { const v = _scVal(card[k]); return v ? (STATUS_CARD_LABELS[k] || k) + ': ' + v : ''; }).filter(Boolean).join(' | ').slice(0, 1800);
+}
+// Hồ sơ gốc đang KHÓA chặn ghi đè ngoại hình/tính cách/mục tiêu; thay vì bỏ mất chi tiết có bằng chứng, ghi vào newDetails (không đụng hồ sơ gốc).
+function divertLockedDetail(c, key, value) {
+  if (!c || !value || !['appearance', 'personality', 'goals'].includes(key)) return false;
+  const v = String(value).replace(/\s+/g, ' ').trim(); if (!v) return false;
+  if (normalizeName(c[key] || '').includes(normalizeName(v))) return false;
+  const tag = ({ appearance: 'Ngoại hình', personality: 'Tính cách', goals: 'Mục tiêu' })[key] + ': ' + v;
+  if (normalizeName(c.newDetails || '').includes(normalizeName(tag))) return false;
+  c.newDetails = mergeTextSegments(c.newDetails || '', tag, 1500);
+  return true;
+}
 // Ghép thẻ AI trả vào statusState.characterStates. Trường giống thẻ cũ -> bỏ qua; khác/mới -> cần changeEvidence thật trong chương, nếu không giữ giá trị cũ.
 function acceptStatusCards(st, items, source, targets) {
   const out = { changed: 0, dropped: 0, characters: 0, droppedFields: [] };
@@ -180,6 +205,7 @@ function acceptStatusCards(st, items, source, targets) {
     });
     const prior = _scFindState(st, c), entry = { characterId: c.id, name: c.name, status: changed ? 'updated' : 'unchanged', changes: result, evidence: changed ? firstEv : String((prior && prior.evidence) || '') };
     if (prior) Object.assign(prior, entry, { characterId: prior.characterId || c.id }); else st.statusState.characterStates.push(entry);
+    if (changed) { const line = characterStateLine(result); if (line) { c.currentState = line; } }
     out.changed += changed; out.characters++;
   });
   return out;
@@ -3723,7 +3749,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
 }
 
 /* ========== V14.0.15 — Canon Diff / Gợi ý nhân vật / Sức khỏe truyện / Rà mâu thuẫn / Telemetry ========== */
-const CANON_DIFF_CHAR_FIELDS = ["tier","age","gender","maritalStatus","spouseName","role","position","occupation","faction","appearance","personality","goals","secret","weakness","fear","knowledge","speech","strength","independentPlot","currentLocation","physicalState","mentalState","height","bodyType","hair","eyes","skin","scars","tattoos","dead","lastAppearance"];
+const CANON_DIFF_CHAR_FIELDS = ["tier","age","gender","maritalStatus","spouseName","role","position","occupation","faction","appearance","personality","goals","secret","weakness","fear","knowledge","speech","strength","independentPlot","currentLocation","physicalState","mentalState","height","bodyType","hair","eyes","skin","scars","tattoos","dead","lastAppearance","currentState","newDetails"];
 function _cdVal(v) { if (v === undefined || v === null) return ""; if (typeof v === "boolean") return v ? "true" : ""; return String(v); }
 function _cdClip(v, n) { v = _cdVal(v); return v.length > n ? v.slice(0, n) + "…" : v; }
 /* So sánh Character/World trước & sau hậu kỳ. `from` giữ NGUYÊN GIÁ TRỊ CŨ (tối đa 3000 ký tự) để có thể hoàn tác từng trường. */
@@ -4165,22 +4191,29 @@ function findRepeatedParagraphs(text, options) {
   const thresholdValue = Number(opts.threshold), threshold = Number.isFinite(thresholdValue) ? Math.max(0, Math.min(1, thresholdValue)) : 0.88;
   const paragraphs = String(text == null ? "" : text).split(/\n\s*\n+/).map((raw, i) => ({ index: i + 1, raw: raw.trim(), normalized: raw.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() })).filter(x => x.raw);
   const tokens = x => String(x && x.normalized != null ? x.normalized : x).split(/\s+/u).filter(Boolean);
-  const levRatio = (a, b) => {
-    if (a === b) return 1;
-    const aa = tokens(a), bb = tokens(b), prev = Array.from({ length: bb.length + 1 }, (_, i) => i);
+  const levRatioT = (aa, bb) => {
+    const prev = Array.from({ length: bb.length + 1 }, (_, i) => i);
     for (let i = 1; i <= aa.length; i++) {
       let diagonal = prev[0]; prev[0] = i;
       for (let j = 1; j <= bb.length; j++) { const old = prev[j]; prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + (aa[i - 1] === bb[j - 1] ? 0 : 1)); diagonal = old; }
     }
     return 1 - prev[bb.length] / Math.max(aa.length, bb.length, 1);
   };
+  /* V14.7.11: tách token + đếm từ MỘT lần mỗi đoạn; loại sớm cặp có số từ chung (đa tập) quá thấp — khoảng cách sửa ≥ max(la,lb) − số từ chung nên không thể đạt ngưỡng. Kết quả không đổi. */
+  paragraphs.forEach(p => { p.tok = tokens(p); p.bag = new Map(); p.tok.forEach(w => p.bag.set(w, (p.bag.get(w) || 0) + 1)); });
   const out = [];
   for (let i = 0; i < paragraphs.length; i++) for (let j = i + 1; j < paragraphs.length; j++) {
     const a = paragraphs[i], b = paragraphs[j];
-    const la = tokens(a).length, lb = tokens(b).length;
+    const la = a.tok.length, lb = b.tok.length;
     if (la < minTokens || lb < minTokens) continue;
-    if (a.normalized !== b.normalized && Math.min(la, lb) / Math.max(la, lb) < threshold) continue; // chênh độ dài quá lớn thì không thể đạt ngưỡng giống
-    const exact = a.normalized === b.normalized, similarity = exact ? 1 : levRatio(a.normalized, b.normalized);
+    const exact = a.normalized === b.normalized;
+    if (!exact) {
+      if (Math.min(la, lb) / Math.max(la, lb) < threshold) continue; // chênh độ dài quá lớn thì không thể đạt ngưỡng giống
+      let common = 0; const small = a.bag.size <= b.bag.size ? a.bag : b.bag, big = small === a.bag ? b.bag : a.bag;
+      small.forEach((n, w) => { const m = big.get(w); if (m) common += Math.min(n, m); });
+      if (common / Math.max(la, lb) < threshold) continue;
+    }
+    const similarity = exact ? 1 : levRatioT(a.tok, b.tok);
     if (exact || similarity >= threshold) out.push({ paragraphs: [a.index, b.index], exact, similarity: Number(similarity.toFixed(4)), excerpt: a.raw.slice(0, 180) });
   }
   return out;
