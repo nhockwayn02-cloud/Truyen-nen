@@ -23,6 +23,7 @@ const dir = __dirname; const suites = [
   ["V14.7.2 callAI: HTTP/Retry-After/JSON hỏng/rò rỉ API key (fetch giả)", process.execPath, ["v14_7_1_callai_api.test.js"]],
   ["V14.7.3 truyện 18+: scene mang đủ quy tắc theo mức đã chọn; \"Luôn dùng\" bao cả bước phụ", process.execPath, ["v14_7_3_adult_scene_style.test.js"]],
   ["V14.7.4 scene nhận hồ sơ hình thể + neo ngoại hình (không tả chung chung)", process.execPath, ["v14_7_4_scene_body_profile.test.js"]],
+  ["V14.7.12 outline \"Chương N nội dung\" không dấu phân cách + không lấy đầu outline cho chương khác", process.execPath, ["v14_7_12_outline_noseparator.test.js"]],
   ["V14.7.11 hồ sơ 18+ vào prompt scene nóng + neo tả cơ thể/phản ứng", process.execPath, ["v14_7_11_adult_profile.test.js"]],
   ["V14.7.10 Character Database nhận trạng thái động + chi tiết khi hồ sơ gốc khóa", process.execPath, ["v14_7_10_character_state.test.js"]],
   ["V14.7.9 tự nạp Cast Planner khi dàn nhân vật mỏng + luân phiên nhân vật phụ trong kế hoạch", process.execPath, ["v14_7_9_cast_auto.test.js"]],

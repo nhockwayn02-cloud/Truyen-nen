@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.12] — Chương 5–6 bị cảnh báo "Outline chưa thấy: Chương 1 …, Chương 2 …"
+- **Triệu chứng (ảnh chụp):** thẻ Chương 5 và 6 báo thiếu các ý của Chương 1–2 trong Outline; Chương 6 bị yêu cầu viết lại sự kiện đầu truyện.
+- **Nguyên nhân:** Outline viết dạng `Chương 1 Nội dung…` (không có dấu `:` `.` `)` `-` sau số) không được nhận là tiêu đề chương. Khi không dòng nào khớp, app coi outline là "không đánh số" và gán **900 ký tự đầu outline** (= nội dung chương 1–2) làm dòng của chương đang viết.
+- **Sửa:** (1) chuẩn hóa `Chương N Nội dung` → `Chương N: Nội dung` cho cả bộ tách dòng và bộ tách ý; (2) tiêu đề đơn `Chương 6` đứng một mình (đúng định dạng Outline thật của người dùng: dòng `Chương N`, nội dung ở các dòng dưới) được nhận ở cả bộ tách dòng lẫn bộ tách ý/Hậu quả/Móc kết — mỗi dòng bên dưới là một ý; (3) outline có đánh số chương mà không tách được thì **không còn** lấy đầu outline gán cho chương hiện tại (client + worker).
+- **Test mới:** `v14_7_12_outline_noseparator` (6 kiểm tra, có chạy trên định dạng thật). Chưa thử với model thật.
+
 ## [V14.7.11] — Hồ sơ 18+ (kích thước...) không xuất hiện trong cảnh nóng
 - **Nguyên nhân:** đường viết từng scene chỉ đưa các trường nghề/ngoại hình/số đo vào prompt, **không đưa `sexualExperience` ("Đặc điểm 18+"), `preferences`, `boundaries`...** nên model không hề thấy dữ kiện "24–25 cm". Đường viết thường lại cắt "Đặc điểm 18+" còn 120 ký tự. Ngoài ra không có chỉ dẫn tả phản ứng của người chứng kiến nên chỉ ra "to lớn".
 - **Sửa (shared/core.js):** scene nóng (truyện bật 18+ và beat/contract có từ khóa 18+) nhận thêm các trường 18+ (320 ký tự cho Đặc điểm 18+) và **NEO CƠ THỂ 18+**: tả cụ thể theo số liệu hồ sơ, rồi tả phản ứng/cảm giác/cảm xúc của người tiếp nhận, không lặp mẫu câu. Scene thường và truyện tắt 18+ không bị lẫn. Đường viết thường nới 120→320 ký tự.

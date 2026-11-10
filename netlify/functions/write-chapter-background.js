@@ -2677,7 +2677,11 @@ function outlineOf(st, n) { return ((st && st.outlinePlans) || []).find(o => o &
 // Tách nội dung outline thành dòng theo chương: "Ch12: ...", "Chương 12: ...", "12. ...", "12) ...", "12 - ...".
 // V14.5.7: outline dán từ Word/Google Docs hay chứa ngắt dòng mềm U+2028/U+2029/U+0085 (Shift+Enter) trước "Sự kiện:/Kháng cự:/Hậu quả:/Móc kết:".
 // JS không coi chúng là xuống dòng thường và `.` không khớp chúng -> toàn bộ outline "không có chương nào". Đổi thành khoảng trắng (giữ nhãn cùng dòng như định dạng chuẩn).
-function outlineNormalizeText(s) { return String(s || "").replace(/\r\n?/g, "\n").replace(/[\u2028\u2029\u0085\u000b\u000c]/g, " "); }
+/* V14.7.12: "Chương 6 Nội dung..." (không dấu : . ) – sau số) trước đây KHÔNG được nhận là tiêu đề chương; nếu cả outline viết kiểu đó thì không dòng nào khớp
+   và chương 6 bị gán 900 ký tự ĐẦU outline (= nội dung chương 1–2) -> app đòi viết lại sự kiện chương 1–2 trong chương 6. Chuẩn hóa về "Chương 6: Nội dung...". */
+function outlineNormalizeText(s) { return String(s || "").replace(/\r\n?/g, "\n").replace(/[\u2028\u2029\u0085\u000b\u000c]/g, " ").replace(/^([ \t]*(?:[-*•][ \t]*)?(?:chương|chuong|chapter|chap)\.?[ \t]*\d{1,4})[ \t]+(?=[^\s:.)\-–—\d])/gim, "$1: "); }
+// Outline có đánh số chương nhưng không tách được dòng nào thì KHÔNG được lấy phần đầu outline làm dòng của chương hiện tại.
+function outlineHasNumberedChapters(content) { return /(?:^|\n)[ \t]*(?:[-*•][ \t]*)?(?:chương|chuong|chapter|chap|ch)\.?[ \t]*\d/i.test(String(content || "")); }
 // V14.5.6: outline đánh số lại từ 1 trong từng gói (gói áp dụng cho chương 7–12 nhưng viết Ch1…Ch6) -> đổi về số chương tuyệt đối để chương 9 không rơi vào dòng của chương khác.
 function _outlineRemapLocal(map, ol) {
   if (!ol) return map;
@@ -2698,6 +2702,8 @@ function outlineChapterLines(content, ol) {
   outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim();
     const rm = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)(\d{1,4})\s*[–—-]\s*(\d{1,4})\s*(?:[:.)]\s*)?(.*)$/i);
+    const hm = !(rm && Number(rm[2]) > Number(rm[1])) ? line.match(/^(?:[-*•]\s*)?(?:chương|chuong|chapter|chap|ch)\.?\s*(\d{1,4})\s*[:.)\-–—]?\s*$/i) : null;
+    if (hm) { closeRange(); cur = 0; range = { a: Number(hm[1]), b: Number(hm[1]), body: [] }; return; }
     if (rm && Number(rm[2]) > Number(rm[1]) && Number(rm[2]) - Number(rm[1]) <= 30) {
       closeRange(); cur = 0;
       range = { a: Number(rm[1]), b: Number(rm[2]), body: [] };
@@ -2718,6 +2724,7 @@ function outlineChapterLines(content, ol) {
     const n = r.b - r.a + 1, text = r.body.join(" ").replace(/\s+/g, " ").trim();
     for (let k = r.a; k <= r.b; k++) {
       if (map[k]) continue; // dòng chương riêng lẻ luôn thắng khối chặng
+      if (n === 1) { map[k] = text; continue; }
       map[k] = "[Chặng " + r.a + "–" + r.b + ", chương này là phần " + (k - r.a + 1) + "/" + n + " — chỉ thực hiện bước thứ " + (k - r.a + 1) + " của chặng, các phần còn lại để dành cho chương sau; mỗi chương nên đổi địa điểm/tình huống/mức độ] " + text;
     }
   });
@@ -3381,8 +3388,19 @@ function outlineChapterItems(content, ol) {
     if (!m) return;
     meta[m[1] === 'Kháng cự' ? 'resistance' : (m[1] === 'Hậu quả' ? 'consequence' : 'hook')] = m[2].trim().replace(/[.;\s]+$/u, '');
   };
+  let bodyMode = false; // V14.7.12: "Chương N" đứng riêng, mỗi dòng bên dưới là một ý
   outlineNormalizeText(content).split(/\n+/).forEach(l => {
     const line = l.trim(); if (!line) return;
+    const hm = line.match(/^(?:[-*•]\s*)?(?:chương|chuong|chapter|chap|ch)\.?\s*(\d{1,4})\s*[:.)\-–—]?\s*$/i);
+    if (hm) { cur = Number(hm[1]); out[cur] = { title: '', items: [], meta: {} }; bodyMode = true; return; }
+    if (bodyMode && cur && out[cur] && !/^(?:[-*•]\s*)?(?:chương|chuong|chapter|chap|ch)\.?\s*\d{1,4}\s*[–—-]\s*\d/i.test(line) && !/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?\d{1,4}\s*[:.)]\s*\S{3}/i.test(line)) {
+      const pieces = line.replace(/^[•\-*–·▪◦●]\s*/, '').trim().split(META_RE);
+      const item = (pieces[0] || '').replace(/[.;\s]+$/u, '').trim();
+      if (item.length >= 4 && !/^(Kháng cự|Hậu quả|Móc kết)\s*:/u.test(item)) out[cur].items.push(item);
+      pieces.slice(/^(Kháng cự|Hậu quả|Móc kết)\s*:/u.test(pieces[0] || '') ? 0 : 1).forEach(x => parseMeta(x, out[cur].meta));
+      return;
+    }
+    bodyMode = false;
     const m = line.match(/^(?:[-*•]\s*)?(?:ch(?:ư[ơ]ng)?\.?\s*)?(\d{1,4})\s*[:.)\-–—]\s*(.+)$/i);
     if (m && m[2] && m[2].trim().length >= 8) {
       cur = Number(m[1]);
@@ -5429,7 +5447,7 @@ function buildChapterContractForGeneration(st, chapterNumber, priorChapters){
   const arc = activeArcOf(st), ol = outlineOf(st, n), per = ol ? outlineChapterLines(ol.content, ol) : {};
   const arcGoal = arc ? String(arc.goal || arc.name || "").trim() : "";
   // V14.5.6: chỉ lùi về 900 ký tự đầu khi outline KHÔNG đánh số chương; nếu có đánh số mà thiếu chương này thì để trống (không được lấy dòng của chương khác).
-  const outlineLine = per[n] || (ol && !Object.keys(per).length ? String(ol.content || "").slice(0, 900) : "");
+  const outlineLine = per[n] || (ol && !Object.keys(per).length && !outlineHasNumberedChapters(ol.content) ? String(ol.content || "").slice(0, 900) : "");
   // Dùng toàn bộ outline/arc làm nguồn cast: một nhân vật canon có thể được
   // nhắc ở phần setup hoặc consequence chứ không xuất hiện ngay trong dòng Ch[n].
   const arcSource = arc ? JSON.stringify(arc) : "";
