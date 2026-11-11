@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.13] — Mô tả thân thể khô như báo cáo ("dài 25 cm", "84-60-88")
+- **Nguyên nhân:** các neo ngoại hình/cơ thể (V12.32.8, V14.7.4, V14.7.11) yêu cầu nêu "bằng con số hoặc so sánh cụ thể" để chữa lỗi tả chung chung; model hiểu là đọc số liệu hồ sơ, nên ra câu khô.
+- **Sửa (shared/core.js → client + worker):** thêm `BODY_PROSE_CRAFT` — số đo/kích thước là dữ kiện ngầm cần DỊCH thành hình ảnh; để thân thể tự kể chuyện qua (1) hình ảnh vật thể/thiên nhiên, (2) cảm nhận của người nhìn/chạm, (3) chuyển động và vải, (4) tương phản; mỗi bộ phận một cụm 2–4 câu giàu giác quan; con số chỉ thoáng một lần trong hình ảnh; mỗi lần nhắc đổi góc nhìn. Áp vào cả ba neo (ngoại hình trong scene, cơ thể 18+, đường viết thường). Vẫn chống tính từ trống; rào chắn tuổi giữ nguyên.
+- **Test mới:** `v14_7_13_body_prose` (4 kiểm tra). Chưa thử với model thật: chất lượng văn còn phụ thuộc model.
+
 ## [V14.7.12] — Chương 5–6 bị cảnh báo "Outline chưa thấy: Chương 1 …, Chương 2 …"
 - **Triệu chứng (ảnh chụp):** thẻ Chương 5 và 6 báo thiếu các ý của Chương 1–2 trong Outline; Chương 6 bị yêu cầu viết lại sự kiện đầu truyện.
 - **Nguyên nhân:** Outline viết dạng `Chương 1 Nội dung…` (không có dấu `:` `.` `)` `-` sau số) không được nhận là tiêu đề chương. Khi không dòng nào khớp, app coi outline là "không đánh số" và gán **900 ký tự đầu outline** (= nội dung chương 1–2) làm dòng của chương đang viết.
