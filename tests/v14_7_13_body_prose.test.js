@@ -4,7 +4,7 @@ const core = fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8');
 const ctx = { console, Date, Math, JSON }; vm.createContext(ctx); vm.runInContext(core + '\n;this.f={BODY_PROSE_CRAFT,SCENE_APPEARANCE_ANCHOR,SCENE_ADULT_BODY_ANCHOR,appearanceAnchorPrompt};', ctx);
 const F = ctx.f; let bad = 0; const t = (n, f) => { try { f(); console.log('PASS ' + n); } catch (e) { bad++; console.error('FAIL ' + n + ': ' + e.message); } };
 t('BODY_PROSE_CRAFT: cấm đọc số khô, có đủ 4 cách (vật thể, cảm nhận, chuyển động/vải, tương phản)', () => {
-  const c = F.BODY_PROSE_CRAFT; assert.match(c, /DỮ KIỆN NGẦM/); assert.match(c, /Cấm báo cáo khô/); ['hình ảnh vật thể', 'cảm nhận của người nhìn', 'chuyển động và vải', 'tương phản'].forEach(k => assert.ok(c.includes(k), k)); assert.match(c, /đổi góc nhìn/);
+  const c = F.BODY_PROSE_CRAFT; assert.match(c, /DỮ KIỆN NGẦM/); assert.match(c, /Cấm báo cáo khô/); ['hình ảnh vật thể', 'cảm nhận của người nhìn', 'chuyển động và vải', 'tương phản'].forEach(k => assert.ok(c.includes(k), k)); assert.match(c, /đổi hẳn góc nhìn/);
 });
 t('neo ngoại hình, neo cơ thể 18+ và neo trong đường viết thường đều mang văn chương thân thể', () => {
   assert.ok(F.SCENE_APPEARANCE_ANCHOR.includes('VĂN CHƯƠNG THÂN THỂ')); assert.ok(F.SCENE_ADULT_BODY_ANCHOR.includes('VĂN CHƯƠNG THÂN THỂ'));

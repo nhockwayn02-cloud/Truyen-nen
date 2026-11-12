@@ -1,5 +1,28 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.17] — Cung cảm xúc và kỹ thuật điều khiển nhịp cho cảnh 18+ nặng tâm lý
+- **Thêm (shared/core.js → client + worker):** `EROTIC_ARC_PACING_CRAFT`: (A) đảo chiều cảm xúc theo nấc — kháng cự → cơ thể phản bội (lý trí vẫn từ chối, hai mạch thể xác/ý chí va nhau) → ĐIỂM GÃY là một khoảnh khắc cụ thể → day dứt sau khi đổ; không đổ quá nhanh, điểm gãy ở nửa sau cảnh (hoặc chương sau); (B) căng thẳng = trì hoãn có chủ đích của kẻ nắm quyền, mỗi lần trì hoãn khác nhau và đẩy tới ngưỡng mới; (C) pacing = ghìm/đẩy người đọc, nhịp chậm nặng tâm lý ở đầu và giữa, dồn nhanh chỉ ở đoạn vỡ, tiết lộ từng mảnh. Gắn vào neo 18+ của scene nóng, đường viết thường (khi truyện 18+) và kế hoạch chương (cảnh có kháng cự/quyền lực phải lên nhịp theo nấc, không bỏ qua day dứt).
+- **Lưu ý:** neo 18+ của scene nóng nay dài ~5.000 ký tự (cơ thể + hành động + nội tâm + cung cảm xúc/nhịp); model nhỏ có thể làm theo không hết.
+- **Test mới:** `v14_7_17_arc_pacing` (3 kiểm tra). Chưa thử với model thật.
+
+## [V14.7.16] — Cảnh nóng toàn hành động, và bị cắt sang cảnh khác giữa chừng
+- **Nguyên nhân:** quy tắc 18+ chỉ nói về cơ thể/hành động/âm thanh; không có yêu cầu nội tâm, hồi tưởng, và không cấm chen cảnh khác (tu luyện, tin nhắn, người đi ngang) vào giữa lúc chưa tới cao trào — những beat đó trong Outline được viết thành scene riêng.
+- **Sửa (shared/core.js → client + worker):** `EROTIC_INNER_CRAFT` — xen kẽ hành động → nội tâm → hành động; nội tâm của CẢ HAI phía theo đúng vai (chủ động: lạnh lùng/toan tính/chiếm hữu; bị chi phối: nhục/kháng cự/cơ thể phản bội); mảnh hồi tưởng 1–3 câu kết bằng hành động hiện tại; nội tâm ~1/4–1/3 cảnh dài. **KHÔNG CẮT CẢNH** giữa chừng: beat khác phải lồng trong cảnh (cảm nhận/suy nghĩ/tiếng động) hoặc xếp sau khi cảnh kết thúc. Gắn vào neo 18+ của scene nóng, đường viết thường (khi truyện 18+) và kế hoạch chương (beat chen giữa không thành cảnh riêng).
+- **Test mới:** `v14_7_16_inner_continuity` (3 kiểm tra). Chưa thử với model thật.
+- **Hạn chế đã biết:** nếu Outline tách beat chen giữa thành mục riêng, bộ chia scene vẫn có thể tạo scene riêng cho nó; quy tắc chỉ dặn scene đó lồng/đặt sau.
+
+## [V14.7.15] — Mô tả thân hình ("cao 185cm...") lặp lại và thô mỗi scene/chương
+- **Nguyên nhân:** neo ngoại hình bảo "khi nhân vật xuất hiện lần đầu trong chương, hoặc khi cảnh tả cơ thể" nêu chiều cao/số đo; mỗi scene lại được viết độc lập và nhận hồ sơ đầy đủ nên scene nào cũng coi là "lần đầu" và đọc lại số liệu.
+- **Sửa (shared/core.js → client + worker):** (1) mỗi nhân vật trong hồ sơ scene được gắn nhãn **ĐÃ GIỚI THIỆU** (xuất hiện trong ~4 chương gần nhất, kể cả chương đang viết dở) hoặc **CHƯA GIỚI THIỆU**; (2) nhân vật ĐÃ GIỚI THIỆU: cấm nhắc lại chiều cao/cân nặng/số đo/dáng, không mở scene/chương bằng đoạn tả hình thể, mỗi scene tối đa 1–2 chi tiết thân thể MỚI hoặc phản ứng/cử động hiện tại; (3) neo chỉ tả đầy đủ ở lần đầu trong truyện, khi quay lại sau ≥ 6 chương vắng, hoặc khi thân thể/trang phục thay đổi; (4) `BODY_PROSE_CRAFT`: bộ phận chỉ tả đầy đủ lần đầu, các lần sau một chi tiết mới/cảm giác với hình ảnh khác; (5) đường viết thường có dòng CHỐNG LẶP tương tự.
+- **Test mới:** `v14_7_15_no_repeat_description` (4 kiểm tra). Chưa thử với model thật.
+
+## [V14.7.14] — Cảnh nóng thiếu hành động, âm thanh, hình ảnh chân thật
+- **Nguyên nhân:** các neo 18+ trước chỉ dặn tả cơ thể, "4 lớp" và không tóm tắt; không có quy tắc tả TỪNG hành động, và cảnh nóng chỉ nhận phần ngân sách từ tỉ lệ theo độ dài beat nên thường quá ngắn để tả từng nhịp.
+- **Sửa (shared/core.js → client + worker):** `EROTIC_ACTION_CRAFT` — mỗi hành động (liếm, mút, ngón tay, đẩy vào, tát mông, kéo tóc...) là một nhịp riêng với đủ 5 yếu tố: bộ phận/vị trí, lực và tốc độ, cảm giác da thịt thật, âm thanh, phản ứng cơ thể của cả hai; đi theo thứ tự thật (dạo đầu → chạm → vào từng đoạn, dừng một nhịp → tăng/giảm nhịp → đổi tư thế → cao trào), không gộp nhiều hành động vào một câu. Gắn vào neo cơ thể 18+ của scene nóng và neo của đường viết thường (chỉ khi truyện 18+). Beat nóng trong kế hoạch được chia ngân sách từ x1,6 (tổng chương không đổi).
+- **Chương trước dừng giữa cảnh nóng:** đuôi chương trước có từ khóa 18+ mà chưa có dấu hiệu cao trào/kết cảnh thì prompt chương sau được thêm lưu ý "viết tiếp NGAY từ đúng khoảnh khắc đó, tả từng hành động, đưa tới cao trào + hậu cảnh ngắn rồi mới sang beat Outline mới" (đường viết thường và từng scene). Trước đây chỉ có yêu cầu giữ đúng địa điểm/thời điểm.
+- **Từ khóa cảnh nóng:** danh sách cũ bỏ sót nhiều từ Outline thật (phá trinh, bú, edging, trứng rung, nước dâm, kích thích, đâm chậm...) nên các tính năng V14.7.7/V14.7.11/V14.7.14 có thể không nhận cảnh là cảnh nóng. Đã bổ sung; câu thường (họp, đâm kiếm...) không bị nhận nhầm.
+- **Test mới:** `v14_7_14_action_detail` (4 kiểm tra), `v14_7_14b_unfinished_scene` (6 kiểm tra). Chưa thử với model thật.
+
 ## [V14.7.13] — Mô tả thân thể khô như báo cáo ("dài 25 cm", "84-60-88")
 - **Nguyên nhân:** các neo ngoại hình/cơ thể (V12.32.8, V14.7.4, V14.7.11) yêu cầu nêu "bằng con số hoặc so sánh cụ thể" để chữa lỗi tả chung chung; model hiểu là đọc số liệu hồ sơ, nên ra câu khô.
 - **Sửa (shared/core.js → client + worker):** thêm `BODY_PROSE_CRAFT` — số đo/kích thước là dữ kiện ngầm cần DỊCH thành hình ảnh; để thân thể tự kể chuyện qua (1) hình ảnh vật thể/thiên nhiên, (2) cảm nhận của người nhìn/chạm, (3) chuyển động và vải, (4) tương phản; mỗi bộ phận một cụm 2–4 câu giàu giác quan; con số chỉ thoáng một lần trong hình ảnh; mỗi lần nhắc đổi góc nhìn. Áp vào cả ba neo (ngoại hình trong scene, cơ thể 18+, đường viết thường). Vẫn chống tính từ trống; rào chắn tuổi giữ nguyên.

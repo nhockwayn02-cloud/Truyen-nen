@@ -120,16 +120,29 @@ const SCENE_PROFILE_FIELDS = [['position', 'chức vụ/địa vị', 70], ['occ
   ['speech', 'cách nói', 70], ['goals', 'mục tiêu', 70], ['relevanceToMC', 'quan hệ với NVC', 70]];
 /* V14.7.4: neo ngoại hình cho đường viết từng scene (trước đây chỉ đường viết thường có): hồ sơ hình thể phải ra được thành chữ cụ thể. */
 /* V14.7.13: văn chương thân thể. Các neo trước đây ép "bằng con số" nên văn bản đọc như báo cáo ("dài 25 cm", "84-60-88"). Số liệu hồ sơ nay là dữ kiện ngầm cần DỊCH thành hình ảnh/cảm giác/tương phản. */
-const BODY_PROSE_CRAFT = 'VĂN CHƯƠNG THÂN THỂ — số đo/kích thước trong hồ sơ là DỮ KIỆN NGẦM, không phải câu để đọc ra. Cấm báo cáo khô kiểu "cao 1m68, 84-60-88", "dài 25 cm". Hãy để thân thể tự kể chuyện qua hình ảnh, cảm giác và tương phản: (1) hình ảnh vật thể/thiên nhiên hợp tông truyện (đầy như quả chín, eo nhỏ đến mức một vòng tay ôm trọn, thân gân guốc to bằng cổ tay...); (2) qua cảm nhận của người nhìn/chạm: ánh mắt dừng ở đâu, bàn tay bị nuốt chìm, trọng lượng, độ nóng, độ mềm/cứng, mùi, tiếng thở; (3) qua chuyển động và vải: bước đi rung nhẹ, vải căng/xô lệch/ướt/nút áo bị đẩy; (4) tương phản (eo nhỏ – hông nở, vẻ lạnh lùng – thân thể run rẩy, da trắng – vết đỏ). Mỗi bộ phận quan trọng tả thành một cụm 2–4 câu liền mạch, giàu giác quan, rồi mới tiếp tục hành động; con số nếu cần chỉ thoáng một lần và nằm trong hình ảnh (vd "to bằng cổ tay", "dài gần hai gang tay"), không nhắc lại. Mỗi lần nhắc lại một bộ phận phải đổi góc nhìn/hình ảnh.';
-const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: khi nhân vật xuất hiện lần đầu trong chương, hoặc khi cảnh tả cơ thể/trang phục, dựng chiều cao, dáng, kích thước/số đo, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA thành hình ảnh cụ thể (không đọc số đo như báo cáo). Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và một hình ảnh/cảm giác cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau. ' + BODY_PROSE_CRAFT;
+const BODY_PROSE_CRAFT = 'VĂN CHƯƠNG THÂN THỂ — số đo/kích thước trong hồ sơ là DỮ KIỆN NGẦM, không phải câu để đọc ra. Cấm báo cáo khô kiểu "cao 1m68, 84-60-88", "dài 25 cm". Hãy để thân thể tự kể chuyện qua hình ảnh, cảm giác và tương phản: (1) hình ảnh vật thể/thiên nhiên hợp tông truyện (đầy như quả chín, eo nhỏ đến mức một vòng tay ôm trọn, thân gân guốc to bằng cổ tay...); (2) qua cảm nhận của người nhìn/chạm: ánh mắt dừng ở đâu, bàn tay bị nuốt chìm, trọng lượng, độ nóng, độ mềm/cứng, mùi, tiếng thở; (3) qua chuyển động và vải: bước đi rung nhẹ, vải căng/xô lệch/ướt/nút áo bị đẩy; (4) tương phản (eo nhỏ – hông nở, vẻ lạnh lùng – thân thể run rẩy, da trắng – vết đỏ). Mỗi bộ phận quan trọng tả thành một cụm 2–4 câu liền mạch, giàu giác quan, rồi mới tiếp tục hành động; con số nếu cần chỉ thoáng một lần và nằm trong hình ảnh (vd "to bằng cổ tay", "dài gần hai gang tay"), không nhắc lại. Chỉ lần ĐẦU một bộ phận/đặc điểm xuất hiện mới tả đầy đủ; các lần sau chỉ nhắc bằng MỘT chi tiết mới hoặc cảm giác (chạm, nặng, nóng, run), đổi hẳn góc nhìn/hình ảnh, không lặp lại hình dáng hay con số đã nêu.';
+const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: CHỈ ở lần đầu tiên nhân vật xuất hiện trong truyện (hoặc quay lại sau ≥ 6 chương vắng), hoặc khi trang phục/thân thể THAY ĐỔI, dựng chiều cao, dáng, kích thước/số đo, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA thành hình ảnh cụ thể (không đọc số đo như báo cáo). Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và một hình ảnh/cảm giác cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau. CHỐNG LẶP: nhân vật gắn nhãn ĐÃ GIỚI THIỆU thì TUYỆT ĐỐI không nhắc lại chiều cao/cân nặng/số đo/dáng đã tả, không mở scene hay chương bằng đoạn tả hình thể; số liệu hồ sơ chỉ để giữ nhất quán, không phải để đọc lại — mỗi scene tối đa 1–2 chi tiết thân thể MỚI hoặc phản ứng/cử động hiện tại, khác hẳn hình ảnh đã dùng. ' + BODY_PROSE_CRAFT;
 /* V14.7.10: hồ sơ 18+ (đặc điểm cơ thể/kích thước, sở thích, giới hạn) trước đây KHÔNG vào prompt viết từng scene nên cảnh nóng không có dữ kiện để tả,
    và không có chỉ dẫn tả phản ứng người chứng kiến (chỉ "to lớn"). Nay: scene nóng của truyện 18+ nhận các trường này + neo tả cụ thể. */
 const SCENE_ADULT_PROFILE_FIELDS = [['sexualExperience', 'đặc điểm/kinh nghiệm 18+', 320], ['preferences', 'sở thích 18+', 140], ['boundaries', 'giới hạn', 90], ['taboos', 'cấm kỵ', 80], ['attractionToMC', 'hấp dẫn với NVC', 90], ['tensionWithMC', 'căng thẳng với NVC', 90]];
-const SCENE_ADULT_BODY_ANCHOR = 'NEO CƠ THỂ 18+ — MỌI người tham gia cảnh nóng đều phải có thân thể cụ thể: lần đầu mỗi bộ phận lộ ra/được chạm/được nhìn (ngực, núm vú, mông, đùi, âm hộ/lồn, dương vật...), gọi thẳng tên bằng từ ngữ hợp mức 18+ của STYLE LOCK và tả theo hồ sơ (số đo, dáng, màu da, độ đầy, độ ướt/nóng/cứng, phản ứng co thắt/run), không né bằng ẩn dụ mơ hồ. Dữ kiện "đặc điểm 18+" trong hồ sơ (kích thước, hình dáng, sức bền...) là dữ kiện phải ra chữ: lần đầu bộ phận đó lộ ra/được chạm/được nhìn trong scene, tả theo đúng số liệu hồ sơ nhưng DỊCH thành hình ảnh và cảm giác (độ dài/chu vi bằng so sánh vật thể hoặc bàn tay, hình dáng, gân, độ nóng/cứng, mùi — không đọc số liệu khô), rồi tả PHẢN ỨNG của người chứng kiến/tiếp nhận: ánh mắt, hơi thở, cơ thể co/giãn, cảm giác cụ thể khi chạm/vào, và cảm xúc thật (sốc, sợ, nhục, tò mò, thèm — đúng tính cách và hoàn cảnh nhân vật). Cấm chỉ viết "to lớn", "khổng lồ" rồi bỏ qua. Mỗi lần nhắc dùng chi tiết/góc nhìn khác, không lặp một mẫu câu; nhân vật nữ tả bằng cảm nhận của chính cô, không chỉ bằng con số. ' + BODY_PROSE_CRAFT;
+/* V14.7.14: cảnh nóng phải tả TỪNG HÀNH ĐỘNG (lực, tốc độ, cảm giác da thịt, âm thanh, phản ứng cơ thể) theo nhịp chậm, không tóm tắt. */
+const EROTIC_ACTION_CRAFT = 'TẢ TỪNG HÀNH ĐỘNG 18+ — mỗi hành động tình dục (liếm, mút, ngón tay, đẩy vào, rút ra, tát mông, kéo tóc, bóp, cắn, siết...) là MỘT nhịp riêng được tả đủ năm thứ: (1) ai làm gì bằng bộ phận nào, ở đâu trên cơ thể; (2) LỰC và TỐC ĐỘ (nhẹ/mạnh, miết chậm/dồn dập, dừng một nhịp rồi mới tiếp); (3) CẢM GIÁC DA THỊT thật (ướt, nóng, trơn, siết chặt, bị căng ra, bị đâm sâu, rát, tê, co thắt); (4) ÂM THANH phát ra (tiếng da vỗ, tiếng ướt nhép, hơi thở đứt quãng, rên, nuốt nước bọt, giường/ghế kẽo kẹt, lời nói bật ra); (5) PHẢN ỨNG CƠ THỂ của cả hai (run, cong người, siết chặt, co ngón chân, mắt nhòe, da nổi gai, nước chảy). Đi theo thứ tự thật: dạo đầu → chạm → vào từng đoạn (đầu trước, dừng một nhịp cảm nhận, rồi sâu dần) → nhịp tăng/giảm → đổi tư thế/hành động → cao trào; mỗi bước một đoạn riêng, không gộp nhiều hành động vào một câu, không nhảy cóc, không thay bằng "họ làm tình". Mỗi hành động tả bằng chi tiết khác nhau, không lặp mẫu câu; xen thoại ngắn và nội tâm đúng vai.';
+/* V14.7.16: cảnh nóng dài cần NỘI TÂM + HỒI TƯỞNG xen kẽ và KHÔNG bị cắt sang cảnh khác (tu luyện, họp...) khi chưa tới cao trào. */
+const EROTIC_INNER_CRAFT = 'NỘI TÂM VÀ MẠCH CẢNH 18+ — cảnh nóng dài không được chỉ toàn hành động và âm thanh (đọc như phim sex không hồn). Xen kẽ nhịp: hành động → nội tâm → hành động. Mỗi đoạn dài có ít nhất một nhịp nội tâm: câu nghĩ thầm ngắn (in nghiêng hoặc đặt riêng một dòng) của CẢ HAI phía theo đúng vai — kẻ chủ động: lạnh lùng đánh giá, toan tính, khinh miệt, chiếm hữu; người bị chi phối: xấu hổ, nhục, kháng cự rồi cơ thể phản bội, thứ khoái cảm không muốn thừa nhận. Thỉnh thoảng một mảnh HỒI TƯỞNG 1–3 câu đúng lúc (ngày đầu gặp, lời thề cũ, cái nhìn kiêu ngạo ngày xưa, ba tháng trước...) đối chiếu với hiện tại để cảnh nặng và thấm; hồi tưởng phải kết bằng hành động/cảm giác hiện tại, không kéo dài thành cảnh riêng. Nội tâm chiếm khoảng 1/4–1/3 cảnh dài, không dài dòng triết lý. KHÔNG CẮT CẢNH: khi cảnh nóng chưa tới cao trào/kết cảnh, tuyệt đối không chuyển sang địa điểm/sự kiện/nhân vật khác (tu luyện, họp, nhân vật phụ...). Mọi beat khác (VD hấp thụ linh khí, phát hiện tin nhắn, bước chân tuần tra) phải LỒNG vào ngay trong cảnh — thành cảm nhận, suy nghĩ, tiếng động xen vào — hoặc đặt SAU khi cảnh nóng đã kết thúc.';
+/* V14.7.17: cung cảm xúc (kháng cự → cơ thể phản bội → điểm gãy → day dứt) và kỹ thuật điều khiển nhịp/căng thẳng cho cảnh 18+ nặng tâm lý. */
+const EROTIC_ARC_PACING_CRAFT = 'CUNG CẢM XÚC VÀ NHỊP 18+ — (A) ĐẢO CHIỀU CẢM XÚC theo nấc, không nhảy cóc: kháng cự (lời nói, né tránh, siết chặt người, ánh mắt) → cơ thể phản bội (nhịp thở, run, ướt, chân mềm — tả như điều cô GHÊ TỞM chính mình vì có, lý trí vẫn từ chối) → ĐIỂM GÃY là MỘT khoảnh khắc cụ thể, đọc được (một câu thốt ra, một cử động tự nguyện ngoài ý muốn, một âm thanh không giấu được) → đổ → DAY DỨT SAU KHI ĐỔ (nhục, tự ghê tởm, sợ, giận chính mình; khoái cảm thể xác không xóa sự khước từ trong lòng và không biến thành "cô thích nó" quá nhanh). Phản ứng thể xác và ý chí là HAI mạch riêng, luôn va vào nhau. Không để nhân vật đổ quá nhanh: điểm gãy đặt ở nửa sau cảnh (hoặc chương sau nếu truyện còn dài), trừ khi mệnh lệnh người dùng chỉ định khác. (B) CĂNG THẲNG = SỰ TRÌ HOÃN CÓ CHỦ ĐÍCH của kẻ nắm quyền: dừng đúng lúc, chạm gần rồi rút, bắt chờ, bắt nói ra, ra lệnh từng bước, đếm nhịp — càng trì hoãn có kiểm soát thì lúc vỡ càng mạnh; mỗi lần trì hoãn phải KHÁC nhau và đẩy nhân vật bị chi phối tới một ngưỡng mới (không lặp một mẹo). (C) PACING = ĐIỀU KHIỂN TỐC ĐỘ thông tin, cảm xúc, hành động: biết lúc nào GHÌM người đọc lại (câu dài, chi tiết giác quan, nội tâm, im lặng, dừng) và lúc nào ĐẨY tới (câu ngắn, hành động dồn, thoại cụt); xen nhịp ghìm – đẩy, không đều một tốc độ; nhịp chậm nặng tâm lý ở đoạn đầu và giữa, chỉ dồn nhanh ở đoạn vỡ; điều chưa cần biết thì chưa nói, tiết lộ từng mảnh để người đọc luôn muốn đọc tiếp.';
+const SCENE_ADULT_BODY_ANCHOR = 'NEO CƠ THỂ 18+ — MỌI người tham gia cảnh nóng đều phải có thân thể cụ thể: lần đầu mỗi bộ phận lộ ra/được chạm/được nhìn (ngực, núm vú, mông, đùi, âm hộ/lồn, dương vật...), gọi thẳng tên bằng từ ngữ hợp mức 18+ của STYLE LOCK và tả theo hồ sơ (số đo, dáng, màu da, độ đầy, độ ướt/nóng/cứng, phản ứng co thắt/run), không né bằng ẩn dụ mơ hồ. Dữ kiện "đặc điểm 18+" trong hồ sơ (kích thước, hình dáng, sức bền...) là dữ kiện phải ra chữ: lần đầu bộ phận đó lộ ra/được chạm/được nhìn trong scene, tả theo đúng số liệu hồ sơ nhưng DỊCH thành hình ảnh và cảm giác (độ dài/chu vi bằng so sánh vật thể hoặc bàn tay, hình dáng, gân, độ nóng/cứng, mùi — không đọc số liệu khô), rồi tả PHẢN ỨNG của người chứng kiến/tiếp nhận: ánh mắt, hơi thở, cơ thể co/giãn, cảm giác cụ thể khi chạm/vào, và cảm xúc thật (sốc, sợ, nhục, tò mò, thèm — đúng tính cách và hoàn cảnh nhân vật). Cấm chỉ viết "to lớn", "khổng lồ" rồi bỏ qua. Mỗi lần nhắc dùng chi tiết/góc nhìn khác, không lặp một mẫu câu; nhân vật nữ tả bằng cảm nhận của chính cô, không chỉ bằng con số. ' + BODY_PROSE_CRAFT + ' ' + EROTIC_ACTION_CRAFT + ' ' + EROTIC_INNER_CRAFT + ' ' + EROTIC_ARC_PACING_CRAFT;
 function sceneIsAdult(st, scene) { return !!(st && st.mature) && textHasNsfwKeyword(JSON.stringify(scene || {})); }
 function sceneProfileWithAnchor(st, scene, castNames) {
   const b = sceneProfileBlock(st, scene, castNames); if (!b) return '';
   return b + '\n\n' + SCENE_APPEARANCE_ANCHOR + (sceneIsAdult(st, scene) ? '\n\n' + SCENE_ADULT_BODY_ANCHOR : '');
+}
+/* V14.7.15: nhân vật đã xuất hiện trong ~4 chương gần nhất = ĐÃ GIỚI THIỆU ngoại hình; prompt cấm tả lại chiều cao/số đo/dáng (trước đây mỗi scene/chương đều "lần đầu" nên lặp "cao 185cm..."). */
+function characterIntroduced(st, c) {
+  const nm = normalizeName(c && c.name || ''); if (!nm) return false;
+  const chs = (st && st.chapters) || [];
+  for (let i = chs.length - 1; i >= Math.max(0, chs.length - 4); i--) { if (normalizeName(String(chs[i] && chs[i].text || '').slice(0, 20000)).includes(nm)) return true; }
+  return false;
 }
 function sceneProfileBlock(st, scene, castNames) {
   st = st || {};
@@ -146,7 +159,7 @@ function sceneProfileBlock(st, scene, castNames) {
   const rows = pick.slice(0, 5).map(c => {
     const f = [], used = new Set();
     SCENE_PROFILE_FIELDS.concat(sceneIsAdult(st, scene) ? SCENE_ADULT_PROFILE_FIELDS : []).forEach(([k, label, n]) => { const v = cut(c[k], n); if (v && !used.has(label + v)) { used.add(label + v); f.push(label + ': ' + v); } });
-    return f.length ? '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + ' | ' + f.join(' | ') : '';
+    return f.length ? '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + (characterIntroduced(st, c) ? ' [ĐÃ GIỚI THIỆU NGOẠI HÌNH — KHÔNG tả lại chiều cao/cân nặng/số đo/dáng/khuôn mặt; chỉ thêm chi tiết MỚI hoặc phản ứng hiện tại]' : ' [CHƯA GIỚI THIỆU — tả đầy đủ MỘT lần]') + ' | ' + f.join(' | ') : '';
   }).filter(Boolean);
   /* Trạng thái hiện tại tích lũy từ Current Status (mới hơn hồ sơ gốc; ưu tiên khi khác nhau): nghề, nơi ở, trang phục, địa vị, tính cách công khai/riêng tư... */
   const SF = [['occupation', 'công việc hiện tại', 80], ['residence', 'nơi ở hiện tại', 100], ['socialStatus', 'địa vị/quan hệ xã hội', 90], ['clothing', 'trang phục hiện tại', 90], ['marks', 'dấu vết trên cơ thể', 90],
@@ -1078,7 +1091,9 @@ function matureChapterPlanBlock(o) {
       ? "- Kế hoạch PHẢI có ít nhất MỘT beat là CẢNH NÓNG. Ghi đúng cụm \"cảnh nóng\" trong beat, nêu 2 nhân vật tham gia (đều từ 18 tuổi, theo tên trong hồ sơ), địa điểm, tình huống đưa tới cảnh, và điều cảnh đó làm đổi (quan hệ/quyền lực/bí mật/hậu quả)."
       : "- Nên có một beat CẢNH NÓNG nếu quan hệ/tình huống đã tích tụ đủ; nếu có, ghi đúng cụm \"cảnh nóng\" trong beat và nêu 2 nhân vật tham gia (đều từ 18 tuổi).",
     "- Nếu brief/mệnh lệnh của người dùng không nhắc cảnh nóng: vẫn thêm beat này dưới dạng [S] (beat hỗ trợ, bám đúng tình huống và nhân vật đang có), KHÔNG tính là sự kiện chính thứ 4 và KHÔNG làm lệch các mốc A/B của brief. Cảnh nóng đặt SAU các mốc bắt buộc hoặc xen vào nhịp phù hợp.",
-    "- Mỗi cảnh nóng phải đổi hướng quan hệ hoặc thế lực, không lặp lại cảnh trước (đổi bối cảnh, tư thế, động lực, cảm xúc)."
+    "- Mỗi cảnh nóng phải đổi hướng quan hệ hoặc thế lực, không lặp lại cảnh trước (đổi bối cảnh, tư thế, động lực, cảm xúc).",
+    "- Cảnh nóng có kháng cự/ép buộc/quyền lực: lên nhịp theo nấc (kháng cự → cơ thể phản bội → điểm gãy → day dứt); kẻ nắm quyền trì hoãn có chủ đích, KHÔNG để nhân vật đổ quá nhanh — điểm gãy đặt ở nửa sau cảnh (hoặc chương sau nếu Outline còn dài) trừ khi brief chỉ định khác; day dứt sau khi đổ phải có chỗ, không bỏ qua.",
+    "- Beat khác nằm GIỮA lúc đang quan hệ (tu luyện, hấp thụ linh khí, tin nhắn, người đi ngang...) KHÔNG được thành cảnh riêng chen giữa: ghi nó là chi tiết LỒNG trong chính cảnh nóng (cảm nhận/suy nghĩ/tiếng động) hoặc xếp SAU khi cảnh nóng kết thúc."
   ].join("\n");
 }
 function buildChapterPlanPrompt(o) {
@@ -1356,11 +1371,21 @@ function normalizeChapterMatureFocus(v) {
 }
 
 const NSFW_KEYWORDS = [
-  "cảnh nóng", "cảnh sex", "cảnh 18", "cảnh 18+", "làm tình", "ân ái", "giao hợp", "sex", "sexx", "sexy", "nsfw", "erotic", "erotica", "porn", "âu yếm", "vuốt ve", "mơn trớn", "ve vuốt", "hôn sâu", "hôn môi", "hôn cổ", "cởi đồ", "cởi áo", "cởi quần", "không mặc", "khỏa thân", "trần truồng", "nude", "sờ soạng", "sờ ngực", "sờ mông", "nắn bóp", "liếm", "thổi kèn", "dương vật", "âm đạo", "âm hộ", "núm vú", "háng", "cặc", "lồn", "thúc mạnh", "xuất tinh", "orgasm", "cao trào", "khoái cảm", "doggy", "missionary", "cowgirl", "oral", "blowjob", "handjob", "viết nóng", "viết 18", "tăng nhiệt", "nóng hơn", "cảnh ân ái", "đêm tân hôn", "mất trinh", "đoạt mất", "chiếm đoạt cơ thể", "ham muốn", "dục vọng", "nứng", "rên rỉ", "rên la", "rên ưỡn", "quan hệ tình dục", "quan hệ xác thịt", "bóp mông"
+  "cảnh nóng", "cảnh sex", "cảnh 18", "cảnh 18+", "làm tình", "ân ái", "giao hợp", "sex", "sexx", "sexy", "nsfw", "erotic", "erotica", "porn", "âu yếm", "vuốt ve", "mơn trớn", "ve vuốt", "hôn sâu", "hôn môi", "hôn cổ", "cởi đồ", "cởi áo", "cởi quần", "không mặc", "khỏa thân", "trần truồng", "nude", "sờ soạng", "sờ ngực", "sờ mông", "nắn bóp", "liếm", "thổi kèn", "dương vật", "âm đạo", "âm hộ", "núm vú", "háng", "cặc", "lồn", "thúc mạnh", "xuất tinh", "orgasm", "cao trào", "khoái cảm", "doggy", "missionary", "cowgirl", "oral", "blowjob", "handjob", "viết nóng", "viết 18", "tăng nhiệt", "nóng hơn", "cảnh ân ái", "đêm tân hôn", "mất trinh", "đoạt mất", "chiếm đoạt cơ thể", "ham muốn", "dục vọng", "nứng", "rên rỉ", "rên la", "rên ưỡn", "quan hệ tình dục", "quan hệ xác thịt", "bóp mông",
+  /* V14.7.14b: từ khóa thường gặp trong Outline 18+ mà danh sách cũ bỏ sót (phá trinh, bú, edging, trứng rung...) nên cảnh không được nhận là cảnh nóng. */
+  "phá trinh", "nước dâm", "dâm thủy", "thủ dâm", "dâm đãng", "bú cu", "bú liếm", "bú mút", "bắt bú", "bú", "mút", "ngón tay và miệng", "kích thích", "đâm chậm", "đâm sâu", "đâm sầm", "cương cứng", "tinh dịch", "tinh trùng", "vú", "ngực trần", "địt", "chịch", "đụ", "buồi", "edging", "dirty talk", "trứng rung", "butt plug", "bị đâm", "quan hệ trên", "quan hệ đứng", "quan hệ ngay"
 ];
 
 const _NSFW_RE = new RegExp("(?<![\\p{L}\\p{N}])(?:" + NSFW_KEYWORDS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\p{L}\\p{N}])", "iu");
 
+/* V14.7.14b: chương trước dừng GIỮA cảnh nóng (có từ khóa 18+ ở đuôi nhưng chưa có dấu hiệu cao trào/kết cảnh) thì chương sau phải viết tiếp NGAY cảnh đó. */
+function unfinishedHotSceneNote(prevEnding) {
+  const tail = String(prevEnding || '').slice(-1200);
+  if (!tail || !textHasNsfwKeyword(tail)) return '';
+  const done = /(cao trào|đạt đỉnh|lên đỉnh|xuất (?:tinh|ra)|bắn (?:vào|ra|tinh)|tinh dịch|run lên bần bật|co giật|ngất đi|thở dốc|mệt lả|nằm thở|buông (?:thõng|lỏng)|rút ra|đổ gục|sau khi (?:xong|kết thúc)|kết thúc cuộc|xong việc|mặc lại|chỉnh lại (?:váy|áo|quần))/i.test(tail);
+  if (done) return '';
+  return '\nLƯU Ý LIÊN TỤC: đoạn kết chương trước đang ở GIỮA cảnh nóng, chưa tới cao trào/kết cảnh. Cảnh mở đầu chương này PHẢI viết tiếp NGAY từ đúng khoảnh khắc, tư thế và nhịp đó (không nhảy sang thời điểm/địa điểm khác, không tóm tắt phần dở), tiếp tục tả từng hành động, đưa cảnh tới cao trào và hậu cảnh ngắn rồi mới sang các beat Outline tiếp theo.';
+}
 function textHasNsfwKeyword(text) {
   if (!text) return false;
   return _NSFW_RE.test(String(text).normalize("NFC"));
@@ -2185,7 +2210,7 @@ function buildPatchPrompt(p) {
     p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 6000, false) : "",
-    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu chương này PHẢI nối tiếp đúng địa điểm / thời điểm / người có mặt ở đây — đây là sự thật, không được tự bịa địa điểm khác):\n" + String(p.prevEnding).slice(-1500) : "",
+    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu chương này PHẢI nối tiếp đúng địa điểm / thời điểm / người có mặt ở đây — đây là sự thật, không được tự bịa địa điểm khác):\n" + String(p.prevEnding).slice(-1500) + unfinishedHotSceneNote(p.prevEnding) : "",
     (rv.alreadyFixed && rv.alreadyFixed.length) ? "LỖI ĐÃ SỬA Ở VÒNG TRƯỚC — GIỮ NGUYÊN các chỗ đã sửa, tuyệt đối không làm hỏng hoặc hoàn tác:\n- " + rv.alreadyFixed.join("\n- ") : "",
     "LỖI CẦN SỬA:\n" + (rv.hardFailures || []).concat((rv.warnings || []).slice(0, 8)).map(gateItemText).join("\n"),
     "HƯỚNG SỬA ƯU TIÊN (chỉ áp dụng phần KHÔNG mâu thuẫn Outline/Contract; mâu thuẫn thì Outline thắng):\n" + rewriteInstructionsText(rv),
@@ -2457,9 +2482,13 @@ function appearanceAnchorPrompt(st, adult) {
   return [
     "NEO NGOẠI HÌNH (để người đọc hình dung được nhân vật):",
     "- Khi nhân vật có tên xuất hiện LẦN ĐẦU (và khi quay lại sau nhiều chương vắng mặt): tả 2–4 câu gồm tuổi/vẻ ngoài, chiều cao, vóc dáng, mặt-tóc-mắt-da, trang phục và MỘT nét nhận dạng riêng. Dùng con số hoặc so sánh cụ thể (VD: cao khoảng 1m65, vai hẹp, tóc ngang vai, mắt một mí), không chỉ tính từ chung chung.",
+    "- CHỐNG LẶP: nhân vật đã được tả ở các chương trước thì KHÔNG nhắc lại chiều cao/cân nặng/số đo/dáng; chỉ thêm chi tiết MỚI hoặc phản ứng hiện tại, và không mở chương bằng đoạn tả hình thể.",
     "- Cấm tính từ trống đứng một mình như \"đẹp\", \"quyến rũ\", \"to\", \"đầy đặn\", \"cao ráo\": phải kèm kích thước, hình dáng hoặc so sánh cụ thể để người đọc hình dung ra.",
     "- Hồ sơ có chiều cao/dáng/SỐ ĐO thì dùng ĐÚNG. Hồ sơ còn trống mục ngoại hình thì TỰ ĐẶT chi tiết hợp lý ngay lần tả đầu và giữ nhất quán ở các chương sau (chi tiết này sẽ được lưu vào hồ sơ).",
     "- " + BODY_PROSE_CRAFT,
+    mature ? "- " + EROTIC_ACTION_CRAFT : "",
+    mature ? "- " + EROTIC_INNER_CRAFT : "",
+    mature ? "- " + EROTIC_ARC_PACING_CRAFT : "",
     mature ? "- Khi tả cơ thể của nhân vật ĐÃ ĐỦ 18 TUỔI trong cảnh người lớn: dựng kích thước ít nhất ở lần tả đầu tiên thành hình ảnh và cảm giác (ngực: độ đầy, độ nảy, trọng lượng; eo, mông, đùi; với nam: kích thước và hình dạng) theo mục SỐ ĐO trong hồ sơ, không đọc số như báo cáo; hồ sơ trống thì tự đặt số hợp lý và giữ nhất quán. Nhân vật dưới 18 tuổi hoặc không rõ tuổi: KHÔNG tả số đo hay đặc điểm tình dục của cơ thể." : ""
   ].filter(Boolean).join("\n");
 }
@@ -2987,7 +3016,7 @@ function buildRewritePrompt(p) {
     p.characterLock || "",
     (p.contractLabel || "OUTLINE/CONTRACT") + ":\n" + (p.contract || ""),
     p.context ? "CANON CONTEXT:\n" + compactGateContext(p.context, 8000, false) : "",
-    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu phải nối tiếp đúng địa điểm/thời điểm/người có mặt ở đây):\n" + String(p.prevEnding).slice(-1500) : "",
+    p.prevEnding ? "ĐOẠN KẾT CHƯƠNG TRƯỚC (cảnh mở đầu phải nối tiếp đúng địa điểm/thời điểm/người có mặt ở đây):\n" + String(p.prevEnding).slice(-1500) + unfinishedHotSceneNote(p.prevEnding) : "",
     (p.review && p.review.alreadyFixed && p.review.alreadyFixed.length) ? "LỖI ĐÃ SỬA Ở VÒNG TRƯỚC — giữ nguyên các chỗ đã sửa, không làm hỏng lại:\n- " + p.review.alreadyFixed.join("\n- ") : "",
     "QUALITY REVIEW:\n" + JSON.stringify(review),
     stagnationFix,
@@ -3447,7 +3476,8 @@ function buildOutlineGraph(candidate, items, meta, limits, contract) {
   for (let i = 0; i < n; i += size) groups.push(items.slice(i, i + size).map((t, k) => ({ idx: i + k + 1, text: t })));
   const cs = (candidate && candidate.scenes) || [];
   const fallbackCast = ((contract && contract.allowedCharacters) || []).slice(0, 3);
-  const weights = groups.map(g => Math.max(200, g.reduce((a, x) => a + x.text.length, 0)));
+  /* V14.7.14: nhóm beat là cảnh nóng được chia ngân sách từ x1,6 (tổng chương không đổi) để đủ chỗ tả từng hành động. */
+  const weights = groups.map(g => Math.max(200, g.reduce((a, x) => a + x.text.length, 0)) * (textHasNsfwKeyword(g.map(x => x.text).join(' ')) ? 1.6 : 1));
   const wSum = weights.reduce((a, b) => a + b, 0);
   const scenes = groups.map((g, i) => {
     const ref = cs.length ? cs[Math.min(cs.length - 1, Math.floor(i * cs.length / groups.length))] : {};
