@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.18] — Tu luyện không có tiến bộ rõ ràng
+- **Nguyên nhân:** quy tắc cũ chỉ nói "không tự nâng cảnh giới, chỉ đột phá khi có sự kiện" — không có yêu cầu nào buộc truyện cho thấy tiến bộ, nên AI chỉ nhắc "tu luyện, mạnh hơn một chút".
+- **Thêm (shared/core.js → client + worker):** `CULTIVATION_PROGRESS_CRAFT` (mốc cụ thể tầng/linh lực/kinh mạch/thần thông; phép thử trước–sau; quá trình và cái giá; nhịp tiểu tầng vs đại cảnh giới và tiến độ tích lũy; một câu tường minh nêu cảnh giới mới để hồ sơ nhận bằng chứng; song tu: kết quả ở hậu cảnh). Gắn vào `cultivationSystemBlock` (mọi prompt viết) và `cultivationPlanBlock` (kế hoạch chương: beat tu luyện phải ghi mốc, phép thử, cái giá). Client/worker truyền `cultivation: cultivationActive(state)`.
+- **Test mới:** `v14_7_18_cultivation_progress` (5 kiểm tra). Chưa thử với model thật.
+- **Hạn chế:** chỉ áp dụng khi truyện thuộc thể loại tu luyện hoặc có Hệ thống tu luyện/thang cảnh giới trong Story Bible; hồ sơ chỉ đổi cảnh giới khi chương nêu rõ (cổng bằng chứng giữ nguyên).
+
 ## [V14.7.17] — Cung cảm xúc và kỹ thuật điều khiển nhịp cho cảnh 18+ nặng tâm lý
 - **Thêm (shared/core.js → client + worker):** `EROTIC_ARC_PACING_CRAFT`: (A) đảo chiều cảm xúc theo nấc — kháng cự → cơ thể phản bội (lý trí vẫn từ chối, hai mạch thể xác/ý chí va nhau) → ĐIỂM GÃY là một khoảnh khắc cụ thể → day dứt sau khi đổ; không đổ quá nhanh, điểm gãy ở nửa sau cảnh (hoặc chương sau); (B) căng thẳng = trì hoãn có chủ đích của kẻ nắm quyền, mỗi lần trì hoãn khác nhau và đẩy tới ngưỡng mới; (C) pacing = ghìm/đẩy người đọc, nhịp chậm nặng tâm lý ở đầu và giữa, dồn nhanh chỉ ở đoạn vỡ, tiết lộ từng mảnh. Gắn vào neo 18+ của scene nóng, đường viết thường (khi truyện 18+) và kế hoạch chương (cảnh có kháng cự/quyền lực phải lên nhịp theo nấc, không bỏ qua day dứt).
 - **Lưu ý:** neo 18+ của scene nóng nay dài ~5.000 ký tự (cơ thể + hành động + nội tâm + cung cảm xúc/nhịp); model nhỏ có thể làm theo không hết.

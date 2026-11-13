@@ -130,6 +130,8 @@ const EROTIC_ACTION_CRAFT = 'TẢ TỪNG HÀNH ĐỘNG 18+ — mỗi hành độ
 /* V14.7.16: cảnh nóng dài cần NỘI TÂM + HỒI TƯỞNG xen kẽ và KHÔNG bị cắt sang cảnh khác (tu luyện, họp...) khi chưa tới cao trào. */
 const EROTIC_INNER_CRAFT = 'NỘI TÂM VÀ MẠCH CẢNH 18+ — cảnh nóng dài không được chỉ toàn hành động và âm thanh (đọc như phim sex không hồn). Xen kẽ nhịp: hành động → nội tâm → hành động. Mỗi đoạn dài có ít nhất một nhịp nội tâm: câu nghĩ thầm ngắn (in nghiêng hoặc đặt riêng một dòng) của CẢ HAI phía theo đúng vai — kẻ chủ động: lạnh lùng đánh giá, toan tính, khinh miệt, chiếm hữu; người bị chi phối: xấu hổ, nhục, kháng cự rồi cơ thể phản bội, thứ khoái cảm không muốn thừa nhận. Thỉnh thoảng một mảnh HỒI TƯỞNG 1–3 câu đúng lúc (ngày đầu gặp, lời thề cũ, cái nhìn kiêu ngạo ngày xưa, ba tháng trước...) đối chiếu với hiện tại để cảnh nặng và thấm; hồi tưởng phải kết bằng hành động/cảm giác hiện tại, không kéo dài thành cảnh riêng. Nội tâm chiếm khoảng 1/4–1/3 cảnh dài, không dài dòng triết lý. KHÔNG CẮT CẢNH: khi cảnh nóng chưa tới cao trào/kết cảnh, tuyệt đối không chuyển sang địa điểm/sự kiện/nhân vật khác (tu luyện, họp, nhân vật phụ...). Mọi beat khác (VD hấp thụ linh khí, phát hiện tin nhắn, bước chân tuần tra) phải LỒNG vào ngay trong cảnh — thành cảm nhận, suy nghĩ, tiếng động xen vào — hoặc đặt SAU khi cảnh nóng đã kết thúc.';
 /* V14.7.17: cung cảm xúc (kháng cự → cơ thể phản bội → điểm gãy → day dứt) và kỹ thuật điều khiển nhịp/căng thẳng cho cảnh 18+ nặng tâm lý. */
+/* V14.7.18: tu luyện phải có TIẾN BỘ RÕ RÀNG, đo được — không chỉ nhắc "tu luyện" rồi mạnh hơn chung chung. */
+const CULTIVATION_PROGRESS_CRAFT = 'TIẾN BỘ TU LUYỆN PHẢI RÕ RÀNG, ĐO ĐƯỢC — mỗi lần có cảnh tu luyện/hấp thụ/luyện công/luyện thể, người đọc phải THẤY mình đã tiến được gì. (1) MỐC CỤ THỂ: nêu rõ cái đã đổi — tiểu tầng/cảnh giới (ví dụ từ đệ tam trọng lên đệ tứ trọng), lượng linh lực/khí huyết (đầy thêm mấy phần, đan điền rộng ra bao nhiêu), kinh mạch/huyệt vị mới thông, tầng công pháp mới lĩnh hội, thần thông/chiêu mới. Cấm câu mơ hồ kiểu "thấy mạnh hơn một chút", "tu vi tăng lên". (2) TRƯỚC–SAU: cho thấy sự chênh bằng phép thử cụ thể (đấm vỡ tảng đá mà trước đây chỉ nứt, nhìn xa hơn, chịu được đòn trước đây gục, linh khí hút nhanh gấp mấy lần, đối thủ cũ nay thua). (3) QUÁ TRÌNH: có nút thắt, cảm giác thân thể (nóng, tê, đau xé, nở căng), hình ảnh linh khí, và CÁI GIÁ (tiêu hao, tổn thương, tài nguyên/linh thạch/đan dược mất đi, nguy cơ tẩu hỏa) — không tiến miễn phí. (4) NHỊP: tiểu tầng nhỏ có thể tăng sau vài chương tích lũy; đột phá đại cảnh giới hiếm, phải có chuẩn bị từ các chương trước, cơ duyên/tài nguyên rõ và cảnh đột phá được kể đầy đủ; không để nhiều chương liền chỉ "tu luyện" mà chỉ số đứng im — nếu chưa tới ngưỡng đột phá thì ít nhất cho thấy tiến độ tích lũy (ví dụ "đã đầy bảy phần, còn thiếu ba phần mới chạm ngưỡng"). (5) GHI RÕ ĐỂ HỒ SƠ CẬP NHẬT: khi đạt tầng/cảnh giới mới, viết MỘT câu tường minh nêu tên cảnh giới và tiểu tầng mới ngay trong truyện (ví dụ "Bùi Lạc chính thức bước vào Luyện Khí đệ ngũ trọng") để hồ sơ nhân vật nhận được bằng chứng; không nhảy cảnh giới quá một đại cảnh giới và không đặt tên cảnh giới ngoài thang. (6) Nếu tu luyện gắn với cảnh nóng (song tu, hấp thụ nguyên khí...), cảnh nóng vẫn là cảnh nóng trọn vẹn; kết quả tu vi hiện ở HẬU CẢNH sau cao trào (cảm nhận thân thể, linh lực đổi) và vẫn theo mốc cụ thể ở (1).';
 const EROTIC_ARC_PACING_CRAFT = 'CUNG CẢM XÚC VÀ NHỊP 18+ — (A) ĐẢO CHIỀU CẢM XÚC theo nấc, không nhảy cóc: kháng cự (lời nói, né tránh, siết chặt người, ánh mắt) → cơ thể phản bội (nhịp thở, run, ướt, chân mềm — tả như điều cô GHÊ TỞM chính mình vì có, lý trí vẫn từ chối) → ĐIỂM GÃY là MỘT khoảnh khắc cụ thể, đọc được (một câu thốt ra, một cử động tự nguyện ngoài ý muốn, một âm thanh không giấu được) → đổ → DAY DỨT SAU KHI ĐỔ (nhục, tự ghê tởm, sợ, giận chính mình; khoái cảm thể xác không xóa sự khước từ trong lòng và không biến thành "cô thích nó" quá nhanh). Phản ứng thể xác và ý chí là HAI mạch riêng, luôn va vào nhau. Không để nhân vật đổ quá nhanh: điểm gãy đặt ở nửa sau cảnh (hoặc chương sau nếu truyện còn dài), trừ khi mệnh lệnh người dùng chỉ định khác. (B) CĂNG THẲNG = SỰ TRÌ HOÃN CÓ CHỦ ĐÍCH của kẻ nắm quyền: dừng đúng lúc, chạm gần rồi rút, bắt chờ, bắt nói ra, ra lệnh từng bước, đếm nhịp — càng trì hoãn có kiểm soát thì lúc vỡ càng mạnh; mỗi lần trì hoãn phải KHÁC nhau và đẩy nhân vật bị chi phối tới một ngưỡng mới (không lặp một mẹo). (C) PACING = ĐIỀU KHIỂN TỐC ĐỘ thông tin, cảm xúc, hành động: biết lúc nào GHÌM người đọc lại (câu dài, chi tiết giác quan, nội tâm, im lặng, dừng) và lúc nào ĐẨY tới (câu ngắn, hành động dồn, thoại cụt); xen nhịp ghìm – đẩy, không đều một tốc độ; nhịp chậm nặng tâm lý ở đoạn đầu và giữa, chỉ dồn nhanh ở đoạn vỡ; điều chưa cần biết thì chưa nói, tiết lộ từng mảnh để người đọc luôn muốn đọc tiếp.';
 const SCENE_ADULT_BODY_ANCHOR = 'NEO CƠ THỂ 18+ — MỌI người tham gia cảnh nóng đều phải có thân thể cụ thể: lần đầu mỗi bộ phận lộ ra/được chạm/được nhìn (ngực, núm vú, mông, đùi, âm hộ/lồn, dương vật...), gọi thẳng tên bằng từ ngữ hợp mức 18+ của STYLE LOCK và tả theo hồ sơ (số đo, dáng, màu da, độ đầy, độ ướt/nóng/cứng, phản ứng co thắt/run), không né bằng ẩn dụ mơ hồ. Dữ kiện "đặc điểm 18+" trong hồ sơ (kích thước, hình dáng, sức bền...) là dữ kiện phải ra chữ: lần đầu bộ phận đó lộ ra/được chạm/được nhìn trong scene, tả theo đúng số liệu hồ sơ nhưng DỊCH thành hình ảnh và cảm giác (độ dài/chu vi bằng so sánh vật thể hoặc bàn tay, hình dáng, gân, độ nóng/cứng, mùi — không đọc số liệu khô), rồi tả PHẢN ỨNG của người chứng kiến/tiếp nhận: ánh mắt, hơi thở, cơ thể co/giãn, cảm giác cụ thể khi chạm/vào, và cảm xúc thật (sốc, sợ, nhục, tò mò, thèm — đúng tính cách và hoàn cảnh nhân vật). Cấm chỉ viết "to lớn", "khổng lồ" rồi bỏ qua. Mỗi lần nhắc dùng chi tiết/góc nhìn khác, không lặp một mẫu câu; nhân vật nữ tả bằng cảm nhận của chính cô, không chỉ bằng con số. ' + BODY_PROSE_CRAFT + ' ' + EROTIC_ACTION_CRAFT + ' ' + EROTIC_INNER_CRAFT + ' ' + EROTIC_ARC_PACING_CRAFT;
 function sceneIsAdult(st, scene) { return !!(st && st.mature) && textHasNsfwKeyword(JSON.stringify(scene || {})); }
@@ -1096,6 +1098,19 @@ function matureChapterPlanBlock(o) {
     "- Beat khác nằm GIỮA lúc đang quan hệ (tu luyện, hấp thụ linh khí, tin nhắn, người đi ngang...) KHÔNG được thành cảnh riêng chen giữa: ghi nó là chi tiết LỒNG trong chính cảnh nóng (cảm nhận/suy nghĩ/tiếng động) hoặc xếp SAU khi cảnh nóng kết thúc."
   ].join("\n");
 }
+function cultivationActive(st) {
+  if (!st) return false;
+  const hasLadder = Array.isArray(st.realmLadder) ? st.realmLadder.length > 0 : !!String(st.realmLadder || "").trim();
+  return !!(String(st.cultivationSystem || "").trim() || hasLadder || isCultivationGenre(st.genre));
+}
+function cultivationPlanBlock(o) {
+  if (!o || !o.cultivation) return "";
+  return [
+    "TIẾN BỘ TU LUYỆN (truyện có hệ thống tu luyện):",
+    "- Nếu chương có beat tu luyện/luyện công/đột phá: ghi trong beat MỐC TIẾN BỘ CỤ THỂ sẽ đạt (tầng/cảnh giới từ đâu lên đâu, hoặc tiến độ tích lũy bao nhiêu phần, hoặc thần thông/chiêu mới) và PHÉP THỬ cho thấy sự khác biệt trước–sau, cùng CÁI GIÁ phải trả. Không ghi beat tu luyện mà không có kết quả đo được.",
+    "- Lên kế hoạch nhịp: tiểu tầng tăng sau vài chương tích lũy, đột phá đại cảnh giới hiếm và phải được chuẩn bị; chương chưa đột phá vẫn phải cho thấy tiến độ tích lũy. Chỉ dùng tên cảnh giới trong thang của truyện."
+  ].join("\n");
+}
 function buildChapterPlanPrompt(o) {
   const userDirective = String(o.directive || "").trim(), userHint = String(o.hint || "").trim();
   const hintVerified = o.hintVerified !== false;
@@ -1143,6 +1158,7 @@ function buildChapterPlanPrompt(o) {
     hasUserBrief ? "ƯU TIÊN ĐỘ TRUNG THÀNH VỚI BRIEF: Không 'sáng tạo thêm cho hay'. Nhiệm vụ là chuyển brief thành kế hoạch có thể viết được, không phải mở rộng phạm vi truyện." : "",
     matureChapterPlanBlock(o),
     castPoolBlock(o.castPool),
+    cultivationPlanBlock(o),
     "KHÔNG viết văn xuôi. Chỉ bullet points."
   ].filter(Boolean).join("\n");
 }
@@ -2640,6 +2656,7 @@ function cultivationSystemBlock(st) {
   out.push("Thang đại cảnh giới (thấp → cao): " + ladder.join(" → ") + ". Mỗi đại cảnh giới chia 9 tiểu tầng: đệ nhất, nhị, tam, tứ, ngũ, lục, thất, bát, cửu trọng.");
   out.push("- Dùng ĐÚNG tên cảnh giới trong thang; không tự đặt tên cảnh giới/đại cảnh giới mới. Các cảnh giới cao hơn " + top + " chưa có ai chạm tới và chưa có ghi chép: chỉ được nhắc như lời đồn/cổ tịch mơ hồ, KHÔNG đặt tên, KHÔNG miêu tả chi tiết, KHÔNG cho nhân vật nào đạt tới.");
   out.push("- Nhân vật chỉ đột phá/tụt cảnh khi chương kể RÕ sự kiện (tài nguyên, cơ duyên, ngộ đạo, bị thương nặng...). Không nhảy cảnh giới giữa hai chương; không vượt quá một đại cảnh giới mỗi lần.");
+  out.push("- " + CULTIVATION_PROGRESS_CRAFT);
   out.push("- Chênh lệch đại cảnh giới là vực sâu: thắng người cao hơn một đại cảnh giới phải có bù đắp cụ thể trong chương (pháp bảo, trận pháp, mưu kế, đối phương bị thương). Tiểu tầng cao hơn trong cùng đại cảnh giới chỉ là ưu thế vừa phải.");
   return out.join("\n");
 }
@@ -5789,7 +5806,7 @@ async function generateOneChapter(job) {
       const planPrompt = buildChapterPlanPrompt({ chapterNumber, context: mirrorContext, recent: recentBlocks.recentFullText, directive: state.directive, hint: hintMeta.text,
         hintVerified: hintMeta.verified, maxNamedCharacters: normalizeStoryControl(state).maxNamedCharacters,
         mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPrompt(state),
-        mature: !!state.mature, matureFocus: state.chapterMatureFocus, castPool: castPoolForPlan(state, chapterNumber),
+        mature: !!state.mature, matureFocus: state.chapterMatureFocus, castPool: castPoolForPlan(state, chapterNumber), cultivation: cultivationActive(state),
         heatFreeStreak: (() => { let n = 0; for (let i = chapterNumber - 2; i >= 0; i--) { const t = String(((state.chapters || [])[i] || {}).text || ""); if (!t || textHasNsfwKeyword(t)) break; n++; } return n; })() });
       const pr = await callExtract({ endpoint: job.apiEndpoint, apiKey: job.apiKey, model: job.model, messages: [{ role: "user", content: planPrompt }], maxTokens: 1400, temperature: 0.45 }, 1);
       chapterPlan = String(pr.text || "").trim();
