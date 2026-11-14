@@ -3271,6 +3271,38 @@ function applyMainCharUpdate(profile, u, sourceText, st) {
   return changed;
 }
 
+/* V14.7.21: hồ sơ nhân vật bị lặp một ý hàng chục lần vì AI DIỄN ĐẠT LẠI mỗi chương ("mâu thuẫn giữa sự kiêu kỳ... và sự yếu đuối...") —
+   cách cũ chỉ bỏ đoạn trùng NGUYÊN VĂN. Nay so từ khóa: đoạn có phần lớn từ trùng đoạn đã có là diễn đạt lại → bỏ. */
+const _SEG_STOP = new Set(["va", "la", "cua", "cho", "voi", "mot", "nhung", "cac", "da", "dang", "se", "thi", "ma", "nay", "do", "kia", "duoc", "bi", "boi", "tai", "trong", "ngoai", "tren", "duoi", "den", "tu", "rat", "hon", "nhu", "khi", "neu", "vi", "nen", "de", "co", "khong", "cung", "van", "con", "ra", "vao", "len", "xuong", "nhieu", "it", "luon", "thuong", "hay", "moi", "nao", "gi", "ai", "sau", "truoc", "giua", "qua", "lai"]);
+function _segTokens(s) { return new Set(normalizeName(s).replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(w => w.length >= 2 && !_SEG_STOP.has(w))); }
+function segmentsNearDuplicate(a, b) {
+  const A = _segTokens(a), B = _segTokens(b); if (!A.size || !B.size) return false;
+  let i = 0; A.forEach(w => { if (B.has(w)) i++; });
+  const u = A.size + B.size - i, mn = Math.min(A.size, B.size);
+  return i / u >= 0.5 || (mn >= 4 && i / mn >= 0.8);
+}
+/* Giữ đoạn xuất hiện TRƯỚC (bản gốc/cũ nhất); bỏ đoạn sau nếu gần trùng đoạn đã giữ. */
+function dedupeTextSegments(text, max) {
+  const parts = String(text || "").split(/;\s*/).map(p => p.trim()).filter(Boolean), kept = [];
+  parts.forEach(p => { if (!kept.some(k => normalizeName(k) === normalizeName(p) || segmentsNearDuplicate(k, p))) kept.push(p); });
+  const out = kept.join("; ");
+  return max && out.length > max ? out.slice(-max) : out;
+}
+const CHAR_ACCUM_TEXT_FIELDS = ["appearance", "personality", "goals", "secret", "weakness", "fear", "knowledge", "independentPlot", "strength", "speech", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes", "newDetails", "currentState"];
+/* Dọn hồ sơ đã bị lặp: nhân vật phụ + nhân vật chính. Trả số ô được rút gọn và số ký tự giảm. */
+function cleanCharacterRepeats(st) {
+  const out = { fields: 0, chars: 0, saved: 0 };
+  const people = [st && st.mainCharProfile].concat((st && st.characters) || []).filter(Boolean);
+  people.forEach(c => {
+    let hit = false;
+    CHAR_ACCUM_TEXT_FIELDS.forEach(k => {
+      const v = c[k]; if (typeof v !== "string" || v.length < 40) return;
+      const d = dedupeTextSegments(v); if (d.length < v.trim().length) { out.saved += v.length - d.length; c[k] = d; out.fields++; hit = true; }
+    });
+    if (hit) out.chars++;
+  });
+  return out;
+}
 function mergeTextSegments(a, b, max) {
   max = max || 2500;
   const x = String(a || "").trim(), y = String(b || "").trim();
@@ -3279,9 +3311,10 @@ function mergeTextSegments(a, b, max) {
   const nx = normalizeName(x), ny = normalizeName(y);
   if (nx === ny || nx.includes(ny)) return x;
   if (ny.includes(nx)) return y.slice(0, max);
-  const fresh = y.split(/;\s*/).filter(seg => seg.trim() && !nx.includes(normalizeName(seg)));
-  if (!fresh.length) return x;
-  const parts = x.split(/;\s*/).concat(fresh);
+  const base = dedupeTextSegments(x);
+  const fresh = []; y.split(/;\s*/).forEach(seg => { const s = seg.trim(); if (s && !nx.includes(normalizeName(s)) && !fresh.some(f => segmentsNearDuplicate(f, s)) && !base.split(/;\s*/).some(k => segmentsNearDuplicate(k, s))) fresh.push(s); });
+  if (!fresh.length) return base;
+  const parts = base.split(/;\s*/).concat(fresh);
   while (parts.length > 1 && parts.join("; ").length > max) parts.shift();
   return parts.join("; ").slice(-max);
 }

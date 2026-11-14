@@ -3386,6 +3386,38 @@ function applyMainCharUpdate(profile, u, sourceText, st) {
   return changed;
 }
 
+/* V14.7.21: hồ sơ nhân vật bị lặp một ý hàng chục lần vì AI DIỄN ĐẠT LẠI mỗi chương ("mâu thuẫn giữa sự kiêu kỳ... và sự yếu đuối...") —
+   cách cũ chỉ bỏ đoạn trùng NGUYÊN VĂN. Nay so từ khóa: đoạn có phần lớn từ trùng đoạn đã có là diễn đạt lại → bỏ. */
+const _SEG_STOP = new Set(["va", "la", "cua", "cho", "voi", "mot", "nhung", "cac", "da", "dang", "se", "thi", "ma", "nay", "do", "kia", "duoc", "bi", "boi", "tai", "trong", "ngoai", "tren", "duoi", "den", "tu", "rat", "hon", "nhu", "khi", "neu", "vi", "nen", "de", "co", "khong", "cung", "van", "con", "ra", "vao", "len", "xuong", "nhieu", "it", "luon", "thuong", "hay", "moi", "nao", "gi", "ai", "sau", "truoc", "giua", "qua", "lai"]);
+function _segTokens(s) { return new Set(normalizeName(s).replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(w => w.length >= 2 && !_SEG_STOP.has(w))); }
+function segmentsNearDuplicate(a, b) {
+  const A = _segTokens(a), B = _segTokens(b); if (!A.size || !B.size) return false;
+  let i = 0; A.forEach(w => { if (B.has(w)) i++; });
+  const u = A.size + B.size - i, mn = Math.min(A.size, B.size);
+  return i / u >= 0.5 || (mn >= 4 && i / mn >= 0.8);
+}
+/* Giữ đoạn xuất hiện TRƯỚC (bản gốc/cũ nhất); bỏ đoạn sau nếu gần trùng đoạn đã giữ. */
+function dedupeTextSegments(text, max) {
+  const parts = String(text || "").split(/;\s*/).map(p => p.trim()).filter(Boolean), kept = [];
+  parts.forEach(p => { if (!kept.some(k => normalizeName(k) === normalizeName(p) || segmentsNearDuplicate(k, p))) kept.push(p); });
+  const out = kept.join("; ");
+  return max && out.length > max ? out.slice(-max) : out;
+}
+const CHAR_ACCUM_TEXT_FIELDS = ["appearance", "personality", "goals", "secret", "weakness", "fear", "knowledge", "independentPlot", "strength", "speech", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes", "newDetails", "currentState"];
+/* Dọn hồ sơ đã bị lặp: nhân vật phụ + nhân vật chính. Trả số ô được rút gọn và số ký tự giảm. */
+function cleanCharacterRepeats(st) {
+  const out = { fields: 0, chars: 0, saved: 0 };
+  const people = [st && st.mainCharProfile].concat((st && st.characters) || []).filter(Boolean);
+  people.forEach(c => {
+    let hit = false;
+    CHAR_ACCUM_TEXT_FIELDS.forEach(k => {
+      const v = c[k]; if (typeof v !== "string" || v.length < 40) return;
+      const d = dedupeTextSegments(v); if (d.length < v.trim().length) { out.saved += v.length - d.length; c[k] = d; out.fields++; hit = true; }
+    });
+    if (hit) out.chars++;
+  });
+  return out;
+}
 function mergeTextSegments(a, b, max) {
   max = max || 2500;
   const x = String(a || "").trim(), y = String(b || "").trim();
@@ -3394,9 +3426,10 @@ function mergeTextSegments(a, b, max) {
   const nx = normalizeName(x), ny = normalizeName(y);
   if (nx === ny || nx.includes(ny)) return x;
   if (ny.includes(nx)) return y.slice(0, max);
-  const fresh = y.split(/;\s*/).filter(seg => seg.trim() && !nx.includes(normalizeName(seg)));
-  if (!fresh.length) return x;
-  const parts = x.split(/;\s*/).concat(fresh);
+  const base = dedupeTextSegments(x);
+  const fresh = []; y.split(/;\s*/).forEach(seg => { const s = seg.trim(); if (s && !nx.includes(normalizeName(s)) && !fresh.some(f => segmentsNearDuplicate(f, s)) && !base.split(/;\s*/).some(k => segmentsNearDuplicate(k, s))) fresh.push(s); });
+  if (!fresh.length) return base;
+  const parts = base.split(/;\s*/).concat(fresh);
   while (parts.length > 1 && parts.join("; ").length > max) parts.shift();
   return parts.join("; ").slice(-max);
 }
@@ -5618,7 +5651,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.20";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.21";
   }
 
   let lastErr = null;
@@ -6817,7 +6850,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.20";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.21";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -7694,6 +7727,7 @@ function openCharDedupe(){
   draw();
 }
 $ID("charDedupeBtn").addEventListener("click", openCharDedupe);
+{ const b=$ID("charTextCleanBtn"); if(b) b.addEventListener("click",()=>{ const r=cleanCharacterRepeats(state); persist(); renderCharacters(); setStatus(r.fields ? "Đã dọn ý lặp: "+r.fields+" ô của "+r.chars+" nhân vật, bớt "+r.saved+" ký tự." : "Hồ sơ không có ý lặp cần dọn.", false); }); }
 
 /* ========== TỰ ĐỘNG XẾP HẠNG TIER ========== */
 function autoAssignTiers(){
@@ -8182,17 +8216,8 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
     const accumulative=["appearance","personality","goals","secret","weakness","fear","knowledge","independentPlot","strength","speech","sexualExperience","boundaries","taboos","preferences","attractionToMC","tensionWithMC","consentNotes"];
     if(accumulative.includes(key)){
       const old=String(c[key]||"").trim();
-      if(!old)c[key]=value;
-      else if(normalizeName(old)!==normalizeName(value) && !normalizeName(old).includes(normalizeName(value))){
-        /* V12.10: bỏ đoạn trùng ý; khi đầy (2500) thì bỏ đoạn CŨ NHẤT thay vì cắt mất thông tin mới. */
-        const no=normalizeName(old);
-        const fresh=value.split(/;\s*/).filter(sg=>sg.trim() && !no.includes(normalizeName(sg)));
-        if(fresh.length){
-          const parts=old.split(/;\s*/).concat(fresh);
-          while(parts.length>1 && parts.join("; ").length>2500) parts.shift();
-          c[key]=parts.join("; ").slice(-2500);
-        }
-      }
+      /* V14.7.21: nối bằng mergeTextSegments — bỏ cả đoạn DIỄN ĐẠT LẠI, không chỉ đoạn trùng nguyên văn. */
+      c[key]=old ? mergeTextSegments(old, value, 2500) : value;
     }else c[key]=update[key];
     if((explicitCoreChange || c.coreLocked===false || wasEmpty) && CHARACTER_CORE_LOCK_FIELDS.includes(key)){
       if(!c.coreIdentity || typeof c.coreIdentity!=="object") c.coreIdentity={};
@@ -8270,7 +8295,7 @@ const CHAR_JSON_FORMAT_HINT = [
   'QUY TẮC BẮT BUỘC:',
   '- CHỈ với NV ghi [KHÓA HỒ SƠ GỐC]: hồ sơ cốt lõi (name, age, gender, appearance, personality, goals) là dữ liệu gốc của người dùng; không GHI ĐÈ các trường này khi đã có giá trị (trường còn TRỐNG thì được điền nếu chương nêu rõ), trừ khi chương mô tả một thay đổi rõ ràng có bằng chứng trực tiếp.',
   '- Trường nằm trong mục "CHƯA CÓ" của nhân vật: hãy ĐIỀN nếu chương nêu rõ (ví dụ "nữ thư ký" → gender: nữ, occupation: thư ký; tuổi/chiều cao/tóc/mắt chỉ khi có con số hoặc mô tả trực tiếp). Trường đã có giá trị thì để trống, không ghi đè. Không đoán.',
-  '- Với NV ghi [MỞ KHÓA]: BẮT BUỘC bổ sung appearance/personality/goals bằng các chi tiết CỤ THỂ, MỚI xuất hiện trong chương (mỗi trường 30-60 từ, không lặp lại mục "hiện có"); nếu chương không có gì mới thì để trống.',
+  '- Với NV ghi [MỞ KHÓA]: chỉ bổ sung appearance/personality/goals khi chương có chi tiết CỤ THỂ, MỚI (30-60 từ); TUYỆT ĐỐI không diễn đạt lại ý đã có trong mục "hiện có" (đổi từ vẫn là lặp); nếu chương không có gì mới thì để trống — không ép phải điền.',
   '- Nghề/chức vụ (role, occupation, position, faction) là DỮ LIỆU GỐC: KHÔNG đổi, KHÔNG suy diễn từ cách người khác xưng hô, từ việc nhân vật làm việc với giám đốc/sếp, hay từ cảnh nhân vật ngồi ghế/ở phòng của ai. Chỉ đổi khi chương KỂ RÕ một sự kiện thăng chức/bổ nhiệm/từ chức/đổi nghề đã xảy ra; khi đó đặt explicitCoreChange=true và changeEvidence phải TRÍCH NGUYÊN VĂN câu trong chương cho thấy sự kiện đó. Nếu không có, để trống role/occupation/position/faction.',
   '- TÊN GỌI: "chị Linh", "anh Hùng", "cô Mai", "Linh" là cách gọi của NV đã có trong danh sách → dùng ĐÚNG tên đầy đủ trong danh sách, KHÔNG tạo nhân vật mới. Chỉ là "chị", "anh ấy", "cô ta" mà không biết là ai thì BỎ QUA, đừng tạo nhân vật.',
   '- Riêng role (vai trò trong truyện, KHÔNG phải nghề): nếu vai trò đã đổi thật trong chương (vd từ người lạ thành tình nhân bí mật) thì ghi role mới; hồ sơ gốc không bị ghi đè mà được lưu vào ô "Chi tiết mới".',
@@ -11459,7 +11484,7 @@ function renderMemoryEngine(){
 async function updateLongMemoryIncremental(text, chapterNumber, silent){
   if(!text)return {ok:false,reason:"empty"};
   const source=(state.chapters[chapterNumber-1]?.summary||"")+"\n\n"+text.slice(0,3500)+"\n\n[ĐOẠN CUỐI]\n"+text.slice(-7500);
-  const prompt=["CẬP NHẬT LONG-TERM MEMORY SAU CHƯƠNG "+chapterNumber,"Chỉ ghi điều có bằng chứng. Không bịa.","FORESHADOWING MỞ:",(state.foreshadowing||[]).filter(x=>!['paid_off','abandoned','resolved'].includes(x.status)).slice(-20).map(x=>x.description+" ["+x.status+"]").join("\n"),"NỘI DUNG:",source,'Trả DUY NHẤT JSON: {"events":[{"type":"event|consequence|reveal|death|power_change","summary":"","causes":"","consequences":""}],"foreshadowing":[{"description":"","status":"seeded|developing|paid_off|abandoned","match":"","characters":""}],"knowledge":[{"character":"","fact":"","confidence":"direct|inferred|reported"}]}'].join("\n\n");
+  const prompt=["CẬP NHẬT LONG-TERM MEMORY SAU CHƯƠNG "+chapterNumber,"Chỉ ghi điều có bằng chứng. Không bịa. events: 3–6 sự kiện chính của CHƯƠNG NÀY (gồm cảnh nóng/quan hệ/tu luyện), mỗi cái một câu nêu ai làm gì và hậu quả. foreshadowing: điểm gieo/chi tiết bí ẩn/lời hứa/vật dở dang có thể quay lại sau, hoặc đổi trạng thái điểm đang mở. knowledge: điều từng nhân vật vừa biết/nghi ngờ thêm trong chương.","FORESHADOWING MỞ:",(state.foreshadowing||[]).filter(x=>!['paid_off','abandoned','resolved'].includes(x.status)).slice(-20).map(x=>x.description+" ["+x.status+"]").join("\n"),"NỘI DUNG:",source,'Trả DUY NHẤT JSON: {"events":[{"type":"event|consequence|reveal|death|power_change","summary":"","causes":"","consequences":""}],"foreshadowing":[{"description":"","status":"seeded|developing|paid_off|abandoned","match":"","characters":""}],"knowledge":[{"character":"","fact":"","confidence":"direct|inferred|reported"}]}'].join("\n\n");
   try{
     const r=await callAI(prompt,{maxTokens:6900,temperature:0.15});
     let obj=safeJsonParse(r.text);

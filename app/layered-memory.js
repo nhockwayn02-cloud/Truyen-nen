@@ -23,7 +23,8 @@
   function renderLayeredMemoryStats() {
     const el = document.getElementById("layeredMemoryStats"); if (!el) return;
     const m = ensureMemory(), ranges = buildLayeredMemoryRanges((state.chapters || []).length, m.config);
-    const count = k => validRecords(k).length;
+    const nowCh = (state.chapters || []).length;
+    const count = k => { const seen = new Set(); validRecords(k).forEach(x => { if (Number(x.endChapter) > nowCh) return; seen.add(String(x.id).replace(/-r\d+$/, "")); }); return seen.size; };   // V14.7.21: không đếm bản sửa/mục của chương đã xóa
     const pending = [ranges.chunks, ranges.arcs, ranges.volumes].map((a, i) => a.filter(x => x.complete && !validRecords(["L2", "L3", "L4"][i]).some(y => y.id === x.id || String(y.id).indexOf(x.id + "-r") === 0)).length);
     const last = m.lastBuildReport;
     el.textContent = "L0 · chương gốc: " + (state.chapters || []).length +

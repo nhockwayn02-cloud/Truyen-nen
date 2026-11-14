@@ -3334,6 +3334,38 @@ function applyMainCharUpdate(profile, u, sourceText, st) {
   return changed;
 }
 
+/* V14.7.21: hồ sơ nhân vật bị lặp một ý hàng chục lần vì AI DIỄN ĐẠT LẠI mỗi chương ("mâu thuẫn giữa sự kiêu kỳ... và sự yếu đuối...") —
+   cách cũ chỉ bỏ đoạn trùng NGUYÊN VĂN. Nay so từ khóa: đoạn có phần lớn từ trùng đoạn đã có là diễn đạt lại → bỏ. */
+const _SEG_STOP = new Set(["va", "la", "cua", "cho", "voi", "mot", "nhung", "cac", "da", "dang", "se", "thi", "ma", "nay", "do", "kia", "duoc", "bi", "boi", "tai", "trong", "ngoai", "tren", "duoi", "den", "tu", "rat", "hon", "nhu", "khi", "neu", "vi", "nen", "de", "co", "khong", "cung", "van", "con", "ra", "vao", "len", "xuong", "nhieu", "it", "luon", "thuong", "hay", "moi", "nao", "gi", "ai", "sau", "truoc", "giua", "qua", "lai"]);
+function _segTokens(s) { return new Set(normalizeName(s).replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(w => w.length >= 2 && !_SEG_STOP.has(w))); }
+function segmentsNearDuplicate(a, b) {
+  const A = _segTokens(a), B = _segTokens(b); if (!A.size || !B.size) return false;
+  let i = 0; A.forEach(w => { if (B.has(w)) i++; });
+  const u = A.size + B.size - i, mn = Math.min(A.size, B.size);
+  return i / u >= 0.5 || (mn >= 4 && i / mn >= 0.8);
+}
+/* Giữ đoạn xuất hiện TRƯỚC (bản gốc/cũ nhất); bỏ đoạn sau nếu gần trùng đoạn đã giữ. */
+function dedupeTextSegments(text, max) {
+  const parts = String(text || "").split(/;\s*/).map(p => p.trim()).filter(Boolean), kept = [];
+  parts.forEach(p => { if (!kept.some(k => normalizeName(k) === normalizeName(p) || segmentsNearDuplicate(k, p))) kept.push(p); });
+  const out = kept.join("; ");
+  return max && out.length > max ? out.slice(-max) : out;
+}
+const CHAR_ACCUM_TEXT_FIELDS = ["appearance", "personality", "goals", "secret", "weakness", "fear", "knowledge", "independentPlot", "strength", "speech", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes", "newDetails", "currentState"];
+/* Dọn hồ sơ đã bị lặp: nhân vật phụ + nhân vật chính. Trả số ô được rút gọn và số ký tự giảm. */
+function cleanCharacterRepeats(st) {
+  const out = { fields: 0, chars: 0, saved: 0 };
+  const people = [st && st.mainCharProfile].concat((st && st.characters) || []).filter(Boolean);
+  people.forEach(c => {
+    let hit = false;
+    CHAR_ACCUM_TEXT_FIELDS.forEach(k => {
+      const v = c[k]; if (typeof v !== "string" || v.length < 40) return;
+      const d = dedupeTextSegments(v); if (d.length < v.trim().length) { out.saved += v.length - d.length; c[k] = d; out.fields++; hit = true; }
+    });
+    if (hit) out.chars++;
+  });
+  return out;
+}
 function mergeTextSegments(a, b, max) {
   max = max || 2500;
   const x = String(a || "").trim(), y = String(b || "").trim();
@@ -3342,9 +3374,10 @@ function mergeTextSegments(a, b, max) {
   const nx = normalizeName(x), ny = normalizeName(y);
   if (nx === ny || nx.includes(ny)) return x;
   if (ny.includes(nx)) return y.slice(0, max);
-  const fresh = y.split(/;\s*/).filter(seg => seg.trim() && !nx.includes(normalizeName(seg)));
-  if (!fresh.length) return x;
-  const parts = x.split(/;\s*/).concat(fresh);
+  const base = dedupeTextSegments(x);
+  const fresh = []; y.split(/;\s*/).forEach(seg => { const s = seg.trim(); if (s && !nx.includes(normalizeName(s)) && !fresh.some(f => segmentsNearDuplicate(f, s)) && !base.split(/;\s*/).some(k => segmentsNearDuplicate(k, s))) fresh.push(s); });
+  if (!fresh.length) return base;
+  const parts = base.split(/;\s*/).concat(fresh);
   while (parts.length > 1 && parts.join("; ").length > max) parts.shift();
   return parts.join("; ").slice(-max);
 }
@@ -6057,13 +6090,8 @@ function mergeTextField(oldValue, newValue, max = 2500) {
   if (!a) return b.slice(0, max);
   if (normalizeName(a) === normalizeName(b) || normalizeName(a).includes(normalizeName(b))) return a;
   if (normalizeName(b).includes(normalizeName(a))) return b.slice(0, max);
-  // V12.10: bỏ các đoạn đã có ý y hệt; khi vượt giới hạn thì bỏ đoạn CŨ NHẤT (không cắt mất phần mới ở cuối).
-  const na = normalizeName(a);
-  const fresh = b.split(/;\s*/).filter(seg => seg.trim() && !na.includes(normalizeName(seg)));
-  if (!fresh.length) return a;
-  const parts = a.split(/;\s*/).concat(fresh);
-  while (parts.length > 1 && parts.join("; ").length > max) parts.shift();
-  return parts.join("; ").slice(-max);
+  // V14.7.21: nối bằng mergeTextSegments (bỏ cả đoạn DIỄN ĐẠT LẠI, không chỉ trùng nguyên văn).
+  return mergeTextSegments(a, b, max);
 }
 
 /* V12.19: các trường trước đây hiển thị trong UI nhưng AI không bao giờ cập nhật. */
@@ -6499,7 +6527,7 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
   const characters = has("characters") ? present.map(c => ({
     id:c.id, name:c.name, aliases:(Array.isArray(c.aliases) ? c.aliases.slice(0, 5) : []), tier:c.tier, age:c.age, gender:c.gender, role:c.role,
     position:c.position, occupation:c.occupation, faction:c.faction,
-    appearance:String(c.appearance||"").slice(0,180), personality:String(c.personality||"").slice(0,180),
+    appearance:String(c.appearance||"").slice(0,300), personality:String(c.personality||"").slice(0,360),
     goals:String(c.goals||"").slice(0,140), currentLocation:c.currentLocation,
     physicalState:c.physicalState, mentalState:c.mentalState, dead:!!c.dead,
     realm:c.realm, technique:String(c.technique||"").slice(0,80), treasure:String(c.treasure||"").slice(0,80),
@@ -6521,11 +6549,11 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
     `HẬU KỲ TỔNG HỢP CHO CHƯƠNG ${n}: thực hiện TẤT CẢ tác vụ dưới đây trong MỘT phản hồi JSON.`,
     "Bạn chỉ trích xuất/đồng bộ dữ liệu. Không viết lại chương, không suy diễn, không tạo canon mới nếu không có bằng chứng.",
     "NGUYÊN TẮC AN TOÀN: dữ liệu hiện có là canon. Chỉ trả các thay đổi được chương mới chứng minh. Không có thay đổi thì trả mảng rỗng/chuỗi rỗng; KHÔNG lặp lại hoặc thay thế dữ liệu cũ. Mọi mục cập nhật phải có evidence là một trích đoạn ngắn 5–18 từ lấy từ chính chương. Không dùng bằng chứng bịa.",
-    "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. TÊN GỌI: \"chị Linh\", \"anh Hùng\", \"cô Mai\", \"Linh\" là cách gọi của NV đã có (xem aliases) → dùng đúng tên đầy đủ + id trong danh sách, KHÔNG tạo NV mới; chỉ \"chị\"/\"anh ấy\" mà không rõ là ai thì bỏ qua. Hồ sơ gốc role/occupation/position/faction/identity không bị ghi đè; riêng role (vai trò trong truyện, không phải nghề): nếu vai trò đã đổi thật trong chương thì ghi role mới kèm fieldEvidence — nó được lưu vào ô \"Chi tiết mới\". Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. NV MỚI (chưa có trong danh sách) mà có tên riêng xuất hiện rõ trong chương: BẮT BUỘC có mặt trong mảng characters với name viết đúng như trong chương, tier chỉ minor hoặc supporting, kèm chapterEvent và evidence nguyên văn. NV đã có: luôn dùng đúng id trong danh sách dù chương chỉ viết tên gọi rút gọn. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
+    "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. TÊN GỌI: \"chị Linh\", \"anh Hùng\", \"cô Mai\", \"Linh\" là cách gọi của NV đã có (xem aliases) → dùng đúng tên đầy đủ + id trong danh sách, KHÔNG tạo NV mới; chỉ \"chị\"/\"anh ấy\" mà không rõ là ai thì bỏ qua. CHỐNG LẶP HỒ SƠ: chỉ ghi ý MỚI; KHÔNG diễn đạt lại ý đã có trong appearance/personality/goals hiện có (đổi từ vẫn là lặp). Hồ sơ gốc role/occupation/position/faction/identity không bị ghi đè; riêng role (vai trò trong truyện, không phải nghề): nếu vai trò đã đổi thật trong chương thì ghi role mới kèm fieldEvidence — nó được lưu vào ô \"Chi tiết mới\". Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. NV MỚI (chưa có trong danh sách) mà có tên riêng xuất hiện rõ trong chương: BẮT BUỘC có mặt trong mảng characters với name viết đúng như trong chương, tier chỉ minor hoặc supporting, kèm chapterEvent và evidence nguyên văn. NV đã có: luôn dùng đúng id trong danh sách dù chương chỉ viết tên gọi rút gọn. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
     has("characters") ? "TU LUYỆN: realm CHỈ dùng tên trong thang cảnh giới của truyện (+ tiểu tầng đệ nhất…đệ cửu trọng), không tự đặt cảnh giới mới; chỉ ghi khi chương nêu rõ. Đột phá/tụt cảnh giới BẮT BUỘC explicitCoreChange=true và changeEvidence = câu trích nguyên văn kể sự kiện đó (nhảy từ 2 đại cảnh giới trở lên bị bác). technique/treasure đã có thì không đổi trừ khi explicitCoreChange. arts/fortune/grudges/innerDemon/karma chỉ ghi diễn biến MỚI. aliases chỉ ghi khi chương nói rõ cùng một người.\n" + (cultivationSystemBlock(state) || "") : "",
     "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
     "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: cập nhật changes.time = thời điểm ở CUỐI chương khi xác định được từ mạch truyện — gồm mốc nói thẳng (buổi/ngày/giờ/\"hôm sau\") lẫn dấu hiệu ngầm (ánh sáng, bữa ăn, \"khuya\", việc đang làm, quãng đã trôi); ghi dạng tương đối cũng được (vd \"đêm cùng ngày, vài giờ sau cảnh ở quán\", \"sáng hôm sau\") kèm quãng đã trôi so với đầu chương; evidence trích câu cho thấy dấu hiệu đó. Nếu chương KHÔNG có dấu hiệu thời gian đáng tin thì KHÔNG cập nhật time (giữ mốc cũ), không bịa. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
-    "LONG-TERM MEMORY: chỉ thêm sự kiện có ý nghĩa, tri thức của từng nhân vật và thay đổi foreshadowing có bằng chứng; không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
+    "LONG-TERM MEMORY: events = 3–6 sự kiện chính của CHƯƠNG NÀY (mỗi cái một câu: ai làm gì, hậu quả; gồm cả cảnh nóng/quan hệ/tu luyện), bỏ cái đã có trong recentTimeline; foreshadowing = điểm gieo/chi tiết bí ẩn/lời hứa/vật dở dang có thể quay lại sau, hoặc đổi trạng thái điểm đã có (seeded → developing → paid_off); knowledge = điều từng nhân vật vừa BIẾT/NGHI NGỜ thêm trong chương này (ai biết gì, từ đâu). Mỗi mục kèm evidence là một câu trích NGUYÊN VĂN trong chương (không cần giống từng chữ với mục tóm tắt). Không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
     "CONTINUITY: rà mâu thuẫn cụ thể với hồ sơ nhân vật, Current Status, world rules, tri thức đã biết và đoạn cuối chương trước. Chỉ cảnh báo mâu thuẫn thực sự; không báo chỉ vì thiếu thông tin. Mỗi cảnh báo phải có evidence trích từ chương hiện tại và canonReference nêu quy tắc/dữ kiện đối chiếu. Nếu không có, trả mảng []. Không tự sửa canon ở bước này.",
     "SUMMARY: tiếng Việt, mở đầu bằng **Tóm tắt chương:**, 250–400 từ, theo đúng thứ tự, giữ sự kiện/nhân vật thật, không bổ sung. " + (adult ? "Với cảnh trưởng thành, tóm tắt trung lập nhưng không bỏ qua sự kiện/quyết định/hệ quả quan trọng." : ""),
     "NEXT HINT: tiếng Việt, khoảng 150–260 từ, tiếp nối trực tiếp điểm kết; 1–3 sự kiện chính; dùng nhân vật/thread hiện có, không mở tuyến lớn mới, không tự thêm nhân vật quan trọng. Nêu điểm kết chương rõ ràng và mốc thời gian mở đầu gợi ý (nếu sự kiện đã khép trọn thì cho phép nhảy thời gian: hôm sau/vài ngày sau).",
@@ -6881,13 +6909,13 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
       const mem=data.memory;
       let evAdded=0, fsAdded=0, klAdded=0, skipped=0;
       validEvidenceItems(mem.events,source).forEach(e=>{
-        if(!e.summary || !fieldEvidenceSupports(e.summary,e.evidence,source,0.45)) { skipped++; return; }
+        if(!e.summary || !fieldQuoteSupports(e.summary,e.evidence,source)) { skipped++; return; }
         const key=normalizeName(e.summary);
         if(state.timeline.some(x=>x.chapter===n && normalizeName(x.summary)===key)) return;
         state.timeline.push({id:genId("ev"),chapter:n,type:e.type||"event",summary:e.summary,causes:e.causes||"",consequences:e.consequences||""}); evAdded++;
       });
       validEvidenceItems(mem.foreshadowing,source).forEach(f=>{
-        if(!f.description || !fieldEvidenceSupports(f.description,f.evidence,source,0.45)) { skipped++; return; }
+        if(!f.description || !fieldQuoteSupports(f.description,f.evidence,source)) { skipped++; return; }
         const key=normalizeName(f.match||f.description).slice(0,60);
         let x=state.foreshadowing.find(a=>normalizeName(a.description).slice(0,60)===key || (key.length>=24 && normalizeName(a.description).includes(key.slice(0,30))));
         if(!x) {state.foreshadowing.push({id:genId("fs"),description:f.description,status:f.status||"seeded",plantedChapter:n,lastUpdated:n,characters:f.characters||""});fsAdded++;}
@@ -6898,7 +6926,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         }
       });
       validEvidenceItems(mem.knowledge,source).forEach(k=>{
-        if(!k.character||!k.fact || !fieldEvidenceSupports(k.fact,k.evidence,source,0.45)) {skipped++;return;}
+        if(!k.character||!k.fact || !fieldQuoteSupports(k.fact,k.evidence,source)) {skipped++;return;}
         const key=normalizeName(k.character)+"|"+normalizeName(k.fact).slice(0,80);
         const exists=state.knowledgeLedger.some(a=>normalizeName(a.character)+"|"+normalizeName(a.fact).slice(0,80)===key);
         if(!exists){state.knowledgeLedger.push({id:genId("kl"),character:k.character,fact:k.fact,confidence:k.confidence||"direct",firstChapter:n,lastUpdated:n});klAdded++;}

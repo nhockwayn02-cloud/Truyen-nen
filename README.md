@@ -1,7 +1,7 @@
 # Xưởng Truyện AI
 
 Ứng dụng viết truyện tiểu thuyết bằng AI, chạy trên trình duyệt (dùng tốt trên iPhone), kèm worker nền trên Netlify.
-**Bản hiện tại: V14.7.20 — Contract-First Complete Chapter Pipeline + bộ nhớ L0–L5 + Accuracy Mode.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
+**Bản hiện tại: V14.7.21 — Contract-First Complete Chapter Pipeline + bộ nhớ L0–L5 + Accuracy Mode.** Hướng dẫn triển khai: [`DEPLOY.md`](DEPLOY.md). Lịch sử thay đổi đầy đủ: [`CHANGELOG.md`](CHANGELOG.md).
 
 V14.6 bổ sung bộ nhớ truyện dài **L0–L5** (đóng băng L1–L4, gộp 4/20/60 chương, L5 có lịch sử), hồ sơ thế lực, theo dõi tình tiết/thời gian và giới hạn chữ min/max. V14.7 thêm **Chế độ Ưu tiên độ chính xác** (mặc định tắt, theo từng truyện): ép Quality Gate, audit từng beat `[R#]` bằng trích dẫn nguyên văn, quét đoạn lặp và chặn Sync/Publish đến khi đạt. V14.7.5 tách client khỏi `index.html` sang `app/client.js` và sửa các lỗi nêu trong CHANGELOG.
 
@@ -64,7 +64,7 @@ V12.33 bổ sung age gate 18+, kiểm tra cấu hình bảo mật deployment, ha
 | `tests/` | Test đơn vị/tích hợp (Node) và E2E trình duyệt (Playwright, tùy chọn). |
 | `docs/` | `ARCHITECTURE.md` (Memory Engine, lớp dữ liệu, backup, iPhone — README cũ) và `PROMPT_V12.22.md`. |
 
-## Kiến trúc hiện hành V14.7.20
+## Kiến trúc hiện hành V14.7.21
 
 ```text
 index.html (khung) + app/client.js (client runtime)
