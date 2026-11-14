@@ -309,10 +309,10 @@ function characterStateLine(card) {
 }
 // Hồ sơ gốc đang KHÓA chặn ghi đè ngoại hình/tính cách/mục tiêu; thay vì bỏ mất chi tiết có bằng chứng, ghi vào newDetails (không đụng hồ sơ gốc).
 function divertLockedDetail(c, key, value) {
-  if (!c || !value || !['appearance', 'personality', 'goals'].includes(key)) return false;
+  if (!c || !value || !['appearance', 'personality', 'goals', 'role'].includes(key)) return false;
   const v = String(value).replace(/\s+/g, ' ').trim(); if (!v) return false;
   if (normalizeName(c[key] || '').includes(normalizeName(v))) return false;
-  const tag = ({ appearance: 'Ngoại hình', personality: 'Tính cách', goals: 'Mục tiêu' })[key] + ': ' + v;
+  const tag = ({ appearance: 'Ngoại hình', personality: 'Tính cách', goals: 'Mục tiêu', role: 'Vai trò mới' })[key] + ': ' + v;
   if (normalizeName(c.newDetails || '').includes(normalizeName(tag))) return false;
   c.newDetails = mergeTextSegments(c.newDetails || '', tag, 1500);
   return true;
@@ -1914,6 +1914,11 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
+/* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
+const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
+function fieldQuoteSupports(value, evidence, source) {
+  return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
+}
 function fieldEvidenceSupports(value, evidence, source, threshold = 0.55) {
   return !!String(value || "").trim() && !!String(evidence || "").trim()
     && evidenceInText(evidence, source)
@@ -3333,7 +3338,34 @@ function resolveCharacterTarget(state, name) {
   if (c) return { kind: "character", character: c };
   c = list.find(x => Array.isArray(x.aliases) && x.aliases.some(a => normalizeName(a) === n));
   if (c) return { kind: "character", character: c, via: "alias" };
+  /* V14.7.20: "chị Linh", "anh Hùng", "Linh" (gọi tắt) → bỏ danh xưng rồi khớp tên đầy đủ/bí danh; chỉ nhận khi DUY NHẤT một người khớp. */
+  const stripped = stripNameHonorific(name), ns = normalizeName(stripped);
+  if (!ns || NAME_PRONOUN_TAILS.includes(ns)) return { kind: "none" };   // chỉ là danh xưng / đại từ ("chị", "anh ấy")
+  if (ns.length < 2) return { kind: "new" };
+  const hits = [];
+  const matches = nm => { const x = normalizeName(nm); return !!x && (x === ns || x.endsWith(" " + ns) || (x.length >= 3 && ns.endsWith(" " + x))); };
+  if (mc && (matches(mcName) || (Array.isArray(mc.aliases) && mc.aliases.some(matches)))) hits.push({ kind: "main", label: mcName });
+  list.forEach(x => { if (x && (matches(x.name) || (Array.isArray(x.aliases) && x.aliases.some(matches)))) hits.push({ kind: "character", character: x, label: x.name }); });
+  if (hits.length === 1) return Object.assign({}, hits[0], { via: ns === n ? "short" : "honorific" });
+  if (hits.length > 1) return { kind: "ambiguous", names: hits.map(h => h.label) };
   return { kind: "new" };
+}
+const NAME_HONORIFIC_WORDS = ["anh", "chi", "em", "co", "chu", "bac", "ong", "ba", "thim", "cau", "mo", "di", "duong", "thay", "cu", "sep"];
+const NAME_PRONOUN_TAILS = ["ay", "ta", "kia", "do", "no", "nay"];
+/* Bỏ danh xưng đứng đầu ("chị Linh" → "Linh"); "anh ấy" → "ấy" (đại từ, xử lý riêng). */
+function stripNameHonorific(name) {
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  while (w.length && NAME_HONORIFIC_WORDS.includes(normalizeName(w[0]))) w.shift();
+  return w.join(" ");
+}
+/* Ghi nhớ cách gọi ("chị Linh") thành bí danh của NV đã nhận diện duy nhất, để lần sau khớp thẳng. */
+function learnCharacterAlias(c, surface) {
+  if (!c || !surface) return false;
+  const s = String(surface).trim(), ns = normalizeName(stripNameHonorific(s));
+  if (!s || !ns || NAME_PRONOUN_TAILS.includes(ns) || normalizeName(s) === normalizeName(c.name)) return false;
+  if (!Array.isArray(c.aliases)) c.aliases = [];
+  if (c.aliases.length >= 6 || c.aliases.some(a => normalizeName(a) === normalizeName(s))) return false;
+  c.aliases.push(s.slice(0, 40)); return true;
 }
 
 /* AI báo thêm về nhân vật chính: chỉ cập nhật các trường trạng thái (không đụng hồ sơ do người dùng nhập). */
@@ -3345,6 +3377,11 @@ function applyMainCharUpdate(profile, u, sourceText, st) {
   const explicit = u.explicitCoreChange === true && String(u.changeEvidence || "").trim().length >= 12 && (sourceText == null || evidenceInText(u.changeEvidence, sourceText));
   const before = JSON.stringify(profile);
   applyCultivationUpdate(profile, u, { explicit, evidence: u.changeEvidence, state: st || (typeof state !== "undefined" ? state : null) });
+  /* V14.7.19: nhân vật chính cũng nhận cập nhật 18+ (kinh nghiệm/ranh giới/sở thích) — nối ý mới, không ghi đè; chặn nếu < 18 tuổi. */
+  { const ag = profileAgeNum(profile, u);
+    if (ag === null || ag >= 18) ["sexualExperience", "boundaries", "preferences"].forEach(k => {
+      if (u[k] && String(u[k]).trim()) { const m = mergeTextSegments(profile[k], String(u[k]).trim(), 2500); if (m !== String(profile[k] || "")) { profile[k] = m; changed = true; } }
+    }); }
   if (JSON.stringify(profile) !== before) changed = true;
   return changed;
 }
@@ -5581,7 +5618,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.18";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.20";
   }
 
   let lastErr = null;
@@ -6780,7 +6817,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.18";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.20";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -8108,7 +8145,10 @@ function mergeCharacterUpdate(update, chapterNumber, sourceText){
   update = Object.assign({}, update, { name: cleanName });
   /* v12.18: tên trùng hồ sơ Nhân Vật Chính / nhãn chung "nhân vật chính" / bí danh → cập nhật hồ sơ có sẵn, KHÔNG tạo mục mới */
   const rt = resolveCharacterTarget(state, cleanName);
+  if(rt.kind === "ambiguous" || rt.kind === "none") return { name: cleanName, isNewChar: false, skipped: true };   // V14.7.20: không đoán khi nhiều người cùng tên gọi / chỉ là danh xưng
+  if(rt.via && rt.kind === "character") learnCharacterAlias(rt.character, cleanName);
   if(rt.kind === "main"){
+    if(rt.via) learnCharacterAlias(state.mainCharProfile, cleanName);
     applyMainCharUpdate(state.mainCharProfile, update, sourceText, state);
     return { name: (state.mainCharProfile&&state.mainCharProfile.name)||cleanName, isNewChar: false };
   }
@@ -8232,6 +8272,8 @@ const CHAR_JSON_FORMAT_HINT = [
   '- Trường nằm trong mục "CHƯA CÓ" của nhân vật: hãy ĐIỀN nếu chương nêu rõ (ví dụ "nữ thư ký" → gender: nữ, occupation: thư ký; tuổi/chiều cao/tóc/mắt chỉ khi có con số hoặc mô tả trực tiếp). Trường đã có giá trị thì để trống, không ghi đè. Không đoán.',
   '- Với NV ghi [MỞ KHÓA]: BẮT BUỘC bổ sung appearance/personality/goals bằng các chi tiết CỤ THỂ, MỚI xuất hiện trong chương (mỗi trường 30-60 từ, không lặp lại mục "hiện có"); nếu chương không có gì mới thì để trống.',
   '- Nghề/chức vụ (role, occupation, position, faction) là DỮ LIỆU GỐC: KHÔNG đổi, KHÔNG suy diễn từ cách người khác xưng hô, từ việc nhân vật làm việc với giám đốc/sếp, hay từ cảnh nhân vật ngồi ghế/ở phòng của ai. Chỉ đổi khi chương KỂ RÕ một sự kiện thăng chức/bổ nhiệm/từ chức/đổi nghề đã xảy ra; khi đó đặt explicitCoreChange=true và changeEvidence phải TRÍCH NGUYÊN VĂN câu trong chương cho thấy sự kiện đó. Nếu không có, để trống role/occupation/position/faction.',
+  '- TÊN GỌI: "chị Linh", "anh Hùng", "cô Mai", "Linh" là cách gọi của NV đã có trong danh sách → dùng ĐÚNG tên đầy đủ trong danh sách, KHÔNG tạo nhân vật mới. Chỉ là "chị", "anh ấy", "cô ta" mà không biết là ai thì BỎ QUA, đừng tạo nhân vật.',
+  '- Riêng role (vai trò trong truyện, KHÔNG phải nghề): nếu vai trò đã đổi thật trong chương (vd từ người lạ thành tình nhân bí mật) thì ghi role mới; hồ sơ gốc không bị ghi đè mà được lưu vào ô "Chi tiết mới".',
   '- Với NV bị KHÓA: không đổi tính cách, ngoại hình, nghề/vị trí hay mục tiêu gốc chỉ vì cách diễn giải của AI khác đi.',
   '- TU LUYỆN: realm CHỈ dùng tên trong thang cảnh giới của truyện (+ tiểu tầng đệ nhất…đệ cửu trọng), không tự đặt cảnh giới mới. Đột phá/tụt cảnh giới BẮT BUỘC explicitCoreChange=true và changeEvidence = câu trích NGUYÊN VĂN kể sự kiện đó; không có thì để realm trống. Nhảy từ 2 đại cảnh giới trở lên sẽ bị bác. technique/treasure đã có thì không đổi trừ khi explicitCoreChange. arts/fortune/grudges/innerDemon/karma chỉ ghi diễn biến MỚI. aliases chỉ ghi khi chương nói rõ đó là cùng một người.',
   '- Chỉ dùng explicitCoreChange=true khi có thay đổi cốt lõi xảy ra thật trong truyện và changeEvidence phải nêu bằng chứng cụ thể; nếu không thì KHÔNG đổi hồ sơ gốc.',

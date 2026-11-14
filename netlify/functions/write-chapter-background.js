@@ -257,10 +257,10 @@ function characterStateLine(card) {
 }
 // Hồ sơ gốc đang KHÓA chặn ghi đè ngoại hình/tính cách/mục tiêu; thay vì bỏ mất chi tiết có bằng chứng, ghi vào newDetails (không đụng hồ sơ gốc).
 function divertLockedDetail(c, key, value) {
-  if (!c || !value || !['appearance', 'personality', 'goals'].includes(key)) return false;
+  if (!c || !value || !['appearance', 'personality', 'goals', 'role'].includes(key)) return false;
   const v = String(value).replace(/\s+/g, ' ').trim(); if (!v) return false;
   if (normalizeName(c[key] || '').includes(normalizeName(v))) return false;
-  const tag = ({ appearance: 'Ngoại hình', personality: 'Tính cách', goals: 'Mục tiêu' })[key] + ': ' + v;
+  const tag = ({ appearance: 'Ngoại hình', personality: 'Tính cách', goals: 'Mục tiêu', role: 'Vai trò mới' })[key] + ': ' + v;
   if (normalizeName(c.newDetails || '').includes(normalizeName(tag))) return false;
   c.newDetails = mergeTextSegments(c.newDetails || '', tag, 1500);
   return true;
@@ -1862,6 +1862,11 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
+/* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
+const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
+function fieldQuoteSupports(value, evidence, source) {
+  return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
+}
 function fieldEvidenceSupports(value, evidence, source, threshold = 0.55) {
   return !!String(value || "").trim() && !!String(evidence || "").trim()
     && evidenceInText(evidence, source)
@@ -3281,7 +3286,34 @@ function resolveCharacterTarget(state, name) {
   if (c) return { kind: "character", character: c };
   c = list.find(x => Array.isArray(x.aliases) && x.aliases.some(a => normalizeName(a) === n));
   if (c) return { kind: "character", character: c, via: "alias" };
+  /* V14.7.20: "chị Linh", "anh Hùng", "Linh" (gọi tắt) → bỏ danh xưng rồi khớp tên đầy đủ/bí danh; chỉ nhận khi DUY NHẤT một người khớp. */
+  const stripped = stripNameHonorific(name), ns = normalizeName(stripped);
+  if (!ns || NAME_PRONOUN_TAILS.includes(ns)) return { kind: "none" };   // chỉ là danh xưng / đại từ ("chị", "anh ấy")
+  if (ns.length < 2) return { kind: "new" };
+  const hits = [];
+  const matches = nm => { const x = normalizeName(nm); return !!x && (x === ns || x.endsWith(" " + ns) || (x.length >= 3 && ns.endsWith(" " + x))); };
+  if (mc && (matches(mcName) || (Array.isArray(mc.aliases) && mc.aliases.some(matches)))) hits.push({ kind: "main", label: mcName });
+  list.forEach(x => { if (x && (matches(x.name) || (Array.isArray(x.aliases) && x.aliases.some(matches)))) hits.push({ kind: "character", character: x, label: x.name }); });
+  if (hits.length === 1) return Object.assign({}, hits[0], { via: ns === n ? "short" : "honorific" });
+  if (hits.length > 1) return { kind: "ambiguous", names: hits.map(h => h.label) };
   return { kind: "new" };
+}
+const NAME_HONORIFIC_WORDS = ["anh", "chi", "em", "co", "chu", "bac", "ong", "ba", "thim", "cau", "mo", "di", "duong", "thay", "cu", "sep"];
+const NAME_PRONOUN_TAILS = ["ay", "ta", "kia", "do", "no", "nay"];
+/* Bỏ danh xưng đứng đầu ("chị Linh" → "Linh"); "anh ấy" → "ấy" (đại từ, xử lý riêng). */
+function stripNameHonorific(name) {
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  while (w.length && NAME_HONORIFIC_WORDS.includes(normalizeName(w[0]))) w.shift();
+  return w.join(" ");
+}
+/* Ghi nhớ cách gọi ("chị Linh") thành bí danh của NV đã nhận diện duy nhất, để lần sau khớp thẳng. */
+function learnCharacterAlias(c, surface) {
+  if (!c || !surface) return false;
+  const s = String(surface).trim(), ns = normalizeName(stripNameHonorific(s));
+  if (!s || !ns || NAME_PRONOUN_TAILS.includes(ns) || normalizeName(s) === normalizeName(c.name)) return false;
+  if (!Array.isArray(c.aliases)) c.aliases = [];
+  if (c.aliases.length >= 6 || c.aliases.some(a => normalizeName(a) === normalizeName(s))) return false;
+  c.aliases.push(s.slice(0, 40)); return true;
 }
 
 /* AI báo thêm về nhân vật chính: chỉ cập nhật các trường trạng thái (không đụng hồ sơ do người dùng nhập). */
@@ -3293,6 +3325,11 @@ function applyMainCharUpdate(profile, u, sourceText, st) {
   const explicit = u.explicitCoreChange === true && String(u.changeEvidence || "").trim().length >= 12 && (sourceText == null || evidenceInText(u.changeEvidence, sourceText));
   const before = JSON.stringify(profile);
   applyCultivationUpdate(profile, u, { explicit, evidence: u.changeEvidence, state: st || (typeof state !== "undefined" ? state : null) });
+  /* V14.7.19: nhân vật chính cũng nhận cập nhật 18+ (kinh nghiệm/ranh giới/sở thích) — nối ý mới, không ghi đè; chặn nếu < 18 tuổi. */
+  { const ag = profileAgeNum(profile, u);
+    if (ag === null || ag >= 18) ["sexualExperience", "boundaries", "preferences"].forEach(k => {
+      if (u[k] && String(u[k]).trim()) { const m = mergeTextSegments(profile[k], String(u[k]).trim(), 2500); if (m !== String(profile[k] || "")) { profile[k] = m; changed = true; } }
+    }); }
   if (JSON.stringify(profile) !== before) changed = true;
   return changed;
 }
@@ -6049,6 +6086,9 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
   if (!name) return { created: false, updated: false };
   /* v12.18: tên trùng hồ sơ Nhân Vật Chính / nhãn chung "nhân vật chính" / bí danh → KHÔNG tạo mục mới */
   const rt = resolveCharacterTarget(state, name);
+  if (rt.kind === "ambiguous" || rt.kind === "none") return { created: false, updated: false };   // V14.7.20
+  if (rt.via && rt.kind === "character") learnCharacterAlias(rt.character, name);
+  if (rt.kind === "main" && rt.via) learnCharacterAlias(state.mainCharProfile, name);
   if (rt.kind === "main") { applyMainCharUpdate(state.mainCharProfile, u, sourceText, state); return { created: false, updated: true }; }
   let c = rt.kind === "character" ? rt.character : null;
   let created = false;
@@ -6090,7 +6130,7 @@ function mergeCharacter(state, u, chapterNumber, sourceText) {
     ["role","relevanceToMC","occupation","faction"].forEach(k => {
       if (!u[k]) return;
       const emptyNow = !String(c[k] || "").trim();
-      if (coreLocked && coreFields.includes(k) && !explicitJobChange && !emptyNow) return;
+      if (coreLocked && coreFields.includes(k) && !explicitJobChange && !emptyNow) { if (k === "role") divertLockedDetail(c, k, u[k]); return; }
       if (k !== "relevanceToMC" && !emptyNow && normalizeName(c[k]) !== normalizeName(u[k]) && !explicitJobChange) return;
       c[k] = u[k];
       if (coreFields.includes(k) && (emptyNow || explicitJobChange)) c.coreIdentity[k] = c[k];
@@ -6457,7 +6497,7 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
   const presentSet = new Set(present);
   const otherNames = allChars.filter(c => c && c.name && !presentSet.has(c)).map(c => c.name).slice(0, 120);
   const characters = has("characters") ? present.map(c => ({
-    id:c.id, name:c.name, tier:c.tier, age:c.age, gender:c.gender, role:c.role,
+    id:c.id, name:c.name, aliases:(Array.isArray(c.aliases) ? c.aliases.slice(0, 5) : []), tier:c.tier, age:c.age, gender:c.gender, role:c.role,
     position:c.position, occupation:c.occupation, faction:c.faction,
     appearance:String(c.appearance||"").slice(0,180), personality:String(c.personality||"").slice(0,180),
     goals:String(c.goals||"").slice(0,140), currentLocation:c.currentLocation,
@@ -6481,7 +6521,7 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
     `HẬU KỲ TỔNG HỢP CHO CHƯƠNG ${n}: thực hiện TẤT CẢ tác vụ dưới đây trong MỘT phản hồi JSON.`,
     "Bạn chỉ trích xuất/đồng bộ dữ liệu. Không viết lại chương, không suy diễn, không tạo canon mới nếu không có bằng chứng.",
     "NGUYÊN TẮC AN TOÀN: dữ liệu hiện có là canon. Chỉ trả các thay đổi được chương mới chứng minh. Không có thay đổi thì trả mảng rỗng/chuỗi rỗng; KHÔNG lặp lại hoặc thay thế dữ liệu cũ. Mọi mục cập nhật phải có evidence là một trích đoạn ngắn 5–18 từ lấy từ chính chương. Không dùng bằng chứng bịa.",
-    "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. Hồ sơ gốc role/occupation/position/faction/identity không được đổi. Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. NV MỚI (chưa có trong danh sách) mà có tên riêng xuất hiện rõ trong chương: BẮT BUỘC có mặt trong mảng characters với name viết đúng như trong chương, tier chỉ minor hoặc supporting, kèm chapterEvent và evidence nguyên văn. NV đã có: luôn dùng đúng id trong danh sách dù chương chỉ viết tên gọi rút gọn. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
+    "NHÂN VẬT: chỉ trả NV có xuất hiện/có diễn biến đáng kể trong chương; name phải khớp tên có trong chương. TÊN GỌI: \"chị Linh\", \"anh Hùng\", \"cô Mai\", \"Linh\" là cách gọi của NV đã có (xem aliases) → dùng đúng tên đầy đủ + id trong danh sách, KHÔNG tạo NV mới; chỉ \"chị\"/\"anh ấy\" mà không rõ là ai thì bỏ qua. Hồ sơ gốc role/occupation/position/faction/identity không bị ghi đè; riêng role (vai trò trong truyện, không phải nghề): nếu vai trò đã đổi thật trong chương thì ghi role mới kèm fieldEvidence — nó được lưu vào ô \"Chi tiết mới\". Chỉ đổi nghề/vai trò khi có sự kiện trực tiếp nêu rõ + explicitCoreChange=true + changeEvidence là câu trích dẫn có thật và có nhắc chính vai trò mới. Với nhân vật cũ, chỉ điền điểm mới; trường rỗng nghĩa là không thay đổi. Không tự nâng tier hoặc đổi quan hệ chỉ từ cách xưng hô. Nếu người đã có trong danh sách, dùng đúng tên và id trong danh sách. Mọi trường trạng thái hiện tại (currentLocation/physicalState/mentalState/secret) bắt buộc có stateEvidence riêng; mọi trường hồ sơ khác có fieldEvidence riêng. Evidence phải trích đúng chương và phải chứa các từ khóa phản ánh chính giá trị được đề xuất; nếu không có bằng chứng riêng thì để trống trường đó. Với NV mới, không được cấp role/occupation/position/faction/age/gender hay hồ sơ suy đoán khi thiếu fieldEvidence. NV MỚI (chưa có trong danh sách) mà có tên riêng xuất hiện rõ trong chương: BẮT BUỘC có mặt trong mảng characters với name viết đúng như trong chương, tier chỉ minor hoặc supporting, kèm chapterEvent và evidence nguyên văn. NV đã có: luôn dùng đúng id trong danh sách dù chương chỉ viết tên gọi rút gọn. isDead=true bắt buộc deathEvidence trích đoạn thể hiện rõ cái chết.",
     has("characters") ? "TU LUYỆN: realm CHỈ dùng tên trong thang cảnh giới của truyện (+ tiểu tầng đệ nhất…đệ cửu trọng), không tự đặt cảnh giới mới; chỉ ghi khi chương nêu rõ. Đột phá/tụt cảnh giới BẮT BUỘC explicitCoreChange=true và changeEvidence = câu trích nguyên văn kể sự kiện đó (nhảy từ 2 đại cảnh giới trở lên bị bác). technique/treasure đã có thì không đổi trừ khi explicitCoreChange. arts/fortune/grudges/innerDemon/karma chỉ ghi diễn biến MỚI. aliases chỉ ghi khi chương nói rõ cùng một người.\n" + (cultivationSystemBlock(state) || "") : "",
     "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
     "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: cập nhật changes.time = thời điểm ở CUỐI chương khi xác định được từ mạch truyện — gồm mốc nói thẳng (buổi/ngày/giờ/\"hôm sau\") lẫn dấu hiệu ngầm (ánh sáng, bữa ăn, \"khuya\", việc đang làm, quãng đã trôi); ghi dạng tương đối cũng được (vd \"đêm cùng ngày, vài giờ sau cảnh ở quán\", \"sáng hôm sau\") kèm quãng đã trôi so với đầu chương; evidence trích câu cho thấy dấu hiệu đó. Nếu chương KHÔNG có dấu hiệu thời gian đáng tin thì KHÔNG cập nhật time (giữ mốc cũ), không bịa. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
@@ -6548,14 +6588,16 @@ function resolveRosterCharacter(state, u) {
   const exact = list.find(c => c && normalizeName(c.name) === n); if (exact) return exact;
   const alias = list.find(c => c && Array.isArray(c.aliases) && c.aliases.some(a => normalizeName(a) === n)); if (alias) return alias;
   const suf = list.filter(c => c && c.name && (normalizeName(c.name).endsWith(" " + n) || n.endsWith(" " + normalizeName(c.name))) && n.split(" ").length >= 1 && n.length >= 2);
-  return suf.length === 1 ? suf[0] : null;
+  if (suf.length === 1) return suf[0];
+  const rt2 = resolveCharacterTarget(state, u.name);   // V14.7.20: bỏ danh xưng ("chị Linh" → "Linh") rồi khớp duy nhất
+  return rt2.kind === "character" ? rt2.character : null;
 }
 function filterRelationshipObject(obj, evidenceMap, source) {
   if (!isPlainObj(obj)) return {};
   const out = {};
   Object.keys(obj).forEach(k => {
     const val = obj[k];
-    if (typeof val === "string" && val.trim() && fieldEvidenceSupports(val, evidenceMap && evidenceMap[k], source, 0.45)) out[k] = val;
+    if (typeof val === "string" && val.trim() && fieldQuoteSupports(val, evidenceMap && evidenceMap[k], source)) out[k] = val;
   });
   return out;
 }
@@ -6731,8 +6773,13 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         let nm = String(u.name || "").trim();
         const mcN = normalizeName(state.mainCharProfile && state.mainCharProfile.name);
         // V14.0.14: ánh xạ id/tên rút gọn về NV có sẵn trước khi kiểm tra (tránh bỏ qua NV cũ vì chương viết "Minh Anh" thay vì "Nguyễn Minh Anh").
+        const _rtN = resolveCharacterTarget(state, nm);
+        if (_rtN.kind === "ambiguous") { skipped++; skippedWhy.push(`${nm.slice(0, 40)} (tên gọi khớp nhiều nhân vật: ${_rtN.names.slice(0, 3).join(" / ")} — không đoán)`); return; }
+        if (_rtN.kind === "none") { skipped++; skippedWhy.push(`${nm.slice(0, 40)} (chỉ là danh xưng/đại từ, không rõ là ai)`); return; }
+        const _origNm = nm;
+        if (_rtN.kind === "main" && _rtN.via) { u = Object.assign({}, u, { name: state.mainCharProfile.name }); nm = state.mainCharProfile.name; learnCharacterAlias(state.mainCharProfile, _origNm); }
         const rosterHit = resolveRosterCharacter(state, u);
-        if (rosterHit && normalizeName(rosterHit.name) !== normalizeName(nm)) { u = Object.assign({}, u, { name: rosterHit.name }); nm = rosterHit.name; }
+        if (rosterHit && normalizeName(rosterHit.name) !== normalizeName(nm)) { u = Object.assign({}, u, { name: rosterHit.name }); nm = rosterHit.name; if (containsNamePhrase(_origNm, source)) learnCharacterAlias(rosterHit, _origNm); }
         const isMain = !!mcN && normalizeName(nm) === mcN;
         const isExisting = !!rosterHit || isMain;
         const mentioned = isExisting ? (isMain || rosterNameMentioned(nm, source, state.characters) || containsNamePhrase(String(u.name || ""), source)) : containsNamePhrase(nm, source);
@@ -6757,7 +6804,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
           /* V14.0.14: ngưỡng 0.55 làm rụng gần hết trường vì AI diễn đạt lại giá trị khác chữ trong trích dẫn.
              Hạ còn 0.35 (như Status); bằng chứng vẫn phải là câu có thật trong chương (>=70% từ khớp) và có >=1/3 từ khóa của giá trị. */
           const FIELD_T = 0.35;
-          fieldNames.forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], fe[field] || (field === "secret" ? se.secret : "") || safeU.evidence, source, FIELD_T)) { safeU[field] = ""; droppedFields++; } });
+          fieldNames.forEach(field => { const _ev = fe[field] || (field === "secret" ? se.secret : "") || safeU.evidence; const _ok = INTERPRETIVE_CHAR_FIELDS.includes(field) ? fieldQuoteSupports(safeU[field], _ev, source) : fieldEvidenceSupports(safeU[field], _ev, source, FIELD_T); if (safeU[field] && !_ok) { safeU[field] = ""; droppedFields++; } });
           ["currentLocation","physicalState","mentalState"].forEach(field => { if (safeU[field] && !fieldEvidenceSupports(safeU[field], se[field] || fe[field] || safeU.evidence, source, FIELD_T)) { safeU[field] = ""; droppedFields++; } });
           if (safeU.secret && !fieldEvidenceSupports(safeU.secret, se.secret || fe.secret, source, FIELD_T)) { safeU.secret = ""; droppedFields++; }
           /* V14.1: tên khác/đạo hiệu chỉ nhận khi chính tên đó xuất hiện trong chương. */
@@ -6765,7 +6812,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
           safeU.relationshipWithMain = filterRelationshipObject(safeU.relationshipWithMain, safeU.relationshipWithMainEvidence, source);
           safeU.relationships = (Array.isArray(safeU.relationships) ? safeU.relationships : []).filter(rel => rel && rel.withName && containsNamePhrase(rel.withName, source) && String(rel.evidence || "").trim() && evidenceInText(rel.evidence, source)).map(rel => Object.assign({}, rel, { fieldEvidence: rel.fieldEvidence || {} }));
           safeU.relationships.forEach(rel => {
-            ["stage","trust","respect","affection","attraction","suspicion","tension","boundaries","notes"].forEach(field => { if (rel[field] && !fieldEvidenceSupports(rel[field], rel.fieldEvidence[field] || rel.evidence, source, 0.45)) rel[field] = ""; });
+            ["stage","trust","respect","affection","attraction","suspicion","tension","boundaries","notes"].forEach(field => { if (rel[field] && !fieldQuoteSupports(rel[field], rel.fieldEvidence[field] || rel.evidence, source)) rel[field] = ""; });
           });
           safeU.relationships = safeU.relationships.filter(rel => ["stage","trust","respect","affection","attraction","suspicion","tension","boundaries","notes"].some(k => String(rel[k] || "").trim()));
           if (safeU.isDead === true && !(/\b(chết|tử vong|mất mạng|thiệt mạng|qua đời|bị giết)\b/i.test(String(safeU.deathEvidence || "")) && evidenceInText(safeU.deathEvidence, source))) safeU.isDead = false;

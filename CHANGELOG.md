@@ -1,5 +1,17 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.20] — "chị A", "anh B", tên gọi tắt không nhận ra → không cập nhật hoặc tạo nhân vật mới
+- **Nguyên nhân:** `resolveCharacterTarget` chỉ khớp tên đầy đủ hoặc bí danh khai sẵn; "chị Hùng", "anh Lạc", "Quỳnh Anh" (so với "Trần Quỳnh Anh") không khớp → bản client tạo nhân vật mới; bản nền chỉ cứu được tên gọi tắt không kèm danh xưng. "chị"/"anh ấy" trơn cũng có thể thành nhân vật mới.
+- **Sửa (shared/core.js → client + worker):** bỏ danh xưng đứng đầu (anh, chị, em, cô, chú, bác, ông, bà, thím, cậu, mợ, dì, dượng, thầy, cụ, sếp) rồi khớp tên đầy đủ/bí danh/nhân vật chính, CHỈ khi duy nhất một người khớp. Trùng (hai người cùng tên gọi) → `ambiguous`: bỏ qua, ghi lý do, không đoán, không tạo mới. Chỉ danh xưng/đại từ ("chị", "anh ấy", "cô ta") → bỏ qua. Nhận diện được thì tự lưu cách gọi thành bí danh (tối đa 6) để lần sau khớp thẳng. Roster gửi cho AI nay kèm `aliases`; prompt dặn dùng đúng tên đầy đủ/id, không tạo NV mới cho "chị X".
+- **Test mới:** `v14_7_20_honorific_names` (8 kiểm tra). Chưa thử với model thật.
+- **Hạn chế:** đại từ thuần ("chị ấy", "anh") không biết là ai thì bị bỏ qua, không đoán theo ngữ cảnh; nếu hai nhân vật trùng tên gọi, hãy đặt bí danh riêng cho từng người (ví dụ "chị Hoa kế toán").
+
+## [V14.7.19] — Vai trò, Quan hệ & Ranh giới 18+ không cập nhật theo chương
+- **Nguyên nhân (đã đo):** cổng bằng chứng của bản chạy nền so khớp TỪ KHÓA giữa giá trị AI viết và câu trích. Các trường diễn giải (vai trò, mức liên quan, ranh giới, sở thích, hấp dẫn/căng thẳng 18+, và các trường quan hệ: stage/trust/attraction/boundaries/notes...) là tóm tắt của AI nên gần như không trùng từ với câu trích → bị loại hết (mẫu thử: tỉ lệ khớp 0.00–0.07 so với ngưỡng 0.35/0.45). Ngoài ra `role` đã có thì bị bỏ qua im lặng; nhân vật chính chỉ nhận 4 trường trạng thái + tu luyện, không nhận 18+.
+- **Sửa (shared/core.js → client + worker):** `INTERPRETIVE_CHAR_FIELDS` + `fieldQuoteSupports` — nhóm này chỉ cần câu trích là câu THẬT trong chương (≥70% từ có trong chương); câu trích bịa/rỗng vẫn bị loại. Áp cho trường hồ sơ, `relationships[]` và `relationshipWithMain`. `role` đã khóa: vai trò mới vào ô "Chi tiết mới" (`Vai trò mới: …`) thay vì rơi mất; nghề/chức vụ/phe vẫn khóa. `applyMainCharUpdate`: nhân vật chính nhận `sexualExperience/boundaries/preferences` (nối ý, không ghi đè; chặn < 18 tuổi).
+- **Test mới:** `v14_7_19_character_fields` (6 kiểm tra). Chưa thử với model thật.
+- **Hạn chế:** AI vẫn phải đưa câu trích; trường khác (ngoại hình, tính cách, mục tiêu) vẫn khóa hồ sơ gốc như cũ. Nhân vật chính chưa có mục "Chi tiết mới" nên chỉ nhận 3 trường 18+ ở trên.
+
 ## [V14.7.18] — Tu luyện không có tiến bộ rõ ràng
 - **Nguyên nhân:** quy tắc cũ chỉ nói "không tự nâng cảnh giới, chỉ đột phá khi có sự kiện" — không có yêu cầu nào buộc truyện cho thấy tiến bộ, nên AI chỉ nhắc "tu luyện, mạnh hơn một chút".
 - **Thêm (shared/core.js → client + worker):** `CULTIVATION_PROGRESS_CRAFT` (mốc cụ thể tầng/linh lực/kinh mạch/thần thông; phép thử trước–sau; quá trình và cái giá; nhịp tiểu tầng vs đại cảnh giới và tiến độ tích lũy; một câu tường minh nêu cảnh giới mới để hồ sơ nhận bằng chứng; song tu: kết quả ở hậu cảnh). Gắn vào `cultivationSystemBlock` (mọi prompt viết) và `cultivationPlanBlock` (kế hoạch chương: beat tu luyện phải ghi mốc, phép thử, cái giá). Client/worker truyền `cultivation: cultivationActive(state)`.
