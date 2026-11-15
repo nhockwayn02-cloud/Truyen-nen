@@ -1800,6 +1800,19 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
 /* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
+/* V14.7.22: trạng thái thread là TỪ KHÓA (seeded/developing/...), không thể "có mặt trong câu trích" → cổng so từ khóa luôn xóa nó, thread kẹt ở "seeded". Chuẩn hóa về tập hợp hợp lệ. */
+const THREAD_STATUSES = ["seeded", "developing", "blocked", "resolved", "paid_off", "abandoned"];
+function normalizeThreadStatus(v) {
+  const n = normalizeName(v).replace(/đ/g, "d").replace(/[^a-z_ ]/g, " ").replace(/\s+/g, " ").trim(); if (!n) return "";
+  const key = n.replace(/ /g, "_"); if (THREAD_STATUSES.includes(key)) return key;
+  if (/phat trien|dang dien ra|tiep dien|leo thang|developing|progress/.test(n)) return "developing";
+  if (/da giai quyet|giai quyet xong|khep lai|hoan tat|completed|resolved/.test(n)) return "resolved";
+  if (/tra gia|hoi thanh|paid off|payoff/.test(n)) return "paid_off";
+  if (/bi chan|tam hoan|tre|blocked|stalled/.test(n)) return "blocked";
+  if (/bo ngo|huy bo|abandon/.test(n)) return "abandoned";
+  if (/gieo|moi mo|seed/.test(n)) return "seeded";
+  return "";
+}
 const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
 function fieldQuoteSupports(value, evidence, source) {
   return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
@@ -2814,11 +2827,23 @@ const TIME_PACE_TEXT = {
   week: "mỗi chương cách chương trước khoảng MỘT TUẦN trở lên"
 };
 // Mốc thời gian hiện tại: ô Story Clock (nhập tay) ưu tiên, nếu trống dùng mốc Status tự trích từ chương.
-function currentTimeMark(st) {
-  const manual = String((st && st.storyClock) || "").trim();
-  if (manual) return manual;
+/* V14.7.23: trước đây ô Story Clock (nhập tay) LUÔN thắng mốc tự trích và không bao giờ được app cập nhật → đã nhập một lần là đồng hồ đứng yên
+   dù chương đã qua ngày, và prompt cứ báo "thời điểm hiện tại" cũ. Nay mặc định TỰ THEO chương (storyClockAuto ≠ false); chỉ khi tác giả ghim tay (storyClockAuto = false) mới ưu tiên ô nhập tay. */
+function autoTimeMark(st) {
   const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
   return String((ss.currentState && ss.currentState.time) || "").trim();
+}
+function currentTimeMark(st) {
+  const manual = String((st && st.storyClock) || "").trim();
+  if (st && st.storyClockAuto === false && manual) return manual;
+  return autoTimeMark(st) || manual;
+}
+/* Kéo Story Clock theo mốc Status sau mỗi chương (chỉ khi không ghim tay). Trả true nếu có đổi. */
+function syncStoryClockFromStatus(st) {
+  if (!st || st.storyClockAuto === false) return false;
+  const auto = autoTimeMark(st);
+  if (!auto || auto === String(st.storyClock || "").trim()) return false;
+  st.storyClock = auto; return true;
 }
 // Phát hiện nhiều chương liền không đổi mốc thời gian (so mốc chuẩn hóa trong statusState.timeLog).
 function timeStallInfo(st) {

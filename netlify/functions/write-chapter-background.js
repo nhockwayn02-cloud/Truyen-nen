@@ -1863,6 +1863,19 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
 /* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
+/* V14.7.22: trạng thái thread là TỪ KHÓA (seeded/developing/...), không thể "có mặt trong câu trích" → cổng so từ khóa luôn xóa nó, thread kẹt ở "seeded". Chuẩn hóa về tập hợp hợp lệ. */
+const THREAD_STATUSES = ["seeded", "developing", "blocked", "resolved", "paid_off", "abandoned"];
+function normalizeThreadStatus(v) {
+  const n = normalizeName(v).replace(/đ/g, "d").replace(/[^a-z_ ]/g, " ").replace(/\s+/g, " ").trim(); if (!n) return "";
+  const key = n.replace(/ /g, "_"); if (THREAD_STATUSES.includes(key)) return key;
+  if (/phat trien|dang dien ra|tiep dien|leo thang|developing|progress/.test(n)) return "developing";
+  if (/da giai quyet|giai quyet xong|khep lai|hoan tat|completed|resolved/.test(n)) return "resolved";
+  if (/tra gia|hoi thanh|paid off|payoff/.test(n)) return "paid_off";
+  if (/bi chan|tam hoan|tre|blocked|stalled/.test(n)) return "blocked";
+  if (/bo ngo|huy bo|abandon/.test(n)) return "abandoned";
+  if (/gieo|moi mo|seed/.test(n)) return "seeded";
+  return "";
+}
 const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
 function fieldQuoteSupports(value, evidence, source) {
   return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
@@ -2877,11 +2890,23 @@ const TIME_PACE_TEXT = {
   week: "mỗi chương cách chương trước khoảng MỘT TUẦN trở lên"
 };
 // Mốc thời gian hiện tại: ô Story Clock (nhập tay) ưu tiên, nếu trống dùng mốc Status tự trích từ chương.
-function currentTimeMark(st) {
-  const manual = String((st && st.storyClock) || "").trim();
-  if (manual) return manual;
+/* V14.7.23: trước đây ô Story Clock (nhập tay) LUÔN thắng mốc tự trích và không bao giờ được app cập nhật → đã nhập một lần là đồng hồ đứng yên
+   dù chương đã qua ngày, và prompt cứ báo "thời điểm hiện tại" cũ. Nay mặc định TỰ THEO chương (storyClockAuto ≠ false); chỉ khi tác giả ghim tay (storyClockAuto = false) mới ưu tiên ô nhập tay. */
+function autoTimeMark(st) {
   const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
   return String((ss.currentState && ss.currentState.time) || "").trim();
+}
+function currentTimeMark(st) {
+  const manual = String((st && st.storyClock) || "").trim();
+  if (st && st.storyClockAuto === false && manual) return manual;
+  return autoTimeMark(st) || manual;
+}
+/* Kéo Story Clock theo mốc Status sau mỗi chương (chỉ khi không ghim tay). Trả true nếu có đổi. */
+function syncStoryClockFromStatus(st) {
+  if (!st || st.storyClockAuto === false) return false;
+  const auto = autoTimeMark(st);
+  if (!auto || auto === String(st.storyClock || "").trim()) return false;
+  st.storyClock = auto; return true;
 }
 // Phát hiện nhiều chương liền không đổi mốc thời gian (so mốc chuẩn hóa trong statusState.timeLog).
 function timeStallInfo(st) {
@@ -6244,11 +6269,15 @@ function applyWorld(obj, n, state) {
   (obj.threads || []).forEach(t => {
     if (!t?.desc) return;
     let x = findThread(state, t);
-    if (!x) state.threads.push({ id: genId("t"), type: t.type || "open_thread", status: t.status || "seeded", desc: t.desc, chapterIntroduced: n, lastUpdated: n, history: [] });
+    if (!x) state.threads.push({ id: genId("t"), type: t.type || "open_thread", status: normalizeThreadStatus(t.status) || "seeded", desc: t.desc, chapterIntroduced: n, lastUpdated: n, lastUpdatedChapter: n, history: [], statusHistory: [] });
     else {
       const terminal = ["paid_off", "abandoned", "completed", "resolved"].includes(String(x.status || "").toLowerCase());
-      if (t.status && (!terminal || String(t.status).toLowerCase() === String(x.status).toLowerCase())) x.status = t.status;
-      x.lastUpdated = n; if (!Array.isArray(x.history)) x.history = []; x.history.push({ chapter: n, status: x.status, note: t.desc });
+      const next = normalizeThreadStatus(t.status);
+      if (next && (!terminal || next === String(x.status).toLowerCase())) {
+        if (next !== x.status) { if (!Array.isArray(x.statusHistory)) x.statusHistory = []; x.statusHistory.push({ from: x.status || "seeded", to: next, chapter: n, source: "postprocess", at: Date.now() }); }
+        x.status = next;
+      }
+      x.lastUpdated = n; x.lastUpdatedChapter = n; if (!Array.isArray(x.history)) x.history = []; x.history.push({ chapter: n, status: x.status, note: t.desc });
     }
   });
 }
@@ -6489,7 +6518,7 @@ function mergeStatusChanges(state, n, extraction) {
 const UNIFIED_SCHEMA_PARTS = {
   summary: "\"summary\":\"\"",
   characters: "\"characters\":[{\"name\":\"\",\"tier\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"<tên trường đã điền>\":\"<trích đoạn>\"},\"stateEvidence\":{},\"relationshipWithMain\":{},\"relationshipWithMainEvidence\":{},\"relationships\":[{\"withName\":\"\",\"evidence\":\"\",\"fieldEvidence\":{}}],\"aliases\":[],\"isDead\":false,\"deathEvidence\":\"\",\"explicitCoreChange\":false,\"changeEvidence\":\"\",\"<trường hồ sơ đã điền>\":\"<giá trị>\"}]",
-  world: "\"world\":{\"locations\":[{\"name\":\"\",\"description\":\"\",\"status\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"status\":\"\"}}],\"items\":[{\"name\":\"\",\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"kind\":\"\",\"grade\":\"\",\"effect\":\"\",\"bound\":false,\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"grade\":\"\",\"effect\":\"\"}}],\"threads\":[{\"type\":\"\",\"desc\":\"\",\"status\":\"\",\"matchExistingDesc\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"desc\":\"\",\"status\":\"\"}}]}",
+  world: "\"world\":{\"locations\":[{\"name\":\"\",\"description\":\"\",\"status\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"status\":\"\"}}],\"items\":[{\"name\":\"\",\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"kind\":\"\",\"grade\":\"\",\"effect\":\"\",\"bound\":false,\"evidence\":\"\",\"fieldEvidence\":{\"description\":\"\",\"owner\":\"\",\"status\":\"\",\"grade\":\"\",\"effect\":\"\"}}],\"threads\":[{\"type\":\"open_thread|foreshadowing|consequence\",\"desc\":\"\",\"status\":\"seeded|developing|blocked|resolved|paid_off|abandoned\",\"matchExistingDesc\":\"\",\"evidence\":\"\",\"fieldEvidence\":{\"desc\":\"\",\"status\":\"\"}}]}",
   status: "\"status\":{\"changes\":{\"time\":{},\"situation\":{},\"mainEvent\":{},\"location\":{},\"overall\":{},\"mainCharacter\":{},\"relationships\":{},\"power\":{},\"rules\":{},\"conflict\":{},\"nextGoal\":{},\"knowledge\":{},\"unresolved\":{},\"secrets\":{},\"weaknesses\":{},\"characterChanges\":[{\"characterId\":\"\",\"characterName\":\"\",\"status\":\"updated\",\"changes\":{},\"changeEvidence\":{},\"evidence\":\"\"}],\"conflicts\":[{\"characterName\":\"\",\"field\":\"\",\"oldValue\":\"\",\"newValue\":\"\",\"description\":\"\",\"evidence\":\"\"}]}}",
   memory: "\"memory\":{\"events\":[{\"type\":\"event\",\"summary\":\"\",\"causes\":\"\",\"consequences\":\"\",\"evidence\":\"\"}],\"foreshadowing\":[{\"description\":\"\",\"status\":\"seeded\",\"match\":\"\",\"characters\":\"\",\"evidence\":\"\"}],\"knowledge\":[{\"character\":\"\",\"fact\":\"\",\"confidence\":\"direct\",\"evidence\":\"\"}]}",
   continuityWarnings: "\"continuityWarnings\":[{\"type\":\"\",\"description\":\"\",\"canonReference\":\"\",\"severity\":\"warning\",\"evidence\":\"\"}]",
@@ -6553,6 +6582,7 @@ function unifiedPostprocessPrompt(job, chapter, n, state, keys, opts) {
     has("characters") ? "TU LUYỆN: realm CHỈ dùng tên trong thang cảnh giới của truyện (+ tiểu tầng đệ nhất…đệ cửu trọng), không tự đặt cảnh giới mới; chỉ ghi khi chương nêu rõ. Đột phá/tụt cảnh giới BẮT BUỘC explicitCoreChange=true và changeEvidence = câu trích nguyên văn kể sự kiện đó (nhảy từ 2 đại cảnh giới trở lên bị bác). technique/treasure đã có thì không đổi trừ khi explicitCoreChange. arts/fortune/grudges/innerDemon/karma chỉ ghi diễn biến MỚI. aliases chỉ ghi khi chương nói rõ cùng một người.\n" + (cultivationSystemBlock(state) || "") : "",
     "WORLD: chỉ thêm/cập nhật địa điểm, vật phẩm, thread đang diễn ra hoặc có kết quả rõ ràng; không xóa mục đã có. Không tự kết thúc thread nếu chương chưa thể hiện việc giải quyết.",
     "CURRENT STATUS: trả CHANGE→VALIDATE→MERGE. Mỗi thay đổi cần evidence. TIME: cập nhật changes.time = thời điểm ở CUỐI chương khi xác định được từ mạch truyện — gồm mốc nói thẳng (buổi/ngày/giờ/\"hôm sau\") lẫn dấu hiệu ngầm (ánh sáng, bữa ăn, \"khuya\", việc đang làm, quãng đã trôi); ghi dạng tương đối cũng được (vd \"đêm cùng ngày, vài giờ sau cảnh ở quán\", \"sáng hôm sau\") kèm quãng đã trôi so với đầu chương; evidence trích câu cho thấy dấu hiệu đó. Nếu chương KHÔNG có dấu hiệu thời gian đáng tin thì KHÔNG cập nhật time (giữ mốc cũ), không bịa. Không tự tạo nhân vật: characterChanges phải khớp characterId hoặc name trong roster. Xung đột chưa có căn cứ thì ghi conflicts, không ghi đè.",
+    "THREADS (tình tiết mở): mỗi chương ghi 1–3 tình tiết chưa khép của CHÍNH chương này (type open_thread|foreshadowing|consequence; desc một câu). Với thread đã có trong danh sách threads: điền matchExistingDesc (chép đúng desc cũ) + status mới khi chương có diễn biến (seeded → developing; blocked nếu bị cản; resolved/paid_off khi đã khép; abandoned khi bị bỏ). Không tạo thread mới trùng ý thread cũ. Mỗi thread có evidence là câu trích NGUYÊN VĂN trong chương.",
     "LONG-TERM MEMORY: events = 3–6 sự kiện chính của CHƯƠNG NÀY (mỗi cái một câu: ai làm gì, hậu quả; gồm cả cảnh nóng/quan hệ/tu luyện), bỏ cái đã có trong recentTimeline; foreshadowing = điểm gieo/chi tiết bí ẩn/lời hứa/vật dở dang có thể quay lại sau, hoặc đổi trạng thái điểm đã có (seeded → developing → paid_off); knowledge = điều từng nhân vật vừa BIẾT/NGHI NGỜ thêm trong chương này (ai biết gì, từ đâu). Mỗi mục kèm evidence là một câu trích NGUYÊN VĂN trong chương (không cần giống từng chữ với mục tóm tắt). Không lặp lại mục hiện có. Giữ thông tin ai biết điều gì, không gán kiến thức cho nhân vật không biết.",
     "CONTINUITY: rà mâu thuẫn cụ thể với hồ sơ nhân vật, Current Status, world rules, tri thức đã biết và đoạn cuối chương trước. Chỉ cảnh báo mâu thuẫn thực sự; không báo chỉ vì thiếu thông tin. Mỗi cảnh báo phải có evidence trích từ chương hiện tại và canonReference nêu quy tắc/dữ kiện đối chiếu. Nếu không có, trả mảng []. Không tự sửa canon ở bước này.",
     "SUMMARY: tiếng Việt, mở đầu bằng **Tóm tắt chương:**, 250–400 từ, theo đúng thứ tự, giữ sự kiện/nhân vật thật, không bổ sung. " + (adult ? "Với cảnh trưởng thành, tóm tắt trung lập nhưng không bỏ qua sự kiện/quyết định/hệ quả quan trọng." : ""),
@@ -6859,7 +6889,7 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
     // 3) World updates, evidence-checked. Existing entities are never deleted.
     if (isPlainObj(data.world) && Array.isArray(data.world.locations) && Array.isArray(data.world.items) && Array.isArray(data.world.threads)) {
       const worldRows = (rows, kind) => validEvidenceItems(rows, source).filter(x => {
-        if (kind === "threads") return String(x.desc || "").trim() && fieldEvidenceSupports(x.desc, (x.fieldEvidence || {}).desc || x.evidence, source, 0.35);
+        if (kind === "threads") return String(x.desc || "").trim() && fieldQuoteSupports(x.desc, (x.fieldEvidence || {}).desc || x.evidence, source);
         return !!x.name && containsNamePhrase(x.name, source);
       }).map(x => {
         const fe = x.fieldEvidence && typeof x.fieldEvidence === "object" ? x.fieldEvidence : {};
@@ -6867,8 +6897,8 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
         if (x.owner && !fieldEvidenceSupports(x.owner, fe.owner || x.evidence, source, 0.45)) x.owner = "";
         if (x.grade && !fieldEvidenceSupports(x.grade, fe.grade || x.evidence, source, 0.45)) x.grade = "";
         if (x.effect && !fieldEvidenceSupports(x.effect, fe.effect || x.evidence, source, 0.4)) x.effect = "";
-        if (x.status && !fieldEvidenceSupports(x.status, fe.status || "", source, 0.55)) x.status = "";
-        if (kind === "threads" && x.status && !fieldEvidenceSupports(x.status, fe.status, source, 0.55)) x.status = "";
+        if (kind === "threads") x.status = normalizeThreadStatus(x.status);   // V14.7.22: trạng thái là từ khóa — chuẩn hóa, không so với câu trích
+        else if (x.status && !fieldQuoteSupports(x.status, fe.status || x.evidence, source)) x.status = "";
         return x;
       });
       const wo = {

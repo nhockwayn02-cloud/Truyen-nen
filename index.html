@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="#0e0f13" name="theme-color"/>
-<title>Xưởng Truyện AI Pro Max v14.7.21 — Contract-First</title>
+<title>Xưởng Truyện AI Pro Max v14.7.23 — Contract-First</title>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="app/app.css" rel="stylesheet"/>
@@ -25,7 +25,7 @@
 <div class="brand">
 <div class="brand-mark"></div>
 <div>
-<div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.7.21</span></div>
+<div class="brand-name">Xưởng Truyện AI Pro Max <span style="font-size:11px;color:var(--gold);">V14.7.23</span></div>
 <div class="brand-sub">v14.0.20 · Contract-First · Adaptive Scene · Tạo Chương Hoàn Chỉnh · Quality Gate</div>
 </div>
 </div>
@@ -338,6 +338,7 @@
 <input id="storyClock" placeholder="VD: Ngày 3, buổi tối / 2 tuần sau khi gặp" type="text"/>
 <button class="btn btn-ghost btn-sm" id="saveClockBtn" style="width:auto;flex:none;">Lưu</button>
 </div>
+<label class="hint" style="display:flex;gap:6px;align-items:center;margin-top:6px;"><input type="checkbox" id="storyClockAuto" checked style="width:auto;"/> Tự theo chương (đồng hồ tự cập nhật sau mỗi chương; bấm Lưu = ghim tay)</label>
 <div style="font-size:11px;color:var(--muted,#888);margin-top:4px;">Không bắt buộc. Chỉ để AI giữ dòng thời gian nhất quán — AI KHÔNG ghi nó ra thành nhãn trong văn. Để trống: app tự suy ra từ mạch truyện sau mỗi chương.</div>
 <label style="margin-top:8px">👥 Số nhân vật có tên tối đa mỗi chương</label>
 <select id="maxNamedChars"><option value="4">4 (gọn)</option><option value="5">5</option><option value="6">6 (mặc định)</option><option value="8">8</option><option value="10">10</option><option value="12">12 (dàn đông)</option></select>
@@ -406,6 +407,7 @@
 <input id="threadExpectedInput" placeholder="Kết quả/hệ quả dự kiến (không bắt buộc)" style="margin-top:6px;" type="text"/>
 </div>
 <button class="btn btn-ghost" id="threadAddBtn">＋ Thêm</button>
+<button class="btn btn-purple" id="threadRescanBtn" style="margin-top:6px;" title="Quét lại các chương đã viết để điền bù Threads (và địa điểm/vật phẩm). Chỉ thêm/cập nhật, không xóa.">🧵 Quét lại Threads toàn truyện</button>
 </div>
 </div><div class="section tone-green settings-only-section" data-column="settings" data-section="">
 <div class="section-head" data-toggle=""><span>2. Chỉ Đạo</span><span class="chev">▾</span></div>
@@ -635,7 +637,7 @@
 </div>
 </div>
 <div class="floating-rewrite" id="floatingRewrite">✨ Viết lại đoạn này</div>
-<script src="app/client.js?v=14.7.21"></script>
+<script src="app/client.js?v=14.7.23"></script>
 <script src="app/features.js"></script>
 <script src="app/layered-memory.js"></script>
 </html>

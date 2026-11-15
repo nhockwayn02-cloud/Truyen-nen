@@ -1915,6 +1915,19 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
 /* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
+/* V14.7.22: trạng thái thread là TỪ KHÓA (seeded/developing/...), không thể "có mặt trong câu trích" → cổng so từ khóa luôn xóa nó, thread kẹt ở "seeded". Chuẩn hóa về tập hợp hợp lệ. */
+const THREAD_STATUSES = ["seeded", "developing", "blocked", "resolved", "paid_off", "abandoned"];
+function normalizeThreadStatus(v) {
+  const n = normalizeName(v).replace(/đ/g, "d").replace(/[^a-z_ ]/g, " ").replace(/\s+/g, " ").trim(); if (!n) return "";
+  const key = n.replace(/ /g, "_"); if (THREAD_STATUSES.includes(key)) return key;
+  if (/phat trien|dang dien ra|tiep dien|leo thang|developing|progress/.test(n)) return "developing";
+  if (/da giai quyet|giai quyet xong|khep lai|hoan tat|completed|resolved/.test(n)) return "resolved";
+  if (/tra gia|hoi thanh|paid off|payoff/.test(n)) return "paid_off";
+  if (/bi chan|tam hoan|tre|blocked|stalled/.test(n)) return "blocked";
+  if (/bo ngo|huy bo|abandon/.test(n)) return "abandoned";
+  if (/gieo|moi mo|seed/.test(n)) return "seeded";
+  return "";
+}
 const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
 function fieldQuoteSupports(value, evidence, source) {
   return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
@@ -2929,11 +2942,23 @@ const TIME_PACE_TEXT = {
   week: "mỗi chương cách chương trước khoảng MỘT TUẦN trở lên"
 };
 // Mốc thời gian hiện tại: ô Story Clock (nhập tay) ưu tiên, nếu trống dùng mốc Status tự trích từ chương.
-function currentTimeMark(st) {
-  const manual = String((st && st.storyClock) || "").trim();
-  if (manual) return manual;
+/* V14.7.23: trước đây ô Story Clock (nhập tay) LUÔN thắng mốc tự trích và không bao giờ được app cập nhật → đã nhập một lần là đồng hồ đứng yên
+   dù chương đã qua ngày, và prompt cứ báo "thời điểm hiện tại" cũ. Nay mặc định TỰ THEO chương (storyClockAuto ≠ false); chỉ khi tác giả ghim tay (storyClockAuto = false) mới ưu tiên ô nhập tay. */
+function autoTimeMark(st) {
   const ss = (st && st.statusState && typeof st.statusState === "object") ? st.statusState : {};
   return String((ss.currentState && ss.currentState.time) || "").trim();
+}
+function currentTimeMark(st) {
+  const manual = String((st && st.storyClock) || "").trim();
+  if (st && st.storyClockAuto === false && manual) return manual;
+  return autoTimeMark(st) || manual;
+}
+/* Kéo Story Clock theo mốc Status sau mỗi chương (chỉ khi không ghim tay). Trả true nếu có đổi. */
+function syncStoryClockFromStatus(st) {
+  if (!st || st.storyClockAuto === false) return false;
+  const auto = autoTimeMark(st);
+  if (!auto || auto === String(st.storyClock || "").trim()) return false;
+  st.storyClock = auto; return true;
 }
 // Phát hiện nhiều chương liền không đổi mốc thời gian (so mốc chuẩn hóa trong statusState.timeLog).
 function timeStallInfo(st) {
@@ -4868,7 +4893,7 @@ const state = {
   pronounRules: "", worldDescription: "", storyBibleLocked: false,
   mainCharProfile: null,
   vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
-  arcs: [], outlinePlans: [], storyClock: "", directive: "", nextChapterHint: "", nextChapterHintMeta: { targetChapter: 0, version: 0, status: "unverified" }, autoNextChapterHint: "",
+  arcs: [], outlinePlans: [], storyClock: "", storyClockAuto: true, directive: "", nextChapterHint: "", nextChapterHintMeta: { targetChapter: 0, version: 0, status: "unverified" }, autoNextChapterHint: "",
   difficulty: "vua", mature: false, chapterMatureFocus: "none",
   storyControl: { schemaVersion:1, maxMainEvents:2, maxNamedCharacters:6, maxNewThreads:3, noRetcon:true, agencyRequired:true, lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"] },
   currentStatus: "",
@@ -4918,7 +4943,7 @@ function newStoryState(name){
     mainCharCoreIdentity: {},
     femaleCharacterDefinition: "",
     vocabulary: { preferred:"", banned:"", overused:"", anatomy:"" },
-    arcs:[], outlinePlans:[], storyClock:"", directive:"", nextChapterHint:"", nextChapterHintMeta:{targetChapter:0,version:0,status:"unverified"}, autoNextChapterHint:"",
+    arcs:[], outlinePlans:[], storyClock:"", storyClockAuto:true, directive:"", nextChapterHint:"", nextChapterHintMeta:{targetChapter:0,version:0,status:"unverified"}, autoNextChapterHint:"",
     difficulty:"vua", mature:false, chapterMatureFocus:"none", storyControl:{schemaVersion:1,maxMainEvents:2,maxNamedCharacters:6,maxNewThreads:3,noRetcon:true,agencyRequired:true,lockedFields:["identity","age","background","canon","relationships","cultivation","abilities","importantItems","secrets","promises","worldRules"]}, currentStatus:"",
     characters:[], locations:[], items:[], organizations:[], threads:[], chapterWordMin:null, chapterWordMax:null,
     scenes:[], consentLog:[],
@@ -5651,7 +5676,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.21";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.23";
   }
 
   let lastErr = null;
@@ -6729,9 +6754,12 @@ $ID("timePace") && $ID("timePace").addEventListener("change", ()=>{
   setStatus("Đã lưu nhịp thời gian.", false);
 });
 $ID("saveClockBtn") && $ID("saveClockBtn").addEventListener("click", ()=>{
-  state.storyClock = storyClockEl.value; persist(); renderCurrentChapter();
-  setStatus("Đã lưu mốc thời gian.", false);
+  state.storyClock = storyClockEl.value; state.storyClockAuto = false;   // V14.7.23: tự nhập tay = ghim; bật lại ô "Tự theo chương" để đồng hồ chạy tiếp
+  { const ca=$ID("storyClockAuto"); if(ca) ca.checked=false; }
+  persist(); renderCurrentChapter();
+  setStatus("Đã lưu và GHIM mốc thời gian (bật \"Tự theo chương\" nếu muốn app tự cập nhật).", false);
 });
+{ const ca=$ID("storyClockAuto"); if(ca) ca.addEventListener("change", ()=>{ state.storyClockAuto = ca.checked; if(ca.checked && syncStoryClockFromStatus(state)) storyClockEl.value = state.storyClock; persist(); renderCurrentChapter(); setStatus(ca.checked ? "Story Clock sẽ tự theo mốc thời gian của từng chương." : "Story Clock được ghim theo ô nhập tay.", false); }); }
 $ID("saveAdvancedRulesBtn").addEventListener("click", ()=>{
   state.advancedRules = advancedRulesEl.value; persist();
   setStatus("Đã lưu.", false);
@@ -6850,7 +6878,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.21";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.23";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -7881,7 +7909,7 @@ function renderThreads(){
     '<div class="thread-item"><span class="thread-type">'+escapeHtml(t.type||"open_thread")+'</span><span class="thread-status">'+escapeHtml(t.status||"seeded")+'</span>'
     + '<textarea data-thread-desc="'+i+'" rows="2" style="margin-top:5px;">'+escapeHtml(t.desc||"")+'</textarea>'
     + (t.expectedPayoff?'<div class="hint">Dự kiến: '+escapeHtml(t.expectedPayoff)+'</div>':'')
-    + '<div class="row2"><span class="hint">Gieo ch'+(Number(t.chapterIntroduced)||0)+' · cập nhật ch'+(Number(t.lastUpdatedChapter)||Number(t.chapterIntroduced)||0)+'</span><select data-thread-status="'+i+'"><option value="seeded"'+(t.status==="seeded"?" selected":"")+'>Seeded</option><option value="developing"'+(t.status==="developing"?" selected":"")+'>Developing</option><option value="blocked"'+(t.status==="blocked"?" selected":"")+'>Blocked</option><option value="resolved"'+(t.status==="resolved"?" selected":"")+'>Resolved</option><option value="paid_off"'+(t.status==="paid_off"?" selected":"")+'>Paid off</option><option value="abandoned"'+(t.status==="abandoned"?" selected":"")+'>Abandoned</option></select></div>'
+    + '<div class="row2"><span class="hint">Gieo ch'+(Number(t.chapterIntroduced)||0)+' · cập nhật ch'+(Number(t.lastUpdatedChapter)||Number(t.lastUpdated)||Number(t.chapterIntroduced)||0)+'</span><select data-thread-status="'+i+'"><option value="seeded"'+(t.status==="seeded"?" selected":"")+'>Seeded</option><option value="developing"'+(t.status==="developing"?" selected":"")+'>Developing</option><option value="blocked"'+(t.status==="blocked"?" selected":"")+'>Blocked</option><option value="resolved"'+(t.status==="resolved"?" selected":"")+'>Resolved</option><option value="paid_off"'+(t.status==="paid_off"?" selected":"")+'>Paid off</option><option value="abandoned"'+(t.status==="abandoned"?" selected":"")+'>Abandoned</option></select></div>'
     + '<div class="char-actions"><button class="btn btn-outline-red btn-sm" data-thread-del="'+i+'">Xóa</button></div></div>'
   ).join("");
   threadList.querySelectorAll("[data-thread-del]").forEach(btn=>{
@@ -10184,6 +10212,7 @@ async function condenseChapterToBounds(chapterObj, chapterNumber, chapterPlan, m
 
 function recordStoryTimeMark(chapterNumber, chapterObj){
   const n=Number(chapterNumber)||0; if(!n)return null;
+  if(syncStoryClockFromStatus(state)){ try{ storyClockEl.value=state.storyClock; }catch(_){} }   // V14.7.23: đồng hồ truyện tự theo chương
   if(!state.statusState||typeof state.statusState!=="object")state.statusState={};
   if(!Array.isArray(state.statusState.timeLog))state.statusState.timeLog=[];
   const time=String(chapterObj&&chapterObj.storyTimeMark||currentTimeMark(state)||"").trim(); if(!time)return null;
@@ -11426,6 +11455,7 @@ function hydrateFormFromState(){
   worldDescriptionEl.value = state.worldDescription || "";
   storyBibleLockEl.checked = !!state.storyBibleLocked;
   storyClockEl.value = state.storyClock || "";
+  { const ca=$ID("storyClockAuto"); if(ca) ca.checked = state.storyClockAuto !== false; }
   { const tp=$ID("timePace"); if(tp) tp.value = (state.storyControl && state.storyControl.timePace) || ""; }
   { const mn=$ID("maxNamedChars"); if(mn) mn.value = String(normalizeStoryControl(state).maxNamedCharacters); }
   directiveEl.value = state.directive || "";
@@ -11497,6 +11527,10 @@ async function updateLongMemoryIncremental(text, chapterNumber, silent){
     state.lastMemorySyncChapter=Math.max(Number(state.lastMemorySyncChapter)||0,chapterNumber);persist();renderMemoryEngine();return {ok:true};
   }catch(err){if(!silent)setStatus("Lỗi Memory ch"+chapterNumber+": "+err.message,false);return {ok:false,reason:err.message};}
 }
+{ const tb=$ID("threadRescanBtn"); if(tb) tb.addEventListener("click",async()=>{
+  if(!state.chapters.length){setStatus("Chưa có chương.",false);return;} if(generating){setStatus("Đang bận.",true);return;}
+  setGenerating(true);let ok=0,fail=0;try{for(let i=0;i<state.chapters.length;i++){setStatus("Threads: chương "+(i+1)+"/"+state.chapters.length+"...",true);const r=await updateWorldIncremental(state.chapters[i].text,i+1,true);if(r&&r.ok)ok++;else fail++;if(userStopRequested)break;}persist();renderThreads();renderLocations();renderItems();setStatus("Đã quét Threads: "+ok+" chương OK"+(fail?", "+fail+" lỗi":"")+". Hiện có "+(state.threads||[]).length+" thread.",false);}catch(err){setStatus("Lỗi quét Threads: "+err.message,false);}finally{setGenerating(false);}
+}); }
 $ID("memoryRescanBtn").addEventListener("click",async()=>{
   if(!state.chapters.length){setStatus("Chưa có chương.",false);return;} if(generating){setStatus("Đang bận.",true);return;}
   setGenerating(true);let ok=0,fail=0;try{for(let i=0;i<state.chapters.length;i++){setStatus("Memory: chương "+(i+1)+"/"+state.chapters.length+"...",true);const r=await updateLongMemoryIncremental(state.chapters[i].text,i+1,true);if(r&&r.ok)ok++;else fail++;if(userStopRequested)break;}persist();renderMemoryEngine();setStatus("Memory scan xong: "+ok+" OK"+(fail?", "+fail+" lỗi.":"."),false);}catch(e){setStatus("Lỗi Memory: "+e.message,false);}finally{setGenerating(false);}
@@ -11995,6 +12029,7 @@ async function mergeBackgroundChapter(statusData,record){
     const localTimeLog=state.statusState&&Array.isArray(state.statusState.timeLog)?state.statusState.timeLog:[];
     const remoteTimeLog=Array.isArray(incoming.statusState.timeLog)?incoming.statusState.timeLog:[];
     state.statusState=incoming.statusState;
+    if(syncStoryClockFromStatus(state)){ try{ storyClockEl.value=state.storyClock; }catch(_){} }
     const byChapter=new Map(); remoteTimeLog.concat(localTimeLog).forEach(x=>{if(x&&Number(x.chapter)>0)byChapter.set(Number(x.chapter),x);});
     state.statusState.timeLog=Array.from(byChapter.values()).sort((a,b)=>Number(a.chapter)-Number(b.chapter)).slice(-500);
   }
