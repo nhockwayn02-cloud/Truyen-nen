@@ -1914,6 +1914,21 @@ function evidenceSupportsValue(value, evidence, threshold = 0.55) {
   let hit = 0; uniq.forEach(w => { if (ev.has(w)) hit++; });
   return hit / uniq.length >= Math.max(0, Math.min(1, Number(threshold) || 0.55));
 }
+/* V14.7.25: AI thường chỉ đưa MỘT câu trích chung cho cả nhân vật (về sự kiện), không đưa câu trích riêng cho từng trường. Giá trị ngoại hình/tuổi/nghề... nằm ở câu khác nên cổng
+   "từ khóa giá trị ⊂ câu trích chung" loại hết → thẻ nhân vật tạo ra rỗng dù Current Status mô tả rất đủ. Cổng bổ sung: giá trị được chấp nhận nếu phần lớn từ khóa (và MỌI con số) có thật trong chương. */
+let _chapterWordCache = { src: null, set: null };
+function chapterCoverageSupports(value, source, min) {
+  const v = String(value || "").trim(), src = String(source || ""); if (!v || !src) return false;
+  if ((v.match(/\d+/g) || []).some(n => !src.includes(n))) return false;   // số (tuổi, số đo) phải có đúng trong chương
+  if (_chapterWordCache.src !== src) _chapterWordCache = { src, set: new Set(_normWords(src)) };
+  const stop = new Set(["va","la","cua","cho","voi","mot","nhung","cac","da","dang","se","thi","ma","nay","do","kia","duoc","bi","boi","tai","trong","ngoai","tren","duoi","den","tu","rat","hon","nhu","khi","neu","vi","nen","de","co","khong","cung","van"]);
+  const words = [...new Set(_normWords(v).filter(w => w.length >= 2 && !stop.has(w)))]; if (!words.length) return false;
+  let hit = 0; words.forEach(w => { if (_chapterWordCache.set.has(w)) hit++; });
+  return hit / words.length >= (min || 0.6);
+}
+function fieldSupportedInChapter(value, evidence, source, threshold) {
+  return fieldEvidenceSupports(value, evidence, source, threshold) || chapterCoverageSupports(value, source);
+}
 /* V14.7.19: trường DIỄN GIẢI (vai trò, quan hệ, ranh giới, sở thích 18+...) là tóm tắt/nhận định của AI — từ ngữ gần như không trùng câu trích, nên cổng so khớp từ khóa làm rụng gần hết. Với nhóm này chỉ cần câu trích là câu THẬT trong chương. */
 /* V14.7.22: trạng thái thread là TỪ KHÓA (seeded/developing/...), không thể "có mặt trong câu trích" → cổng so từ khóa luôn xóa nó, thread kẹt ở "seeded". Chuẩn hóa về tập hợp hợp lệ. */
 const THREAD_STATUSES = ["seeded", "developing", "blocked", "resolved", "paid_off", "abandoned"];
@@ -1928,7 +1943,8 @@ function normalizeThreadStatus(v) {
   if (/gieo|moi mo|seed/.test(n)) return "seeded";
   return "";
 }
-const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes"];
+/* V14.7.24: mở rộng sang các trường TÂM LÝ / DIỄN BIẾN (tính cách, mục tiêu, điểm yếu, nỗi sợ, hiểu biết, sự kiện của NV trong chương, trạng thái tâm lý/thể chất) — nhân vật chủ yếu xuất hiện trong cảnh nội tâm/quan hệ có giá trị trừu tượng nên bị cổng từ khóa loại. Trường cụ thể (tuổi, giới, nghề, chức vụ, phe, ngoại hình, vị trí) vẫn dùng cổng từ khóa. */
+const INTERPRETIVE_CHAR_FIELDS = ["role", "relevanceToMC", "sexualExperience", "boundaries", "taboos", "preferences", "attractionToMC", "tensionWithMC", "consentNotes", "personality", "goals", "weakness", "fear", "knowledge", "chapterEvent", "independentPlot", "strength", "mentalState", "physicalState"];
 function fieldQuoteSupports(value, evidence, source) {
   return !!String(value || "").trim() && !!String(evidence || "").trim() && evidenceInText(evidence, source);
 }
@@ -3531,6 +3547,24 @@ function findDuplicateCharacterGroups(state) {
 }
 
 /* Gộp nhân vật `sourceId` vào `targetId` ("MAIN" = hồ sơ Nhân Vật Chính: chỉ điền ô còn trống, không ghi đè nội dung người dùng đã nhập). */
+/* V14.7.25: xóa/gộp nhân vật chỉ xóa khỏi Character Database; thẻ trong Current Status (statusState.characterStates) và dòng
+   "• Tên: …" trong văn bản Current Status vẫn còn → nhân vật đã xóa/gộp vẫn hiện ở Status. Dọn theo tên/bí danh/id.
+   intoChar ({id,name}): khi GỘP, thẻ của nhân vật nguồn được chuyển cho nhân vật đích nếu đích chưa có thẻ, ngược lại bỏ. */
+function purgeCharacterFromStatus(st, names, ids, intoChar) {
+  const ss = st && st.statusState; if (!ss || !Array.isArray(ss.characterStates)) return 0;
+  const ns = new Set((names || []).map(normalizeName).filter(Boolean)), idset = new Set((ids || []).filter(Boolean).map(String));
+  const nameOf = x => normalizeName((x && (x.name || x.characterName)) || "");
+  const hit = x => !!x && ((x.characterId && idset.has(String(x.characterId))) || ns.has(nameOf(x)));
+  let hasTargetCard = !!intoChar && ss.characterStates.some(x => x && !hit(x) && ((x.characterId && String(x.characterId) === String(intoChar.id)) || nameOf(x) === normalizeName(intoChar.name)));
+  let changed = 0;
+  ss.characterStates = ss.characterStates.map(x => {
+    if (!hit(x)) return x; changed++;
+    if (intoChar && !hasTargetCard) { hasTargetCard = true; return Object.assign({}, x, { characterId: intoChar.id, name: intoChar.name, characterName: intoChar.name }); }
+    return null;
+  }).filter(Boolean);
+  if (changed && typeof st.currentStatus === "string" && st.currentStatus.includes("- Thông tin nhân vật cập nhật:")) st.currentStatus = replaceStatusCharacterBlock(st.currentStatus, ss.characterStates);
+  return changed;
+}
 function mergeCharacterIntoState(state, sourceId, targetId) {
   const chars = state.characters || [], src = chars.find(c => c.id === sourceId);
   if (!src) return { ok: false, reason: "không thấy mục nguồn" };
@@ -3551,6 +3585,7 @@ function mergeCharacterIntoState(state, sourceId, targetId) {
     if (!tgt) return { ok: false, reason: "không thấy mục đích" };
     mergeCharacterRecords(tgt, src); targetName = tgt.name;
   }
+  purgeCharacterFromStatus(state, [src.name].concat(Array.isArray(src.aliases) ? src.aliases : []), [src.id], targetId === "MAIN" ? null : { id: targetId, name: targetName });
   state.characters = chars.filter(c => c.id !== sourceId);
   const sn = normalizeName(src.name);
   state.characters.forEach(c => {
@@ -5676,7 +5711,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.23";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.26";
   }
 
   let lastErr = null;
@@ -6878,7 +6913,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.23";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.26";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -7542,7 +7577,9 @@ function renderCharactersCore(){
       const name = state.characters[idx] ? (state.characters[idx].name||"?") : "?";
       const ok = await showConfirm("Xóa nhân vật \""+name+"\"?", {okText:"Xóa", danger:true});
       if(!ok) return;
+      { const _c=state.characters[idx]; if(_c) purgeCharacterFromStatus(state,[_c.name].concat(Array.isArray(_c.aliases)?_c.aliases:[]),[_c.id]); }   // V14.7.25
       state.characters.splice(idx,1);
+      if(statusBox) statusBox.textContent = state.currentStatus || "";
       openCharDetails.clear(); persist(); renderCharacters();
     });
   });
@@ -7699,7 +7736,7 @@ function updateCharDedupeUI(){
   if(bn){ bn.style.display = n ? "block" : "none"; bn.textContent = n ? "⚠ Có " + n + " mục nghi trùng hoặc là nhãn chung (vd. “nhân vật chính”). Bấm 🧹 Dọn nhân vật trùng để xem và gộp." : ""; }
 }
 function snapshotForCharUndo(label){
-  charMergeUndo = { label, at: Date.now(), characters: JSON.stringify(state.characters||[]), mainCharProfile: JSON.stringify(state.mainCharProfile||null), ignored: JSON.stringify(state.ignoredDupPairs||[]) };
+  charMergeUndo = { label, at: Date.now(), characters: JSON.stringify(state.characters||[]), mainCharProfile: JSON.stringify(state.mainCharProfile||null), ignored: JSON.stringify(state.ignoredDupPairs||[]), statusCards: JSON.stringify((state.statusState&&state.statusState.characterStates)||[]), currentStatus: state.currentStatus||"" };
 }
 function openCharDedupe(){
   const overlay = document.createElement("div"); overlay.className = "modal-overlay";
@@ -7729,7 +7766,9 @@ function openCharDedupe(){
     const undo = box.querySelector("#cdUndo");
     if(undo) undo.onclick = ()=>{
       state.characters = JSON.parse(charMergeUndo.characters); state.mainCharProfile = JSON.parse(charMergeUndo.mainCharProfile) || state.mainCharProfile;
-      state.ignoredDupPairs = JSON.parse(charMergeUndo.ignored); charMergeUndo = null;
+      state.ignoredDupPairs = JSON.parse(charMergeUndo.ignored);
+      if(charMergeUndo.statusCards!=null){ if(!state.statusState||typeof state.statusState!=="object") state.statusState={}; state.statusState.characterStates=JSON.parse(charMergeUndo.statusCards); state.currentStatus=charMergeUndo.currentStatus||state.currentStatus; if(statusBox) statusBox.textContent=state.currentStatus||""; }
+      charMergeUndo = null;
       persist(); renderCharacters(); setStatus("↶ Đã hoàn tác lần gộp gần nhất.", false); draw();
     };
     const byKey = (k)=>findDuplicateCharacterGroups(state).find(x=>x.key===k);
@@ -7738,6 +7777,7 @@ function openCharDedupe(){
       snapshotForCharUndo("gộp “" + sg.sourceName + "” → “" + sg.targetName + "”");
       const r = mergeCharacterIntoState(state, sg.sourceId, sg.targetId);
       if(!r.ok){ charMergeUndo = null; setStatus("Không gộp được: " + r.reason, false); return; }
+      if(statusBox) statusBox.textContent = state.currentStatus || "";
       persist(); renderCharacters(); setStatus("🔗 Đã gộp “" + r.from + "” vào “" + r.into + "”.", false); draw();
     });
     box.querySelectorAll("[data-cd-keep]").forEach(b=>b.onclick = ()=>{
@@ -7748,7 +7788,9 @@ function openCharDedupe(){
       const sg = byKey(b.getAttribute("data-cd-del")); if(!sg) return;
       if(!await showConfirm("Xóa mục “" + sg.sourceName + "”? (Có thể hoàn tác đến khi tải lại trang)")) return;
       snapshotForCharUndo("xóa “" + sg.sourceName + "”");
+      { const _c=state.characters.find(c=>c.id===sg.sourceId); if(_c) purgeCharacterFromStatus(state,[_c.name].concat(Array.isArray(_c.aliases)?_c.aliases:[]),[_c.id]); }   // V14.7.25
       state.characters = state.characters.filter(c=>c.id!==sg.sourceId);
+      if(statusBox) statusBox.textContent = state.currentStatus || "";
       persist(); renderCharacters(); draw();
     });
   };

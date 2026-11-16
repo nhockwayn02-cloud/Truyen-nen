@@ -1,5 +1,23 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.26] — Thẻ nhân vật rỗng dù Current Status mô tả đầy đủ (ví dụ Trần Minh Châu)
+- **Nguyên nhân (đọc code + ảnh):** Current Status có ngoại hình/trang phục/cảm xúc của Châu (từ bước thẻ Status), nhưng thẻ trong Character Database gần như trống. AI thường chỉ đưa MỘT câu trích chung cho cả nhân vật (về sự kiện), không đưa câu trích riêng cho từng trường; cổng cũ đòi từ khóa của giá trị ngoại hình/tuổi/nghề… phải nằm trong chính câu trích đó, mà ngoại hình nằm ở câu khác → bị loại. Nhân vật mới vẫn được tạo (chỉ có tên) nên thành thẻ rỗng, và các chương sau gặp lại đúng lỗi này.
+- **Sửa (shared/core.js → client + worker):** `chapterCoverageSupports` + `fieldSupportedInChapter` — trường cụ thể được nhận nếu hoặc có câu trích hỗ trợ (như cũ), hoặc phần lớn từ khóa (≥ 60%) của giá trị CÓ THẬT trong chương và MỌI con số (tuổi, số đo) có đúng trong chương. Áp cho trường hồ sơ cụ thể và `currentLocation`. Bí mật (`secret`) giữ nguyên cổng chặt (cần bằng chứng riêng).
+- **Test mới:** `v14_7_26_chapter_coverage` (5 kiểm tra). Chưa thử với model thật.
+- **Hạn chế:** cổng mới kiểm tra giá trị có xuất hiện trong chương, không kiểm tra nó gắn đúng nhân vật; chương có nhiều người cùng miêu tả có thể gán nhầm chi tiết. Thẻ đã rỗng sẽ không tự điền bù: cần chạy lại cập nhật nhân vật từ các chương đã viết.
+
+## [V14.7.25] — Xóa/gộp nhân vật nhưng Current Status vẫn còn nhân vật đó
+- **Nguyên nhân (đọc code):** xóa tay, "xóa bản trùng" và "gộp" chỉ bỏ nhân vật khỏi Character Database. Thẻ nhân vật trong `statusState.characterStates` và dòng "• Tên: …" trong văn bản Current Status không được dọn, nên nhân vật đã xóa/gộp vẫn hiện ở Status cho tới khi một lượt cập nhật Status sau đó ghi lại.
+- **Sửa (shared/core.js → client):** `purgeCharacterFromStatus` xóa thẻ theo tên/bí danh/id và dựng lại khối "Thông tin nhân vật cập nhật" trong văn bản Status; khi GỘP, thẻ của nhân vật nguồn chuyển sang nhân vật đích nếu đích chưa có thẻ (không mất dữ liệu trạng thái), ngược lại bỏ. Áp cho xóa tay, xóa bản trùng và gộp; hộp Status làm mới ngay; "Hoàn tác" khôi phục cả Status.
+- **Test mới:** `v14_7_25_status_purge` (4 kiểm tra).
+- **Hạn chế:** chỉ dọn thẻ và khối nhân vật; nếu tên nhân vật đã xóa còn nằm trong các dòng Status khác (Tình huống, Sự kiện chính…) thì vẫn còn, vì đó là văn bản AI tự viết. Nhân vật bị tạo trùng từ trước vẫn cần gộp bằng "Dọn nhân vật trùng".
+
+## [V14.7.24] — Nhân vật xuất hiện nhiều chương nhưng hồ sơ không cập nhật
+- **Nguyên nhân (đọc code):** V14.7.19 chỉ chuyển 9 trường (vai trò, quan hệ, 18+) sang cổng "câu trích thật". Các trường tâm lý/diễn biến — tính cách, mục tiêu, điểm yếu, nỗi sợ, hiểu biết, `chapterEvent`, `mentalState`, `physicalState` — vẫn bị so từ khóa (0.35–0.45) với câu trích. Nhân vật chủ yếu xuất hiện trong cảnh nội tâm/quan hệ có giá trị là tóm tắt trừu tượng ("chống cự yếu dần, bắt đầu lệ thuộc…") nên gần như mọi trường bị rụng, dù đã viết nhiều chương quanh họ.
+- **Sửa:** mở rộng `INTERPRETIVE_CHAR_FIELDS` sang nhóm tâm lý/diễn biến nói trên; bước ghi của bản chạy nền dùng `fieldQuoteSupports` cho nhóm này, kể cả `mentalState`/`physicalState`, `chapterEvent`. Bí mật (`secret`) vẫn cần bằng chứng RIÊNG (không suy đoán). Trường cụ thể (tuổi, giới, nghề, chức vụ, phe, ngoại hình, vị trí) vẫn dùng cổng từ khóa. Hồ sơ khóa vẫn được bảo vệ: tính cách/ngoại hình/mục tiêu của NV khóa chỉ vào "Chi tiết mới".
+- **Test mới:** `v14_7_24_char_state_fields` (4 kiểm tra). Chưa thử với model thật.
+- **Hạn chế:** nếu chương gọi nhân vật chỉ bằng đại từ (không có tên) hoặc tên trùng nhiều người thì vẫn bị bỏ qua — xem dòng "NV: … bỏ qua (lý do)" trong báo cáo hậu kỳ của chương.
+
 ## [V14.7.23] — Story Clock đứng yên dù chương đã qua ngày
 - **Nguyên nhân (đọc code):** ô Story Clock là ô NHẬP TAY và app không bao giờ cập nhật nó; `currentTimeMark` lại cho ô nhập tay thắng mốc tự trích từ chương (Status). Nhập một lần (hoặc bất kỳ giá trị nào) là đồng hồ đứng yên và mọi prompt viết chương cứ nhận "thời điểm hiện tại" cũ, kể cả khi chương đã sang ngày khác. Nhật ký thời gian cũng ghi lại đúng mốc cũ đó, nên cảnh báo "đứng một ngày" lẫn với đồng hồ đứng.
 - **Sửa (shared/core.js → client + worker):** mặc định đồng hồ TỰ THEO chương: `currentTimeMark` ưu tiên mốc Status tự trích; `syncStoryClockFromStatus` kéo ô Story Clock theo mốc đó sau mỗi chương (ở cả đường chạy nền và đường trong trình duyệt). Thêm ô **"Tự theo chương"** (bật mặc định); bấm **Lưu** = ghim tay (tắt tự theo) cho tác giả muốn tự quyết; bật lại để đồng hồ chạy tiếp.
