@@ -198,6 +198,20 @@ function characterIntroduced(st, c) {
   for (let i = chs.length - 1; i >= Math.max(0, chs.length - 4); i--) { if (normalizeName(String(chs[i] && chs[i].text || '').slice(0, 20000)).includes(nm)) return true; }
   return false;
 }
+/* V14.7.27: THỨ BẬC QUYỀN LỰC trong cảnh. Trước đây quy định chênh lệch chức vụ/địa vị chỉ nằm ở ngữ cảnh chung, không vào prompt từng scene; thẻ Current Status (mức phục tùng, tâm lý) lại "ưu tiên hơn hồ sơ gốc" nên dần kéo nhân vật sang sợ hãi/phục tùng, lấn át chức vụ. */
+function powerHierarchyBlock(st, pick) {
+  st = st || {}; const people = (pick || []).filter(c => c && c.name);
+  if (people.length < 2) return '';
+  const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const ranks = people.slice(0, 5).map(c => { const r = cut(c.position || c.role || c.occupation, 60); return r ? c.name + ' = ' + r : ''; }).filter(Boolean);
+  const def = cut(st.femaleCharacterDefinition, 420);
+  if (ranks.length < 2 && !def) return '';
+  return 'THỨ BẬC QUYỀN LỰC (khóa — đặt trên Current Status): ' + (ranks.length ? ranks.join('; ') + '. ' : '') +
+    'Chức vụ/địa vị xã hội là CÁCH HAI NGƯỜI ĐỐI XỬ KHI CÓ NGƯỜI KHÁC hoặc trong công việc: người chức cao KHÔNG sợ, KHÔNG cúi đầu, KHÔNG xưng hạ trước người chức thấp hơn; giọng, tư thế, cách ra lệnh phải khớp cấp bậc. ' +
+    'Sợ hãi/phục tùng chỉ được viết khi cảnh có NGUYÊN NHÂN CỤ THỂ đã nêu trong contract hoặc đuôi cảnh trước (bị nắm thóp, bị đe dọa, sức mạnh áp đảo riêng tư) và chỉ ở nơi riêng tư; khi ra ngoài/ở công ty phải trở lại đúng vị thế công khai. ' +
+    'Mục "mức phục tùng/tâm lý" trong Current Status KHÔNG được xóa chức vụ: nếu mâu thuẫn với thứ bậc này thì giữ thứ bậc, thể hiện nỗi sợ bằng nội tâm kìm nén chứ không bằng hành vi hạ cấp công khai.' +
+    (def ? ' Nguyên tắc nhân vật nữ của tác giả: ' + def : '');
+}
 function sceneProfileBlock(st, scene, castNames) {
   st = st || {};
   const names = [].concat((scene && scene.characters) || [], (!scene || !(scene.characters || []).length) ? (castNames || []) : []).map(x => String(x || '').trim()).filter(Boolean);
@@ -227,9 +241,10 @@ function sceneProfileBlock(st, scene, castNames) {
     return f.length ? '- ' + c.name + ' | ' + f.join(' | ') : '';
   }).filter(Boolean);
   if (!rows.length && !srows.length) return '';
+  const hier = [powerHierarchyBlock(st, pick), innerVoiceBlock(st, pick)].filter(Boolean).join('\n');
   const statusPart = srows.length ? '\nTRẠNG THÁI HIỆN TẠI (Current Status mới nhất — nếu khác hồ sơ gốc thì theo mục này):\n' + srows.join('\n').slice(0, 2200) : '';
-  if (!rows.length) return 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart;
-  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Hình thể (chiều cao, dáng, SỐ ĐO, tóc, mắt, da…) có trong hồ sơ thì dùng ĐÚNG, không bịa số khác. Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 3800) + statusPart;
+  if (!rows.length) return 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart + (hier ? '\n' + hier : '');
+  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Hình thể (chiều cao, dáng, SỐ ĐO, tóc, mắt, da…) có trong hồ sơ thì dùng ĐÚNG, không bịa số khác. Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 3800) + statusPart + (hier ? '\n' + hier : '');
 }
 
 /* ===== V14.5.13 — THẺ NHÂN VẬT TRONG CURRENT STATUS (toàn thẻ, tích lũy) =====
@@ -1001,8 +1016,11 @@ function buildAdaptiveSceneWritePrompt(o) {
     o.sceneScope ? sceneScopedChecklistBlock(s, o.sceneScope) : o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
     sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
+    o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
+    SENTENCE_RHYTHM_RULE,
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
+    o.isFinalScene ? 'KẾT CHƯƠNG CÓ MÓC: câu cuối KHÔNG được là lời tóm tắt nội tâm hay kế hoạch ("cô biết…", "chuẩn bị cho…"). Kết bằng một hình ảnh cụ thể, một câu thoại, hoặc một thông tin/biến cố mới khiến người đọc muốn lật trang.' : '',
     o.endingAnchor && o.isFinalScene ? 'ĐIỂM KẾT BẮT BUỘC: ' + String(o.endingAnchor).replace(/\s+/g, ' ').slice(0, 360) : '',
     o.previousTail ? (o.isOpeningScene
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
@@ -1037,6 +1055,153 @@ function buildAdaptiveSceneTopUpPrompt(o) {
 }
 
 // V12.23: ĐỒNG BỘ viết thường ↔ viết nền — các khối prompt dùng chung (cùng một bản chữ cho cả hai nơi).
+/* V14.7.28: CHỐNG VĂN MÁY MÓC. Đo trên 30 chương thật: "run rẩy" 285 lần, "nhục nhã" 134, "hít một hơi thật sâu" 33, 15/30 chương mở bằng "Bùi Lạc đứng/tiến/buông…". Ô Từ vựng của người dùng trống nên app không có gì để tránh.
+   (1) danh sách cụm hay lặp có sẵn + cụm lặp tự phát hiện từ chính truyện, đưa vào prompt; (2) cổng đếm cụm lặp (cảnh báo / lỗi nặng khi quá gấp đôi hạn mức) ; (3) cổng kiểu mở chương. */
+const OVERUSED_WATCH = [
+  { p: 'run rẩy', max: 4, hard: true, alt: 'tả cử động cụ thể: ngón tay bấu mép bàn, hơi thở đứt, đầu gối khuỵu' },
+  { p: 'nhục nhã', max: 3, hard: true, alt: 'cho thấy qua hành động/lời nói thay vì gọi tên cảm xúc' },
+  { p: 'nóng hổi', max: 2, hard: true, alt: 'đổi: hơi ấm, rát, ẩm; hoặc bỏ' },
+  { p: 'hít một hơi thật sâu', max: 1, hard: true, alt: 'nhân vật làm việc khác để lấy lại bình tĩnh' },
+  { p: 'luồng điện', max: 1, hard: true, alt: 'tả cảm giác bằng vị trí cơ thể cụ thể' },
+  { p: 'mồ hôi rịn', max: 1, hard: true, alt: 'chi tiết khác: gáy ẩm, lòng bàn tay trơn' },
+  { p: 'tê dại', max: 2, hard: true, alt: 'tả phản ứng cụ thể của cơ bắp/hơi thở' },
+  { p: 'sống lưng', max: 2, hard: false, alt: '' }, { p: 'giật nảy', max: 2, hard: false, alt: '' },
+  { p: 'phục tùng', max: 4, hard: false, alt: '' }, { p: 'trầm thấp', max: 2, hard: false, alt: '' },
+  { p: 'vô cảm', max: 2, hard: false, alt: '' }, { p: 'ánh mắt', max: 6, hard: false, alt: '' }, { p: 'đôi mắt', max: 5, hard: false, alt: '' }
+];
+function _prTokens(t) { return String(t || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || []; }
+function _countPhrase(low, p) { let n = 0, i = 0; while ((i = low.indexOf(p, i)) >= 0) { n++; i += p.length; } return n; }
+let _overusedCache = { key: '', val: [] };
+/* Cụm 4 từ xuất hiện ở ≥3 trong 8 chương gần nhất = đang thành thói quen của model. */
+function detectOverusedPhrases(chapters, limit) {
+  const chs = (Array.isArray(chapters) ? chapters : []).filter(c => c && c.text).slice(-8);
+  if (chs.length < 3) return [];
+  const key = chs.length + ':' + chs.map(c => String(c.text).length).join(',') + ':' + (limit || 10);
+  if (_overusedCache.key === key) return _overusedCache.val;
+  const cnt = new Map();
+  chs.forEach(c => { const w = _prTokens(c.text), seen = new Set(); for (let i = 0; i + 4 <= w.length; i++) seen.add(w.slice(i, i + 4).join(' ')); seen.forEach(g => cnt.set(g, (cnt.get(g) || 0) + 1)); });
+  const cand = [...cnt.entries()].filter(([g, n]) => n >= 3 && g.split(' ').some(x => x.length >= 4)).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);
+  const out = [];
+  for (const [g] of cand) { const tk = g.split(' '); if (out.some(o => { const ot = o.split(' '); return tk.filter(x => ot.includes(x)).length >= 3; })) continue; out.push(g); if (out.length >= (limit || 10)) break; }
+  _overusedCache = { key, val: out };
+  return out;
+}
+function overusedPhraseGuide(state) {
+  const watch = OVERUSED_WATCH.filter(w => w.hard).map(w => '"' + w.p + '" (tối đa ' + w.max + '/chương' + (w.alt ? '; ' + w.alt : '') + ')').join('; ');
+  const auto = detectOverusedPhrases(state && state.chapters, 10);
+  return 'HẠN CHẾ CỤM SÁO (truyện đang lặp): ' + watch + '.' + (auto.length ? ' Cụm đã lặp qua nhiều chương gần đây — KHÔNG dùng lại: ' + auto.map(x => '"' + x + '"').join(', ') + '.' : '') +
+    ' Lời kể hạn chế biệt danh miệt thị lặp ("gã/tên/kẻ bảo vệ", "thấp kém", "hèn mọn"): luân phiên gọi tên, "hắn", hoặc tả hành động.' + ' Thay "gọi tên cảm xúc" bằng hành động/lời nói/chi tiết vật cụ thể; xen câu ngắn sau đoạn dài.';
+}
+/* Kiểu mở chương: so với 2 chương trước. */
+function openingKind(text) {
+  const first = String(text || '').trim().split(/\n/)[0].trim(), w = _prTokens(first);
+  if (/^["“«—-]/.test(first)) return 'thoại';
+  if (/^(đêm|sáng|chiều|trưa|tối|ba giờ|\d+ giờ|hôm|ngày|tiếng chuông)/i.test(first)) return 'thời gian/âm thanh';
+  const head = w.slice(0, 2).join(' ');
+  if (/^(bùi lạc|quỳnh anh|minh châu|trần minh châu)$/.test(head) || /^(hắn|cô|anh|nàng)$/.test(w[0] || '')) return 'nhân vật+động từ';
+  return 'khác';
+}
+function openingHead(text) { return _prTokens(String(text || '').trim().split(/\n/)[0]).slice(0, 3).join(' '); }
+function chapterOpeningVariationBlock(state) {
+  const prev = (((state && state.chapters) || []).filter(c => c && c.text)).slice(-3);
+  if (!prev.length) return '';
+  const kinds = prev.map(c => openingKind(c.text)), heads = prev.map(c => '"' + String(c.text).trim().split(/\n/)[0].split(/\s+/).slice(0, 5).join(' ') + '…"');
+  const same = kinds.length >= 2 && kinds.slice(-2).every(k => k === 'nhân vật+động từ');
+  return 'KIỂU MỞ CHƯƠNG: các chương trước mở bằng ' + heads.join(' / ') + '. KHÔNG mở bằng "<tên nhân vật> + đứng/tiến/buông/thức dậy" như vậy' + (same ? ' (đã lặp ≥2 chương liền)' : '') + '; mở bằng một lời thoại, âm thanh, đồ vật, hoặc mốc thời gian cụ thể, rồi mới tới nhân vật.';
+}
+/* V14.7.29: GIỌNG NỘI TÂM RIÊNG TỪNG NGƯỜI + NHỊP CÂU. Trong 30 chương thật, Quỳnh Anh và Minh Châu cùng một công thức "nhục nhã nhưng cơ thể phản bội". Mỗi nhân vật trong cảnh nhận một KIỂU PHẢN ỨNG khi bị kiểm soát (suy từ tính cách/giọng nói trong hồ sơ; nếu không khớp thì gán luân phiên) và hai người trong cùng cảnh không bao giờ trùng kiểu. */
+const REACTION_MODES = [
+  { id: 'giữ thể diện', re: /kiêu|tự tôn|sĩ diện|lạnh lùng|cao ngạo|quyết đoán|nghiêm|mỉa mai|gắt/, text: 'giữ thể diện đến phút cuối: nói năng đúng chức vụ, cố nhìn thẳng, chỉ để lộ qua một chi tiết nhỏ (giọng hụt, tay siết); nỗi sợ nén lại thành giận hoặc mỉa mai' },
+  { id: 'tính toán', re: /sắc sảo|thông minh|chú trọng chi tiết|tính toán|cẩn thận|thận trọng|tò mò|soi mói/, text: 'vừa chịu đựng vừa tính: ghi nhớ giờ giấc, camera, lối thoát, từng sơ hở của hắn; suy nghĩ ngắn, lạnh, thực dụng' },
+  { id: 'im lặng nuốt xuống', re: /nhút nhát|ngoan|dịu dàng|e dè|yếu đuối|nhu mì|thụ động|lắp bắp/, text: 'im lặng, cúi mắt, làm theo từng việc nhỏ; nội tâm là những câu dở dang, tự trấn an bằng việc quen thuộc (đếm, sắp xếp đồ)' },
+  { id: 'cãi rồi gục', re: /nóng|bốc đồng|ương|cứng đầu|bướng|hung/, text: 'phản kháng bằng lời, cãi lại ngắn và gắt, rồi nhanh chóng mất lý lẽ; không dùng độc thoại dài' },
+  { id: 'hài hước gượng', re: /hài|lém|duyên|vui|nghịch/, text: 'đùa gượng, nói lảng để che sợ hãi; câu đùa vỡ giữa chừng' }
+];
+function reactionModesForScene(chars) {
+  const used = new Set(), out = [];
+  (chars || []).forEach((c, idx) => {
+    const src = String((c && (c.personality || '')) + ' ' + (c && c.speech || '') + ' ' + (c && c.publicPersonality || '')).toLowerCase();
+    let m = REACTION_MODES.find(x => !used.has(x.id) && x.re.test(src));
+    if (!m) m = REACTION_MODES.find(x => !used.has(x.id));
+    if (m) { used.add(m.id); out.push({ name: c.name, mode: m }); }
+  });
+  return out;
+}
+function innerVoiceBlock(st, pick) {
+  const mcName = st && st.mainCharProfile && st.mainCharProfile.name;
+  const people = (pick || []).filter(c => c && c.name && c.name !== mcName);
+  if (people.length < 1) return '';
+  const rows = reactionModesForScene(people.slice(0, 4));
+  const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const lines = rows.map(r => { const c = people.find(x => x.name === r.name) || {}; const sp = cut(c.speech, 60); return '- ' + r.name + ': ' + r.mode.text + (sp ? ' | giọng nói: ' + sp : ''); });
+  return 'GIỌNG NỘI TÂM RIÊNG TỪNG NGƯỜI (mỗi người một cách; KHÔNG dùng chung công thức "nhục nhã nhưng cơ thể phản bội", KHÔNG gọi tên cảm xúc thay cho hành động):\n' + lines.join('\n');
+}
+const SENTENCE_RHYTHM_RULE = 'NHỊP CÂU: sau một đoạn nhiều câu dài phải có ít nhất một câu rất ngắn (≤6 từ) hoặc một dòng thoại cụt; trong cảnh nóng cứ vài đoạn xen một chi tiết đời thường ngắn (tiếng chuông, tin nhắn, đồng hồ) để ngắt nhịp. Không mở 3 câu liền bằng cùng một chủ ngữ.';
+function sentenceRhythmStats(text) {
+  const sents = String(text || '').split(/(?<=[.!?…”"])\s+/).map(x => x.trim()).filter(Boolean).map(x => _prTokens(x).length).filter(n => n > 0);
+  if (sents.length < 20) return null;
+  const short = sents.filter(n => n <= 6).length / sents.length;
+  let run = 0, maxRun = 0; sents.forEach(n => { if (n >= 18) { run++; maxRun = Math.max(maxRun, run); } else run = 0; });
+  return { total: sents.length, shortRatio: short, maxLongRun: maxRun };
+}
+/* V14.7.31: 5 mục chất lượng tiểu thuyết: (1) kết chương có móc, (2) mỗi chương một thay đổi quan hệ, (3) nhân vật nữ tự quyết định, (4) luân phiên biệt danh, (5) giữ mạch chính (tu luyện/âm mưu) không biến mất. */
+const ENDING_SUMMARY_RE = /(cô|hắn|anh|nàng|ả|y)\s+(biết|hiểu|nhận ra|thầm nghĩ|tự nhủ|thề|tin rằng)|chuẩn bị cho|bước tiếp theo|kế hoạch|từ (giây phút )?(này|nay)|cuộc chơi|sẽ không còn|mãi mãi|ván cờ|tất cả chỉ mới/i;
+function endingHookCheck(text) {
+  const paras = String(text || '').trim().split(/\n+/).map(x => x.trim()).filter(x => x && !/^\*\*|^#/.test(x));
+  if (!paras.length) return { summary: false };
+  const last = paras[paras.length - 1], tail = last.slice(-450), hasQuote = /["“”]/.test(last);
+  return { summary: !hasQuote && ENDING_SUMMARY_RE.test(tail), tail };
+}
+const PLOT_TERM_RE = /tu luyện|linh khí|đột phá|cảnh giới|công pháp|huyền nguyên|âm mưu|truy sát|kẻ thù|phản diện|hãm hại|oan khuất|báo thù|bí mật năm xưa|manh mối/gi;
+function plotTermHits(text, st) {
+  const t = String(text || '').toLowerCase(); let n = (t.match(PLOT_TERM_RE) || []).length;
+  String((st && st.realmLadder) || '').split(/[,;>→\n]+/).map(x => x.trim().toLowerCase()).filter(x => x.length >= 4).forEach(x => { n += _countPhrase(t, x); });
+  return n;
+}
+function mainThreadDrift(st, chapterNumber) {
+  const n = Math.max(1, Number(chapterNumber) || 1), chs = ((st && st.chapters) || []).slice(Math.max(0, n - 4), n - 1).filter(c => c && c.text);
+  if (chs.length < 3) return 0;
+  let streak = 0; for (let i = chs.length - 1; i >= 0; i--) { if (plotTermHits(chs[i].text, st) < 3) streak++; else break; }
+  return streak >= 3 ? streak : 0;
+}
+function chapterCraftPlanBlock(st, chapterNumber) {
+  const n = Math.max(1, Number(chapterNumber) || 1), L = [];
+  L.push('THAY ĐỔI QUAN HỆ (bắt buộc, mỗi chương một lần): trong beat [R] cuối ghi rõ AI mất gì / được gì / lộ gì với ai, khiến quan hệ giữa hai nhân vật khác đi so với đầu chương (quyền lực, niềm tin, nợ, bí mật). Thêm một chiêu/đạo cụ mới mà quan hệ không đổi thì KHÔNG tính.');
+  if (n % 3 === 0) L.push('HÀNH ĐỘNG TỰ QUYẾT ĐỊNH CỦA NHÂN VẬT NỮ (chương này): một nhân vật nữ tự CHỦ ĐỘNG làm một việc có mục tiêu riêng, không phải phản ứng theo lệnh Bùi Lạc — ví dụ chống cự có tính toán (thất bại hoặc có giá), thỏa hiệp đổi lấy thứ cô cần, giấu hoặc dò một bí mật, nhờ một người phụ. Việc đó phải để lại hậu quả cho kế hoạch của hắn.');
+  const dr = mainThreadDrift(st, n);
+  if (dr) L.push('MẠCH CHÍNH ĐÃ BỊ BỎ QUÊN ' + dr + ' chương liền (tu luyện/âm mưu hầu như không xuất hiện): chương này BẮT BUỘC có một beat [R] đẩy mạch chính tiến một bước thật — tu luyện có mốc tiến triển cụ thể hoặc âm mưu lộ ra một manh mối/hành động của kẻ thù — rồi mới tới phần còn lại.');
+  return L.join('\n');
+}
+const NARRATOR_EPITHETS = [
+  { p: 'gã bảo vệ', max: 3 }, { p: 'tên bảo vệ', max: 2 }, { p: 'kẻ bảo vệ', max: 2 }, { p: 'thấp kém', max: 3 }, { p: 'hèn mọn', max: 2 }
+];
+function prosePatternGate(state, chapterNumber, text) {
+  const hard = [], warn = [], t = String(text || ''), low = t.toLowerCase(), words = Math.max(1, t.split(/\s+/).length), scale = Math.max(0.6, words / 3500);
+  const over = [];
+  OVERUSED_WATCH.forEach(w => {
+    const n = _countPhrase(low, w.p), lim = Math.max(1, Math.round(w.max * scale));
+    if (n > lim) over.push({ w, n, lim });
+  });
+  const severe = over.filter(o => o.w.hard && o.n > o.lim * 2);
+  if (severe.length) hard.push('Lặp cụm sáo quá nhiều (viết lại, giữ nội dung, đổi cách diễn đạt): ' + severe.map(o => '"' + o.w.p + '" ' + o.n + ' lần (tối đa ' + o.lim + ')' + (o.w.alt ? ' — ' + o.w.alt : '')).join('; '));
+  const rest = over.filter(o => !severe.includes(o));
+  if (rest.length) warn.push('Cụm hay lặp: ' + rest.map(o => '"' + o.w.p + '" ' + o.n + '/' + o.lim).join(', '));
+  const eh = endingHookCheck(t);
+  if (eh.summary) warn.push('Kết chương bằng câu tóm tắt nội tâm/kế hoạch ("' + eh.tail.slice(-90).replace(/\s+/g, ' ') + '") — kết bằng hình ảnh, câu thoại hoặc thông tin mới.');
+  const epi = NARRATOR_EPITHETS.map(e => ({ e, n: _countPhrase(low, e.p), lim: Math.max(1, Math.round(e.max * scale)) })).filter(x => x.n > x.lim);
+  if (epi.length) warn.push('Biệt danh lặp trong lời kể: ' + epi.map(x => '"' + x.e.p + '" ' + x.n + '/' + x.lim).join(', ') + ' — luân phiên bằng tên/"hắn".');
+  if (chapterNumber && mainThreadDrift(state, chapterNumber) && plotTermHits(t, state) < 3) warn.push('Mạch chính (tu luyện/âm mưu) vắng mặt ≥4 chương liền kể cả chương này.');
+  const rh = sentenceRhythmStats(t);
+  if (rh && (rh.shortRatio < 0.08 || rh.maxLongRun >= 12)) warn.push('Nhịp câu đều/dài: ' + Math.round(rh.shortRatio * 100) + '% câu ≤6 từ, chuỗi ' + rh.maxLongRun + ' câu dài liền — xen câu ngắn/thoại cụt.');
+  const prev = (((state && state.chapters) || []).filter((c, i) => c && c.text && (!chapterNumber || i < chapterNumber - 1))).slice(-2);
+  if (prev.length) {
+    const k = openingKind(t), h = openingHead(t);
+    if (prev.some(c => openingHead(c.text) === h && h)) warn.push('Mở chương giống chương trước ("' + h + '…") — đổi cách mở.');
+    else if (prev.length >= 2 && k === 'nhân vật+động từ' && prev.every(c => openingKind(c.text) === k)) warn.push('3 chương liền mở bằng "nhân vật + động từ" — nên mở bằng thoại/âm thanh/đồ vật/mốc thời gian.');
+  }
+  return { hard, warn };
+}
+
 function buildVocabularyBlockFrom(state) {
   const v = (state && state.vocabulary) || {};
   const parts = [];
@@ -1044,7 +1209,8 @@ function buildVocabularyBlockFrom(state) {
   if (v.banned) parts.push("TỪ CẦN TRÁNH: " + v.banned.replace(/\n/g, ", "));
   if (v.overused) parts.push("CỤM ĐÃ LẶP NHIỀU (tránh dùng lại): " + v.overused.replace(/\n/g, " · "));
   if (v.anatomy) parts.push("CÁCH GỌI BỘ PHẬN: " + v.anatomy);
-  return parts.length ? parts.join("\n") : "";
+  parts.push(overusedPhraseGuide(state));
+  return parts.join("\n");
 }
 
 function _clipChapterText(t, maxChars) {
@@ -1209,7 +1375,8 @@ function buildChapterPlanPrompt(o) {
                  : "QUY TẮC CỨNG: Không thêm sự kiện lớn thứ 4. Không tạo nhân vật quan trọng mới nếu không có lý do cốt truyện rõ ràng. Nếu có thể dùng nhân vật hiện có thì phải dùng nhân vật hiện có.",
     hasUserBrief ? "ƯU TIÊN ĐỘ TRUNG THÀNH VỚI BRIEF: Không 'sáng tạo thêm cho hay'. Nhiệm vụ là chuyển brief thành kế hoạch có thể viết được, không phải mở rộng phạm vi truyện." : "",
     matureChapterPlanBlock(o),
-    castPoolBlock(o.castPool),
+    castPoolBlock(o.castPool, { allowNew: !!o.castAllowNew }),
+    o.craftPlanBlock || '',
     cultivationPlanBlock(o),
     "KHÔNG viết văn xuôi. Chỉ bullet points."
   ].filter(Boolean).join("\n");
@@ -1492,18 +1659,54 @@ function castIsThin(st) {
   const others = (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main);
   return others.length < 3;
 }
+/* V14.7.30: NHÂN VẬT PHỤ THÚC ĐẨY TRUYỆN (vừa đủ). Backup 30 chương: Yến Nhi xuất hiện 6/30 chương, Hùng 8, Tuấn 3, Phương Anh 2; role "không rõ". Cũ: chọn 4 người đầu danh sách, chỉ "nếu hợp mạch". Mới: chọn tối đa 2 người theo độ vắng × tầm quan trọng, mỗi người kèm CHỨC NĂNG cụ thể của chương, bắt buộc ≥1 người tác động thật; cho phép tối đa 1 nhân vật phụ mới khi dàn gần đây quá mỏng. */
+const SUPPORT_FUNCTIONS = [
+  { re: /cấp trên|giám đốc|ceo|sếp|trưởng phòng|chủ tịch|quản lý/i, fn: 'gây áp lực/giao việc/nghi ngờ đúng quyền hạn chức vụ, buộc nhân vật chính hoặc nữ nhân phải xử lý (không sợ hãi vô cớ)' },
+  { re: /đối thủ|đối tác|cạnh tranh|kẻ thù|phe/i, fn: 'ra một nước đi hoặc đòi hỏi mới làm đổi thế cân bằng; thử thách Bùi Lạc' },
+  { re: /theo dõi|thu thập|đối tượng|mục tiêu|nghi phạm|hãm hại/i, fn: 'để lộ một hành động/manh mối mới về âm mưu năm xưa; có hậu quả cho kế hoạch của hắn' },
+  { re: /cung cấp thông tin|tin tức|nguồn tin|người nhận|liên lạc/i, fn: 'đưa MỘT mẩu thông tin có thật làm đổi hướng việc nhân vật chính sắp làm' },
+  { re: /đồng nghiệp|nhân viên|lễ tân|bảo vệ|tạp vụ|tài xế/i, fn: 'tình cờ thấy điều bất thường và hỏi/nhắc một câu khó, tạo nguy cơ bị lộ' },
+  { re: /người thân|bạn|chồng|người yêu|gia đình/i, fn: 'kéo nhân vật vào đời sống riêng, tạo ràng buộc hoặc nguy cơ bị phát hiện' }
+];
+function supportFunctionFor(c) {
+  const src = [c.role, c.relevanceToMC, c.occupation, c.relationship].filter(Boolean).join(' ');
+  const m = SUPPORT_FUNCTIONS.find(x => x.re.test(src));
+  return m ? m.fn : 'tác động cụ thể vào mục tiêu hoặc quyết định của một nhân vật chính (đưa thông tin, gây áp lực, hoặc lộ điều đáng ngờ)';
+}
+function _lastChapterWith(st, name) {
+  const chs = (st && st.chapters) || [], parts = String(name || '').trim().split(/\s+/), key = parts.length > 1 ? parts.slice(-2).join(' ') : parts[0];
+  for (let i = chs.length - 1; i >= 0; i--) { const t = chs[i] && chs[i].text; if (t && (t.indexOf(name) >= 0 || (key && t.indexOf(key) >= 0))) return i + 1; }
+  return 0;
+}
 function castPoolForPlan(st, chapterNumber) {
   st = st || {};
   const main = normalizeName(st.mainCharProfile && st.mainCharProfile.name || "");
-  const done = Math.max(0, (Number(chapterNumber) || 1) - 1);
-  return (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main)
-    .filter(c => c.lastAppearance == null || done - Number(c.lastAppearance) >= 2)
-    .slice(0, 4).map(c => ({ name: String(c.name), role: String(c.role || c.relevanceToMC || "").slice(0, 80) }));
+  const n = Math.max(1, Number(chapterNumber) || 1);
+  const W = { major: 3, important: 3, supporting: 2, minor: 1 };
+  const cands = (st.characters || []).filter(c => c && c.name && !c.dead && !c.isDead && normalizeName(c.name) !== main).map(c => {
+    const tier = String(c.importance || c.tier || 'supporting').toLowerCase(), w = W[tier] || (/background|extra/.test(tier) ? 0 : 1);
+    const last = ((st.chapters || []).some(x => x && x.text) ? _lastChapterWith(st, c.name) : (Number(c.lastAppearance) || 0)), absent = last ? (n - 1 - last) : Math.max(0, n - 1);
+    return { c, w, absent, last };
+  }).filter(x => x.w > 0 && x.absent >= (x.w >= 2 ? 3 : 6));
+  cands.sort((a, b) => b.absent * b.w - a.absent * a.w);
+  return cands.slice(0, 2).map(x => ({ name: String(x.c.name), role: String(x.c.role && !/không rõ/i.test(x.c.role) ? x.c.role : (x.c.relevanceToMC || '')).slice(0, 80), absent: x.absent, fn: supportFunctionFor(x.c) }));
 }
-function castPoolBlock(pool) {
-  if (!Array.isArray(pool) || !pool.length) return "";
-  return "NHÂN VẬT PHỤ ĐÃ KHAI BÁO NHƯNG CHƯA/LÂU CHƯA XUẤT HIỆN: " + pool.map(c => c.name + (c.role ? " (" + c.role + ")" : "")).join("; ") +
-    ".\n- Nếu hợp mạch, cho ÍT NHẤT MỘT người trong số này xuất hiện, được nhắc tới hoặc tác động vào tình huống của chương (ghi đúng tên hồ sơ trong beat [S]); đừng phá các mốc bắt buộc của brief. Không tạo thêm nhân vật có tên ngoài hồ sơ.";
+function recentNamedCastCount(st, chapterNumber) {
+  const n = Math.max(1, Number(chapterNumber) || 1), main = normalizeName(st && st.mainCharProfile && st.mainCharProfile.name || "");
+  return ((st && st.characters) || []).filter(c => c && c.name && !c.dead && normalizeName(c.name) !== main && _lastChapterWith(st, c.name) >= n - 5 && _lastChapterWith(st, c.name) > 0).length;
+}
+function castPoolBlock(pool, extra) {
+  const allowNew = extra && extra.allowNew;
+  if ((!Array.isArray(pool) || !pool.length) && !allowNew) return "";
+  const lines = [];
+  if (Array.isArray(pool) && pool.length) {
+    lines.push("NHÂN VẬT PHỤ CẦN ĐƯA TRỞ LẠI (đã vắng khá lâu) — dùng VỪA ĐỦ, không thêm người dư:");
+    pool.forEach(c => lines.push("- " + c.name + (c.role ? " (" + c.role + ")" : "") + (c.absent ? " — vắng " + c.absent + " chương" : "") + ": chức năng chương này = " + c.fn));
+    lines.push("- BẮT BUỘC ít nhất MỘT người trong danh sách trên xuất hiện TRỰC TIẾP (có lời thoại hoặc hành động) và để lại tác động cụ thể (thông tin mới, quyết định, áp lực hoặc hậu quả) cho sự kiện chính — không chỉ nhắc tên hay lướt qua. Ghi đúng tên hồ sơ trong beat [R] hoặc [S]; không phá các mốc bắt buộc của brief.");
+  }
+  if (allowNew) lines.push("- DÀN PHỤ ĐANG MỎNG (rất ít nhân vật có tên xuất hiện gần đây): được phép giới thiệu TỐI ĐA 1 nhân vật phụ MỚI nếu sự kiện chính thật sự cần; phải có tên riêng, chức vụ/vai trò rõ, mối liên hệ với âm mưu hoặc với nhân vật chính, và một lý do xuất hiện. Không tạo thêm ngoài 1 người.");
+  else lines.push("- Không tạo thêm nhân vật có tên ngoài hồ sơ.");
+  return lines.join("\n");
 }
 const CAST_PLANNER_FIELDS = ["name","age","gender","role","relationship","desire","secret","appearance","height","bodyType","measurements","hair","eyes","skin","voice","scent","speech","addressTerms","personality","occupation"];
 function buildCastPlannerPrompt(st, opts) {
@@ -5711,7 +5914,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.26";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.31";
   }
 
   let lastErr = null;
@@ -6913,7 +7116,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.26";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.31";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -9186,7 +9389,7 @@ async function buildChapterPlan(context, recent, chapterNumber){
   const prompt = buildChapterPlanPrompt({ chapterNumber, context, recent, directive: state.directive, hint: hintMeta.text,
     hintVerified: hintMeta.verified, maxNamedCharacters: normalizeStoryControl(state).maxNamedCharacters,
     mainCharName: state.mainCharProfile && state.mainCharProfile.name, storyControl: storyControlPromptClient(),
-    mature: !!state.mature, matureFocus: state.chapterMatureFocus, heatFreeStreak: heatFreeStreakBefore(chapterNumber), castPool: castPoolForPlan(state, chapterNumber), cultivation: cultivationActive(state) });
+    mature: !!state.mature, matureFocus: state.chapterMatureFocus, heatFreeStreak: heatFreeStreakBefore(chapterNumber), castPool: castPoolForPlan(state, chapterNumber), castAllowNew: recentNamedCastCount(state, chapterNumber) < 3, craftPlanBlock: chapterCraftPlanBlock(state, chapterNumber), cultivation: cultivationActive(state) });
   try{
     let r = await callAI(prompt, {maxTokens:2400, temperature:0.4});
     if(String(r && r.finishReason || "").toLowerCase()==="length"){
@@ -9839,7 +10042,8 @@ async function qualityReviewDraft(chapter, chapterNumber, plan, contextSummary){
     const r=await callAI(prompt,{maxTokens:2200,temperature:0.1,modelOverride:chapter.modelUsed||state.model});
     const obj=safeJsonParse(r.text);
     const og=outlineGateCheck(state,chapterNumber,chapter.text,gateKnownNames(state));
-    const review=evaluateReview(obj,{maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters,passScore:state.qualityPassScore,softFailScore:state.qualitySoftFailScore,extraHard:hardChecks.filter(x=>!x.ok).map(x=>x.message).concat(og.hard),extraWarnings:og.warn});
+    const pg=prosePatternGate(state,chapterNumber,chapter.text);
+    const review=evaluateReview(obj,{maxMainEvents:sc.maxMainEvents,maxNamedCharacters:sc.maxNamedCharacters,passScore:state.qualityPassScore,softFailScore:state.qualitySoftFailScore,extraHard:hardChecks.filter(x=>!x.ok).map(x=>x.message).concat(og.hard,pg.hard),extraWarnings:og.warn.concat(pg.warn)});
     if(!review) return {ok:false,reason:"review_parse"};
     if(state.accuracyMode===true){
       const repeatedParagraphs=findRepeatedParagraphs(String(chapter.text||""));

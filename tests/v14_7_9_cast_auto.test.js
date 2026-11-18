@@ -17,8 +17,8 @@ t('pool: chỉ người chưa/lâu chưa xuất hiện, bỏ NVC', () => {
 t('prompt kế hoạch có khối nhân vật phụ khi có pool, không có khi rỗng', () => {
   const base = { chapterNumber: 6, context: 'c', recent: 'r', directive: 'd', mainCharName: 'Bùi Lạc' };
   const p = F.buildChapterPlanPrompt({ ...base, castPool: [{ name: 'Minh Châu', role: 'chị họ' }] });
-  assert.match(p, /Minh Châu \(chị họ\)/); assert.match(p, /ÍT NHẤT MỘT người/);
-  assert.ok(!/CHƯA\/LÂU CHƯA XUẤT HIỆN/.test(F.buildChapterPlanPrompt(base)));
+  assert.match(p, /Minh Châu \(chị họ\)/); assert.match(p, /BẮT BUỘC ít nhất MỘT người/);
+  assert.ok(!/NHÂN VẬT PHỤ CẦN ĐƯA TRỞ LẠI/.test(F.buildChapterPlanPrompt(base)));
 });
 t('storyControl giữ cờ castAutoPlanned', () => { assert.equal(F.normalizeStoryControl({ storyControl: { castAutoPlanned: true } }).castAutoPlanned, true); assert.equal(F.normalizeStoryControl({}).castAutoPlanned, false); });
 t('client gọi ensureCastPlanned ở cả viết thường và viết nền; worker truyền castPool', () => {

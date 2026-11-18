@@ -1,5 +1,33 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.31] — 5 mục chất lượng tiểu thuyết
+- **Kết chương có móc:** scene cuối nhận quy tắc không kết bằng tóm tắt nội tâm/kế hoạch; `endingHookCheck` + cảnh báo trong `prosePatternGate` (trên backup thật bắt 6/30 chương, bộ lọc thận trọng nên bỏ sót một phần).
+- **Thay đổi quan hệ mỗi chương:** `chapterCraftPlanBlock` bắt buộc beat [R] cuối ghi ai mất/được/lộ gì khiến quan hệ khác đi (chỉ là chỉ dẫn prompt, chưa có cổng kiểm).
+- **Nhân vật nữ tự quyết định:** chương chia hết 3 nhận chỉ dẫn hành động chủ động có hậu quả.
+- **Biệt danh lời kể:** `NARRATOR_EPITHETS` ("gã/tên/kẻ bảo vệ", "thấp kém", "hèn mọn") có hạn mức mỗi chương, cảnh báo + nhắc luân phiên trong prompt (backup thật: 9/30 chương vượt).
+- **Mạch chính:** `mainThreadDrift`: ≥3 chương liền ít nhắc tu luyện/âm mưu → kế hoạch bắt buộc một beat đẩy mạch; cổng cảnh báo nếu chương mới vẫn vắng. Backup thật: chương 31 sẽ kích hoạt.
+- **Chưa làm:** tự đặt tên chương. Sửa test V14.7.28 cho khỏi nhầm với cảnh báo mới. Test mới `v14_7_31_novel_craft`. Chưa thử với model thật.
+
+## [V14.7.30] — Nhân vật phụ thúc đẩy truyện (vừa đủ)
+- **Nguyên nhân (backup 30 chương):** nhân vật phụ có trong hồ sơ nhưng hầu như không xuất hiện: Yến Nhi 6/30 chương, Hùng 8, Tuấn 3, Phương Anh 2; role "không rõ". Cũ: `castPoolForPlan` lấy 4 người đầu danh sách, chỉ "nếu hợp mạch"; `lastAppearance` trong hồ sơ không đáng tin (Tuấn ghi 29, văn bản chỉ tới chương 18).
+- **Sửa (shared/core.js → client + worker):** `castPoolForPlan` chọn tối đa 2 người theo độ vắng × tầm quan trọng, đo bằng văn bản chương thật (chỉ dùng `lastAppearance` khi chưa có chương); mỗi người kèm CHỨC NĂNG chương này suy từ vai trò (cấp trên → áp lực đúng quyền hạn; đối tượng theo dõi → manh mối; người cung cấp tin → một mẩu thông tin…); `castPoolBlock` BẮT BUỘC ≥1 người xuất hiện trực tiếp và để lại tác động cụ thể; khi 5 chương gần đây có <3 nhân vật có tên (`recentNamedCastCount`) được phép giới thiệu TỐI ĐA 1 nhân vật phụ mới.
+- **Test:** `v14_7_30_supporting_cast` mới; cập nhật 2 kiểm tra V14.7.9 theo hành vi mới. Chưa thử với model thật.
+
+## [V14.7.29] — Giọng nội tâm riêng từng người + nhịp câu
+- **Nguyên nhân (backup 30 chương):** Quỳnh Anh và Minh Châu cùng một công thức "nhục nhã nhưng cơ thể phản bội"; nhịp câu đều, ít câu cụt.
+- **Sửa (shared/core.js → client + worker):** (1) `innerVoiceBlock`/`reactionModesForScene`: mỗi nhân vật (trừ NVC) trong scene nhận một kiểu phản ứng khi bị kiểm soát suy từ tính cách/giọng nói trong hồ sơ (giữ thể diện / tính toán / im lặng nuốt xuống / cãi rồi gục / đùa gượng); hai người cùng cảnh không bao giờ trùng kiểu; (2) `SENTENCE_RHYTHM_RULE` vào mọi prompt scene; (3) `sentenceRhythmStats` + cảnh báo trong `prosePatternGate` khi <8% câu ≤6 từ hoặc có chuỗi ≥12 câu dài liền (chỉ cảnh báo, không chặn).
+- **Test mới:** `v14_7_29_voice_rhythm`. Chưa thử với model thật.
+
+## [V14.7.28] — Chống văn máy móc (cụm sáo lặp, kiểu mở chương)
+- **Nguyên nhân (đo trên backup 30 chương/108k từ):** "run rẩy" 285 lần, "nhục nhã" 134, "hít một hơi thật sâu" 33…; 15/30 chương mở bằng "Bùi Lạc đứng/tiến/buông…". Ô Từ vựng trống nên prompt không có gì để tránh; Quality Gate chấm 95 dù chính nó cảnh báo lặp.
+- **Sửa (shared/core.js → client + worker):** (1) `buildVocabularyBlockFrom` luôn thêm danh sách cụm sáo có hạn mức + cụm 4 từ tự phát hiện lặp ở ≥3/8 chương gần nhất (`detectOverusedPhrases`); (2) `prosePatternGate` nối vào `evaluateReview`: cụm sáo vượt hạn mức → cảnh báo, vượt gấp đôi → LỖI NẶNG (buộc viết lại, kèm gợi ý thay thế); mở chương giống chương trước hoặc 3 chương liền "nhân vật + động từ" → cảnh báo; (3) scene mở chương nhận khối `KIỂU MỞ CHƯƠNG` (`chapterOpeningVariationBlock`).
+- **Test mới:** `v14_7_28_anti_repetition` (13 kiểm tra, gồm chạy trên backup thật nếu có). Chưa thử với model thật; lỗi nặng sẽ tăng số lần viết lại, giới hạn bởi số lần thử của Quality Gate.
+
+## [V14.7.27] — Thư ký CEO lại sợ tổ trưởng bảo vệ dù đã quy định thứ bậc
+- **Nguyên nhân (đọc code):** "Định nghĩa chung nhân vật nữ" và chức vụ chỉ vào ngữ cảnh chung; prompt từng scene chỉ có hồ sơ khóa + thẻ Current Status ("mới hơn, ưu tiên khi khác hồ sơ") chứa `mức phục tùng`/`tâm lý` → nỗi sợ tích lũy lấn át chức vụ. Không có quy tắc nào nói chức cao không được sợ chức thấp.
+- **Sửa (shared/core.js → client + worker):** `powerHierarchyBlock` thêm vào cuối khối hồ sơ scene (khi có ≥2 nhân vật): chức vụ từng người, quy tắc ứng xử theo cấp bậc, sợ/phục tùng chỉ khi có nguyên nhân cụ thể và ở nơi riêng tư, Current Status không được xóa chức vụ, kèm nguyên tắc nhân vật nữ của tác giả.
+- **Test mới:** `v14_7_27_power_hierarchy`. Chưa thử với model thật.
+
 ## [V14.7.26] — Thẻ nhân vật rỗng dù Current Status mô tả đầy đủ (ví dụ Trần Minh Châu)
 - **Nguyên nhân (đọc code + ảnh):** Current Status có ngoại hình/trang phục/cảm xúc của Châu (từ bước thẻ Status), nhưng thẻ trong Character Database gần như trống. AI thường chỉ đưa MỘT câu trích chung cho cả nhân vật (về sự kiện), không đưa câu trích riêng cho từng trường; cổng cũ đòi từ khóa của giá trị ngoại hình/tuổi/nghề… phải nằm trong chính câu trích đó, mà ngoại hình nằm ở câu khác → bị loại. Nhân vật mới vẫn được tạo (chỉ có tên) nên thành thẻ rỗng, và các chương sau gặp lại đúng lỗi này.
 - **Sửa (shared/core.js → client + worker):** `chapterCoverageSupports` + `fieldSupportedInChapter` — trường cụ thể được nhận nếu hoặc có câu trích hỗ trợ (như cũ), hoặc phần lớn từ khóa (≥ 60%) của giá trị CÓ THẬT trong chương và MỌI con số (tuổi, số đo) có đúng trong chương. Áp cho trường hồ sơ cụ thể và `currentLocation`. Bí mật (`secret`) giữ nguyên cổng chặt (cần bằng chứng riêng).
