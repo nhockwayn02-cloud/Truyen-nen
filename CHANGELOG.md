@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.32] — Âm mưu & Kẻ thù (canon) tự dựng cho người đọc
+- **Vấn đề:** app không có chỗ cho kẻ thù/âm mưu cụ thể (Cốt Truyện Chính chỉ nói "đại âm mưu" chung chung), nên mạch chính yếu và AI dễ bịa mâu thuẫn mỗi chương. (Đính chính: ô id `antagonist` thực ra là "Quy Tắc Khác", không phải ô phản diện.)
+- **Thêm (Story Bible):** nút "🕵️ Tạo / 🔄 Tạo lại âm mưu & kẻ thù": AI đọc Cốt Truyện Chính + dàn nhân vật, dựng bản nhiều phe/nhiều tầng (sự thật năm xưa, mảnh ghép, 3–5 phe, 4–5 tầng có mốc chương + vật chứng, chủ mưu thật, kẻ thù đang hành động, vai trò từng nhân vật). Người dùng chỉ đọc/sửa rồi "✅ Lưu làm canon"; chưa lưu thì không ảnh hưởng truyện.
+- **Dùng canon (shared/core.js → client + worker):** `conspiracyBlock` vào ngữ cảnh viết (kèm TẦNG ĐANG ÁP DỤNG theo số chương) và vào `chapterCraftPlanBlock` (beat đẩy mạch phải dùng manh mối của tầng hiện tại, không lộ chủ mưu sớm). Lưu trong state + `meta.storyBible`.
+- **Test:** `v14_7_32_conspiracy` mới; thêm stub `conspiracyBlock` cho test cô lập V12.31. Chưa thử với model thật.
+
 ## [V14.7.31] — 5 mục chất lượng tiểu thuyết
 - **Kết chương có móc:** scene cuối nhận quy tắc không kết bằng tóm tắt nội tâm/kế hoạch; `endingHookCheck` + cảnh báo trong `prosePatternGate` (trên backup thật bắt 6/30 chương, bộ lọc thận trọng nên bỏ sót một phần).
 - **Thay đổi quan hệ mỗi chương:** `chapterCraftPlanBlock` bắt buộc beat [R] cuối ghi ai mất/được/lộ gì khiến quan hệ khác đi (chỉ là chỉ dẫn prompt, chưa có cổng kiểm).

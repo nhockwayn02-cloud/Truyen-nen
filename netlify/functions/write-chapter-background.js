@@ -1112,12 +1112,57 @@ function mainThreadDrift(st, chapterNumber) {
   let streak = 0; for (let i = chs.length - 1; i >= 0; i--) { if (plotTermHits(chs[i].text, st) < 3) streak++; else break; }
   return streak >= 3 ? streak : 0;
 }
+/* V14.7.32: ÂM MƯU & KẺ THÙ (canon). Người dùng là độc giả, không phải tác giả: app tự dựng bản âm mưu nhiều phe/nhiều tầng MỘT lần từ Cốt Truyện Chính + dàn nhân vật, người dùng đọc rồi chọn/sửa/lưu; bản đã lưu là canon đưa vào mọi ngữ cảnh viết và kế hoạch chương để AI không bịa lại mâu thuẫn ở mỗi chương. */
+function conspiracyClean(raw, max) {
+  let t = String(raw == null ? '' : raw).replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').replace(/\r/g, '').trim();
+  t = t.replace(/\n{3,}/g, '\n\n');
+  const lim = max || 5200; if (t.length > lim) { const cut = t.slice(0, lim), i = cut.lastIndexOf('\n'); t = (i > lim * 0.7 ? cut.slice(0, i) : cut).trim(); }
+  return t;
+}
+function buildConspiracyPrompt(st, opts) {
+  st = st || {}; opts = opts || {};
+  const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const main = (st.mainCharProfile && st.mainCharProfile.name) || 'nhân vật chính';
+  const cast = (st.characters || []).filter(c => c && c.name).slice(0, 14).map(c => '- ' + c.name + ': ' + cut([c.role, c.relevanceToMC, c.occupation].filter(x => x && !/không rõ/i.test(x)).join('; ') || '(chưa rõ vai trò)', 110)).join('\n');
+  return [
+    'Bạn là biên tập viên cốt truyện cho một tiểu thuyết 18+ dành cho người lớn (mọi nhân vật đều là người trưởng thành). Nhiệm vụ: dựng "BẢN ÂM MƯU & KẺ THÙ" nhất quán, NHIỀU PHE, NHIỀU TẦNG QUYỀN LỰC, gắn chặt với thế giới truyện. Người dùng là độc giả, họ sẽ chỉ đọc và chọn, nên bản phải rõ ràng, cụ thể, không mơ hồ.',
+    'CỐT TRUYỆN CHÍNH CỦA TÁC GIẢ (giữ nguyên mọi quy tắc, không mâu thuẫn):\n' + cut(st.mainPlot, 6500),
+    st.worldSetting ? 'THẾ GIỚI: ' + cut(st.worldSetting, 500) : '',
+    st.worldRules ? 'LUẬT THẾ GIỚI: ' + cut(st.worldRules, 500) : '',
+    st.cultivationSystem ? 'HỆ TU LUYỆN: ' + cut(st.cultivationSystem, 600) : '',
+    'NHÂN VẬT HIỆN CÓ (ưu tiên DÙNG LẠI các tên này, gán cho họ vai trò trong âm mưu; chỉ thêm tên mới khi thật cần, tối đa 6 người mới, mỗi người có chức vụ rõ):\n' + (cast || '(chưa có)'),
+    opts.previous ? 'BẢN CŨ (người dùng muốn bản KHÁC, đừng lặp lại chủ mưu/tầng như bản này):\n' + cut(opts.previous, 1500) : '',
+    'YÊU CẦU: viết bằng tiếng Việt, văn bản thuần (KHÔNG JSON, KHÔNG markdown ```), tối đa khoảng 3500 ký tự, đúng các mục sau theo thứ tự:',
+    'SỰ THẬT NĂM XƯA: chuyện gì đã xảy ra, khi nào, ai bị hại, vì sao phải che giấu (3–5 câu cụ thể, có địa điểm và mốc thời gian).',
+    'MẢNH GHÉP ' + main + ' NẮM: hắn đã thấy/biết chính xác điều gì khi trực ca và vì sao bị truy sát.',
+    'CÁC PHE PHÁI (3–5 phe): mỗi phe một dòng "Tên phe — đại diện (tên, chức vụ) — mục tiêu — thế lực/quyền lực — quan hệ với phe khác (liên minh/đối đầu)". Có cả phe trong công ty, phe doanh nhân/chính trị, gia tộc, giới tu luyện.',
+    'CÁC TẦNG LỘ DẦN (4–5 tầng, đi từ đáy lên, mỗi tầng quyền lực cao hơn): mỗi tầng ghi đúng dạng "TẦNG k (chương a–b): người liên quan — loại quyền lực — manh mối/vật chứng cụ thể sẽ lộ — cái giá/rủi ro cho ' + main + '". Tầng cuối viết dạng "TẦNG k (chương a trở đi)". Tuân thủ nguyên tắc tiến chậm, không đường tắt.',
+    'KẺ CHỦ MƯU THẬT: tên, chức vụ, động cơ, và điều khiến hắn chưa thể bị đụng tới.',
+    'KẺ THÙ ĐANG HÀNH ĐỘNG: chúng biết gì về ' + main + ', nước đi tiếp theo, điều có thể làm hắn bị lộ hoặc làm hỏng kế hoạch của hắn (để có áp lực từ bên ngoài).',
+    'VAI TRÒ TRONG ÂM MƯU của từng nhân vật hiện có (mỗi người 1 dòng: biết gì/che giấu gì/bị lợi dụng thế nào/giúp hay cản).',
+    'QUY TẮC LỘ: kẻ chủ mưu thật không được lộ trước tầng cuối; mỗi tầng phải có vật chứng cụ thể; không để ' + main + ' dựa vào thế lực có sẵn.'
+  ].filter(Boolean).join('\n\n');
+}
+function conspiracyParseTiers(text) {
+  const out = [], re = /TẦNG\s*(\d+)\s*\(\s*chương\s*~?\s*(\d+)\s*(?:(?:[–\-—]|đến)\s*(\d+|trở đi|\+)?|(\+|trở đi))?\s*\)\s*:?\s*([^\n]*)/gi; let m;
+  while ((m = re.exec(String(text || '')))) out.push({ tier: +m[1], from: +m[2], to: /^\d+$/.test(m[3] || '') ? +m[3] : Infinity, text: m[5].trim() });
+  return out;
+}
+function conspiracyBlock(st, chapterNumber) {
+  const t = String((st && st.conspiracyBible) || '').trim();
+  if (!t) return '';
+  const n = Math.max(1, Number(chapterNumber) || 1), tiers = conspiracyParseTiers(t);
+  const cur = tiers.find(x => n >= x.from && n <= x.to) || (tiers.length && n > tiers[tiers.length - 1].from ? tiers[tiers.length - 1] : null);
+  return 'ÂM MƯU & KẺ THÙ (CANON — không mâu thuẫn, không tự đổi chủ mưu/phe/tầng; chỉ lộ đúng theo tầng):\n' + conspiracyClean(t, 3400) +
+    (cur ? '\nTẦNG ĐANG ÁP DỤNG (chương ' + n + '): TẦNG ' + cur.tier + ' — ' + cur.text.slice(0, 260) : '');
+}
 function chapterCraftPlanBlock(st, chapterNumber) {
   const n = Math.max(1, Number(chapterNumber) || 1), L = [];
   L.push('THAY ĐỔI QUAN HỆ (bắt buộc, mỗi chương một lần): trong beat [R] cuối ghi rõ AI mất gì / được gì / lộ gì với ai, khiến quan hệ giữa hai nhân vật khác đi so với đầu chương (quyền lực, niềm tin, nợ, bí mật). Thêm một chiêu/đạo cụ mới mà quan hệ không đổi thì KHÔNG tính.');
   if (n % 3 === 0) L.push('HÀNH ĐỘNG TỰ QUYẾT ĐỊNH CỦA NHÂN VẬT NỮ (chương này): một nhân vật nữ tự CHỦ ĐỘNG làm một việc có mục tiêu riêng, không phải phản ứng theo lệnh Bùi Lạc — ví dụ chống cự có tính toán (thất bại hoặc có giá), thỏa hiệp đổi lấy thứ cô cần, giấu hoặc dò một bí mật, nhờ một người phụ. Việc đó phải để lại hậu quả cho kế hoạch của hắn.');
   const dr = mainThreadDrift(st, n);
   if (dr) L.push('MẠCH CHÍNH ĐÃ BỊ BỎ QUÊN ' + dr + ' chương liền (tu luyện/âm mưu hầu như không xuất hiện): chương này BẮT BUỘC có một beat [R] đẩy mạch chính tiến một bước thật — tu luyện có mốc tiến triển cụ thể hoặc âm mưu lộ ra một manh mối/hành động của kẻ thù — rồi mới tới phần còn lại.');
+  if (String((st && st.conspiracyBible) || '').trim()) { const cb = conspiracyBlock(st, n), i = cb.lastIndexOf('TẦNG ĐANG ÁP DỤNG'); L.push('ÂM MƯU (canon đã chốt): ' + (i >= 0 ? cb.slice(i) : 'bám bản âm mưu trong ngữ cảnh') + '. Beat đẩy mạch chính của chương phải dùng manh mối/vật chứng/nhân vật của tầng này; không lộ kẻ chủ mưu thật sớm hơn tầng cuối.'); }
   return L.join('\n');
 }
 const NARRATOR_EPITHETS = [
@@ -5165,6 +5210,7 @@ function buildContext(state) {
   { const _cs = cultivationSystemBlock(state); if (_cs) p.push(_cs); }
   if (state.worldDescription) p.push("KHÔNG KHÍ:\n" + state.worldDescription);
   if (state.pronounRules) p.push("XƯNG HÔ:\n" + state.pronounRules);
+  { const _cb = conspiracyBlock(state, (state.chapters || []).length + 1); if (_cb) p.push(_cb); }
   if (state.femaleCharacterDefinition) p.push("ĐỊNH NGHĨA CHUNG NHÂN VẬT NỮ — ÁP DỤNG CHO MỌI NHÂN VẬT NỮ:\n" + String(state.femaleCharacterDefinition).trim() + "\nAI tự xây dựng từng nhân vật nữ theo diễn biến truyện; không gán nguyên xi một nhân vật cho nhân vật khác; không tự đổi thông tin đã được truyện xác nhận.");
   if (state.currentStatus) p.push("CURRENT STATUS:\n" + state.currentStatus);
   if (state.directive) p.push("MỆNH LỆNH:\n" + state.directive);
@@ -5257,6 +5303,7 @@ function buildContextBlock(options){
   /* Story bible — ngắn */
   const bible = buildStoryBibleSummary({ includeOtherRules:false });
   if(bible) lines.push(clip(bible, 1800));
+  { const cons = conspiracyBlock(state, (state.chapters||[]).length + 1); if(cons) lines.push(cons); }
   const rulesBlock = buildEffectiveRuleBlock();
   if(rulesBlock) lines.push(clip(rulesBlock, 2400));
   const contextConflicts = auditPromptInstructions();

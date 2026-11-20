@@ -28,6 +28,7 @@ function makeContext(state) {
     organizationProfilesPromptBlock: () => '',
     buildLayeredMemoryContextBlock: () => '',
     loreForPrompt: () => '',
+    conspiracyBlock: () => '',
     currentArc: () => null,
     currentOutline: () => null,
     characterCardsForPromptV102: () => '',
