@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.35] — Hướng dẫn chống cụm sáo thật sự tới được prompt
+- **Lỗi của V14.7.28 (phát hiện khi kiểm tra chi phí):** guide chống cụm sáo nằm trong khối Từ vựng; khối này bị clip còn 600 ký tự ở ngữ cảnh và 260 ký tự ở prompt scene, nên phần guide gần như không bao giờ tới model, trong khi cổng đếm vẫn buộc viết lại → tốn lượt gọi (Sửa/vá) vô ích.
+- **Sửa:** `buildVocabularyBlockFrom` không còn chứa guide; `overusedPhraseGuide` thành dòng riêng trong ngữ cảnh (client + worker); `compactOverusedGuide` (<500 ký tự) vào mọi prompt scene.
+- **Test:** `v14_7_35_overused_reaches_prompt`; cập nhật test V14.7.28, stub cho test cô lập V12.31. Chưa thử với model thật.
+
 ## [V14.7.34] — Xóa hết chương nhưng bộ nhớ còn (mục mồ côi)
 - **Lỗi (ảnh người dùng):** 0 chương, L0–L5 đều 0, nhưng Memory Engine vẫn hiện Timeline 7 sự kiện, Foreshadowing 2, Knowledge 11, "Diễn biến gần: Ch16…". Khi xóa chương mà không có snapshot chương trước (xóa đến chương 1, hoặc xóa lệch thứ tự), nhánh khôi phục không chạy nên chỉ lọc theo đúng số chương bị xóa, các mục có số chương cũ vẫn còn.
 - **Sửa:** `pruneOrphanChapterMemory` (timeline, memoryEvents, foreshadowing, knowledgeLedger, threads, scenes, consentLog, characterStateTracker): mục có số chương > số chương hiện có bị bỏ; 0 chương thì bỏ hết và dọn L1–L4. Tự chạy sau mỗi lần xóa chương khi bật "Xoá kèm bộ nhớ"; thêm nút "🧹 Dọn bộ nhớ mồ côi (chương đã xóa)" ở Memory Engine để dọn dữ liệu đang tồn đọng. Không đụng nhân vật, Current Status, cài đặt.

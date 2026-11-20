@@ -29,6 +29,7 @@ function makeContext(state) {
     buildLayeredMemoryContextBlock: () => '',
     loreForPrompt: () => '',
     conspiracyBlock: () => '',
+    overusedPhraseGuide: () => '',
     currentArc: () => null,
     currentOutline: () => null,
     characterCardsForPromptV102: () => '',

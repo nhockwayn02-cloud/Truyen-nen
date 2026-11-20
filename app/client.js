@@ -1018,6 +1018,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
     o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
     SENTENCE_RHYTHM_RULE,
+    compactOverusedGuide(o.state),
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.isFinalScene ? 'KẾT CHƯƠNG CÓ MÓC: câu cuối KHÔNG được là lời tóm tắt nội tâm hay kế hoạch ("cô biết…", "chuẩn bị cho…"). Kết bằng một hình ảnh cụ thể, một câu thoại, hoặc một thông tin/biến cố mới khiến người đọc muốn lật trang.' : '',
@@ -1091,6 +1092,12 @@ function overusedPhraseGuide(state) {
   const auto = detectOverusedPhrases(state && state.chapters, 10);
   return 'HẠN CHẾ CỤM SÁO (truyện đang lặp): ' + watch + '.' + (auto.length ? ' Cụm đã lặp qua nhiều chương gần đây — KHÔNG dùng lại: ' + auto.map(x => '"' + x + '"').join(', ') + '.' : '') +
     ' Lời kể hạn chế biệt danh miệt thị lặp ("gã/tên/kẻ bảo vệ", "thấp kém", "hèn mọn"): luân phiên gọi tên, "hắn", hoặc tả hành động.' + ' Thay "gọi tên cảm xúc" bằng hành động/lời nói/chi tiết vật cụ thể; xen câu ngắn sau đoạn dài.';
+}
+/* V14.7.35: guide chống cụm sáo từng bị CẮT mất vì nằm trong khối Từ vựng (clip 600 ở ngữ cảnh, 260 ở prompt scene). Tách riêng + bản gọn cho scene. */
+function compactOverusedGuide(st) {
+  const hard = OVERUSED_WATCH.filter(w => w.hard).map(w => '"' + w.p + '"≤' + w.max).join(', ');
+  const auto = detectOverusedPhrases(st && st.chapters, 5);
+  return 'TRÁNH SÁO (số = tối đa/chương): ' + hard + (auto.length ? '; không lặp lại: ' + auto.map(x => '"' + x + '"').join(', ') : '') + '. Tả hành động cụ thể thay vì gọi tên cảm xúc.';
 }
 /* Kiểu mở chương: so với 2 chương trước. */
 function openingKind(text) {
@@ -1290,7 +1297,6 @@ function buildVocabularyBlockFrom(state) {
   if (v.banned) parts.push("TỪ CẦN TRÁNH: " + v.banned.replace(/\n/g, ", "));
   if (v.overused) parts.push("CỤM ĐÃ LẶP NHIỀU (tránh dùng lại): " + v.overused.replace(/\n/g, " · "));
   if (v.anatomy) parts.push("CÁCH GỌI BỘ PHẬN: " + v.anatomy);
-  parts.push(overusedPhraseGuide(state));
   return parts.join("\n");
 }
 
@@ -5995,7 +6001,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.34";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.35";
   }
 
   let lastErr = null;
@@ -6764,6 +6770,7 @@ function buildContextBlock(options){
 
   const vocab = buildVocabularyBlock();
   if(vocab) lines.push(clip(vocab, 600));
+  lines.push(overusedPhraseGuide(state));
 
   /* V12.32.18: tiến độ Arc + việc bắt buộc của chương theo Outline (thay cho dòng ARC/OUTLINE cắt 200/800 ký tự). */
   { const _n = (Array.isArray(contextOptions.priorChapters) ? contextOptions.priorChapters.length : state.chapters.length) + 1; const ap = arcProgressPrompt(state, _n); if(ap) lines.push(ap); }
@@ -7198,7 +7205,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.34";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.35";
     }
     // Lightweight probe: request 1 token
     const body = {
