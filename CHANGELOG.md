@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.36] — Character Database trống dù Memory/Status chạy
+- **Lỗi (ảnh người dùng, chẩn đoán chương: "Quỳnh Anh (evidence không khớp văn bản chương)"):** cổng evidence cấp hàng nhân vật đòi trích ≥70% từ nguyên văn; AI trích tóm lược là cả thẻ bị bỏ.
+- **Sửa:** nhận hàng nếu evidence cấp hàng, hoặc bất kỳ fieldEvidence/stateEvidence khớp chương, hoặc NV đã có trong roster được nhắc tên. Từng trường vẫn qua cổng riêng.
+- **Test:** `v14_7_36_char_row_gate` (fail trên code cũ, pass trên code mới).
+
 ## [V14.7.35] — Hướng dẫn chống cụm sáo thật sự tới được prompt
 - **Lỗi của V14.7.28 (phát hiện khi kiểm tra chi phí):** guide chống cụm sáo nằm trong khối Từ vựng; khối này bị clip còn 600 ký tự ở ngữ cảnh và 260 ký tự ở prompt scene, nên phần guide gần như không bao giờ tới model, trong khi cổng đếm vẫn buộc viết lại → tốn lượt gọi (Sửa/vá) vô ích.
 - **Sửa:** `buildVocabularyBlockFrom` không còn chứa guide; `overusedPhraseGuide` thành dòng riêng trong ngữ cảnh (client + worker); `compactOverusedGuide` (<500 ký tự) vào mọi prompt scene.

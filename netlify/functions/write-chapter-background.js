@@ -7153,7 +7153,17 @@ async function runUnifiedPostProcess(job, chapter, n, state) {
       let created=0, updated=0, skipped=0;
       const skippedWhy = []; // V14.0.13: ghi rõ nhân vật nào bị bỏ qua và vì sao (trước đây chỉ có số "bỏ qua" nên không biết vì sao thiếu)
       const _chRows = Array.isArray(data.characters) ? data.characters.length : 0;
-      const _chValid = validEvidenceItems(data.characters, source);
+      /* V14.7.36: cổng cấp-hàng cũ đòi row.evidence trích >=70% từ nguyên văn -> AI trích tóm lược/ghép là cả thẻ bị bỏ (thẻ NV trống dù Memory/Status chạy).
+         Nay chấp nhận hàng nếu evidence cấp hàng HOẶC bất kỳ fieldEvidence/stateEvidence nào khớp chương, hoặc NV đã có trong roster được nhắc tên trong chương
+         (từng trường vẫn qua cổng riêng nên không nới lỏng dữ liệu rác). */
+      const _chValid = (Array.isArray(data.characters) ? data.characters : []).filter(x => {
+        if (!x || typeof x !== "object" || !String(x.name || "").trim()) return false;
+        if (String(x.evidence || "").trim() && evidenceInText(x.evidence, source)) return true;
+        const quotes = [].concat(Object.values(x.fieldEvidence && typeof x.fieldEvidence === "object" ? x.fieldEvidence : {}), Object.values(x.stateEvidence && typeof x.stateEvidence === "object" ? x.stateEvidence : {}));
+        if (quotes.some(q => typeof q === "string" && evidenceInText(q, source))) return true;
+        let known = null; try { known = resolveRosterCharacter(state, x); } catch (_) {}
+        return !!known && containsNamePhrase(String(x.name), source);
+      });
       (Array.isArray(data.characters) ? data.characters : []).forEach(x => { if (x && x.name && !_chValid.includes(x)) skippedWhy.push(`${String(x.name).slice(0, 40)} (evidence không khớp văn bản chương)`); });
       let droppedFields = 0;
       _chValid.forEach(u => {

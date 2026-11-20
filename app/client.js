@@ -6001,7 +6001,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.35";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.36";
   }
 
   let lastErr = null;
@@ -7205,7 +7205,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.35";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.36";
     }
     // Lightweight probe: request 1 token
     const body = {
