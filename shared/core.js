@@ -1085,13 +1085,28 @@ function conspiracyParseTiers(text) {
   while ((m = re.exec(String(text || '')))) out.push({ tier: +m[1], from: +m[2], to: /^\d+$/.test(m[3] || '') ? +m[3] : Infinity, text: m[5].trim() });
   return out;
 }
+const CONSPIRACY_MAX_CHARS = 7000;
+/* Vật chứng cố định theo chương: dòng dạng "... → lộ khoảng chương 25–35" (do người dùng hoặc AI ghi). */
+function conspiracyParseClues(text) {
+  const out = [], re = /^[ \t]*(?:\d+[\.\)]?|[•\-\*])?[ \t]*(.+?)[ \t]*(?:→|->|—>)[ \t]*lộ[^\n\d]*chương\s*~?\s*(\d+)\s*(?:[–\-—]|đến)\s*(\d+)/gim; let m;
+  while ((m = re.exec(String(text || '')))) out.push({ text: m[1].trim().slice(0, 160), from: +m[2], to: +m[3] });
+  return out;
+}
+function conspiracyClueFor(st, chapterNumber) {
+  const n = Math.max(1, Number(chapterNumber) || 1), cl = conspiracyParseClues(st && st.conspiracyBible);
+  const due = cl.filter(c => n >= c.from - 6 && n <= c.to);
+  if (due.length) return { kind: 'due', clue: due[0] };
+  const next = cl.filter(c => c.from > n).sort((a, b) => a.from - b.from)[0];
+  return next ? { kind: 'next', clue: next } : null;
+}
 function conspiracyBlock(st, chapterNumber) {
   const t = String((st && st.conspiracyBible) || '').trim();
   if (!t) return '';
   const n = Math.max(1, Number(chapterNumber) || 1), tiers = conspiracyParseTiers(t);
   const cur = tiers.find(x => n >= x.from && n <= x.to) || (tiers.length && n > tiers[tiers.length - 1].from ? tiers[tiers.length - 1] : null);
-  return 'ÂM MƯU & KẺ THÙ (CANON — không mâu thuẫn, không tự đổi chủ mưu/phe/tầng; chỉ lộ đúng theo tầng):\n' + conspiracyClean(t, 3400) +
-    (cur ? '\nTẦNG ĐANG ÁP DỤNG (chương ' + n + '): TẦNG ' + cur.tier + ' — ' + cur.text.slice(0, 260) : '');
+  return 'ÂM MƯU & KẺ THÙ (CANON — không mâu thuẫn, không tự đổi chủ mưu/phe/tầng; chỉ lộ đúng theo tầng):\n' + conspiracyClean(t, CONSPIRACY_MAX_CHARS) +
+    (cur ? '\nTẦNG ĐANG ÁP DỤNG (chương ' + n + '): TẦNG ' + cur.tier + ' — ' + cur.text.slice(0, 260) : '')
+    + (function () { const k = conspiracyClueFor(st, n); return k ? (k.kind === 'due' ? '\nVẬT CHỨNG ĐẾN LƯỢT LỘ (chương ' + n + '): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']' : '\nVẬT CHỨNG KẾ TIẾP (chưa lộ, chỉ được gợi nhẹ): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']') : ''; })();
 }
 function chapterCraftPlanBlock(st, chapterNumber) {
   const n = Math.max(1, Number(chapterNumber) || 1), L = [];
@@ -1100,6 +1115,7 @@ function chapterCraftPlanBlock(st, chapterNumber) {
   const dr = mainThreadDrift(st, n);
   if (dr) L.push('MẠCH CHÍNH ĐÃ BỊ BỎ QUÊN ' + dr + ' chương liền (tu luyện/âm mưu hầu như không xuất hiện): chương này BẮT BUỘC có một beat [R] đẩy mạch chính tiến một bước thật — tu luyện có mốc tiến triển cụ thể hoặc âm mưu lộ ra một manh mối/hành động của kẻ thù — rồi mới tới phần còn lại.');
   if (String((st && st.conspiracyBible) || '').trim()) { const cb = conspiracyBlock(st, n), i = cb.lastIndexOf('TẦNG ĐANG ÁP DỤNG'); L.push('ÂM MƯU (canon đã chốt): ' + (i >= 0 ? cb.slice(i) : 'bám bản âm mưu trong ngữ cảnh') + '. Beat đẩy mạch chính của chương phải dùng manh mối/vật chứng/nhân vật của tầng này; không lộ kẻ chủ mưu thật sớm hơn tầng cuối.'); }
+  { const k = conspiracyClueFor(st, n); if (k && k.kind === 'due') L.push('VẬT CHỨNG ĐẾN LƯỢT LỘ: ' + k.clue.text + ' — chương này hoặc 1–2 chương tới phải lộ/đưa vào cốt truyện đúng vật chứng này (không lộ thêm vật chứng sau nó).'); }
   return L.join('\n');
 }
 const NARRATOR_EPITHETS = [

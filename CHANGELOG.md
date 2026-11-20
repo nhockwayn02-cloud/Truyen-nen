@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.33] — Canon âm mưu dài không bị cắt + lịch vật chứng theo chương
+- **Lỗi:** `conspiracyBlock` cắt canon ở 3.400 ký tự; bản của người dùng ~5.640 ký tự nên phần cuối (vật chứng cố định, điều cấm lộ, quy tắc nhân vật) bị mất đúng chỗ quan trọng nhất.
+- **Sửa:** giới hạn `CONSPIRACY_MAX_CHARS = 7000`; lúc Lưu báo số ký tự và cảnh báo nếu vượt.
+- **Thêm:** `conspiracyParseClues`/`conspiracyClueFor` đọc các dòng "… → lộ khoảng chương a–b": đến lượt (từ 6 chương trước đến hết khoảng) thì ngữ cảnh ghi VẬT CHỨNG ĐẾN LƯỢT LỘ và kế hoạch chương bắt buộc đưa đúng vật chứng đó; chưa tới thì chỉ "KẾ TIẾP, gợi nhẹ".
+- **Test:** thêm 4 kiểm tra vào `v14_7_32_conspiracy`. Chưa thử với model thật.
+
 ## [V14.7.32] — Âm mưu & Kẻ thù (canon) tự dựng cho người đọc
 - **Vấn đề:** app không có chỗ cho kẻ thù/âm mưu cụ thể (Cốt Truyện Chính chỉ nói "đại âm mưu" chung chung), nên mạch chính yếu và AI dễ bịa mâu thuẫn mỗi chương. (Đính chính: ô id `antagonist` thực ra là "Quy Tắc Khác", không phải ô phản diện.)
 - **Thêm (Story Bible):** nút "🕵️ Tạo / 🔄 Tạo lại âm mưu & kẻ thù": AI đọc Cốt Truyện Chính + dàn nhân vật, dựng bản nhiều phe/nhiều tầng (sự thật năm xưa, mảnh ghép, 3–5 phe, 4–5 tầng có mốc chương + vật chứng, chủ mưu thật, kẻ thù đang hành động, vai trò từng nhân vật). Người dùng chỉ đọc/sửa rồi "✅ Lưu làm canon"; chưa lưu thì không ảnh hưởng truyện.
