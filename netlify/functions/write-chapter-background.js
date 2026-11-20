@@ -1171,6 +1171,26 @@ function conspiracyBlock(st, chapterNumber) {
     (cur ? '\nTẦNG ĐANG ÁP DỤNG (chương ' + n + '): TẦNG ' + cur.tier + ' — ' + cur.text.slice(0, 260) : '')
     + (function () { const k = conspiracyClueFor(st, n); return k ? (k.kind === 'due' ? '\nVẬT CHỨNG ĐẾN LƯỢT LỘ (chương ' + n + '): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']' : '\nVẬT CHỨNG KẾ TIẾP (chưa lộ, chỉ được gợi nhẹ): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']') : ''; })();
 }
+/* V14.7.34: dọn bộ nhớ "mồ côi". Xóa hết chương (hoặc xóa lệch thứ tự) nhưng Timeline/Foreshadowing/Knowledge/Threads/Scenes… vẫn còn mục của chương không còn tồn tại (ảnh người dùng: 0 chương mà vẫn "Diễn biến gần: Ch16…"). Mục có số chương > tổng số chương hiện có bị bỏ; khi 0 chương thì bỏ hết dữ liệu sinh từ chương. Không đụng nhân vật/Current Status/cài đặt. */
+function pruneOrphanChapterMemory(st) {
+  const total = Array.isArray(st && st.chapters) ? st.chapters.length : 0, removed = {};
+  const orphan = (...vals) => { const nums = vals.map(Number).filter(n => Number.isFinite(n) && n > 0); return total === 0 || nums.some(n => n > total); };
+  const prune = (key, test) => { const a = Array.isArray(st[key]) ? st[key] : []; const kept = a.filter(x => !test(x || {})); if (kept.length !== a.length) { removed[key] = a.length - kept.length; st[key] = kept; } };
+  prune('timeline', e => orphan(e.chapter));
+  prune('memoryEvents', e => orphan(e.chapter));
+  prune('foreshadowing', f => orphan(f.plantedChapter, f.lastUpdated, f.resolvedChapter));
+  prune('knowledgeLedger', k => orphan(k.firstChapter, k.lastUpdated));
+  prune('threads', t => orphan(t.chapterIntroduced, t.lastUpdatedChapter));
+  prune('scenes', x => orphan(x.chapter));
+  prune('consentLog', x => orphan(x.chapter));
+  const tr = st.characterStateTracker && typeof st.characterStateTracker === 'object' ? st.characterStateTracker : {};
+  Object.keys(tr).forEach(k => { if (tr[k] && orphan(tr[k].chapter)) { delete tr[k]; removed.characterStateTracker = (removed.characterStateTracker || 0) + 1; } });
+  if (total === 0 && st.layeredMemory && st.layeredMemory.summaries) { ['L1', 'L2', 'L3', 'L4'].forEach(L => { if ((st.layeredMemory.summaries[L] || []).length) { removed['layered.' + L] = st.layeredMemory.summaries[L].length; st.layeredMemory.summaries[L] = []; } }); }
+  st.lastStatusChapter = Math.min(Number(st.lastStatusChapter || 0), total);
+  st.lastMemorySyncChapter = Math.min(Number(st.lastMemorySyncChapter || 0), total);
+  removed.total = Object.keys(removed).filter(k => k !== 'total').reduce((a, k) => a + removed[k], 0);
+  return removed;
+}
 function chapterCraftPlanBlock(st, chapterNumber) {
   const n = Math.max(1, Number(chapterNumber) || 1), L = [];
   L.push('THAY ĐỔI QUAN HỆ (bắt buộc, mỗi chương một lần): trong beat [R] cuối ghi rõ AI mất gì / được gì / lộ gì với ai, khiến quan hệ giữa hai nhân vật khác đi so với đầu chương (quyền lực, niềm tin, nợ, bí mật). Thêm một chiêu/đạo cụ mới mà quan hệ không đổi thì KHÔNG tính.');

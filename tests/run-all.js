@@ -39,6 +39,7 @@ const dir = __dirname; const suites = [
   ["V14.7.30 nhân vật phụ thúc đẩy truyện", process.execPath, ["v14_7_30_supporting_cast.test.js"]],
   ["V14.7.31 chất lượng tiểu thuyết: kết chương, quan hệ, nữ chủ động, biệt danh, mạch chính", process.execPath, ["v14_7_31_novel_craft.test.js"]],
   ["V14.7.32 âm mưu & kẻ thù canon", process.execPath, ["v14_7_32_conspiracy.test.js"]],
+  ["V14.7.34 dọn bộ nhớ mồ côi sau khi xóa chương", process.execPath, ["v14_7_34_orphan_memory.test.js"]],
   ["V14.7.16 cảnh nóng có nội tâm/hồi tưởng và không bị cắt sang cảnh khác", process.execPath, ["v14_7_16_inner_continuity.test.js"]],
   ["V14.7.15 không tả lại ngoại hình đã giới thiệu (chống lặp cao 185cm...)", process.execPath, ["v14_7_15_no_repeat_description.test.js"]],
   ["V14.7.14b chương trước dừng giữa cảnh nóng -> viết tiếp; từ khóa 18+ đủ rộng", process.execPath, ["v14_7_14b_unfinished_scene.test.js"]],

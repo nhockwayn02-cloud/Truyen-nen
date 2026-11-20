@@ -1223,6 +1223,26 @@ function conspiracyBlock(st, chapterNumber) {
     (cur ? '\nTẦNG ĐANG ÁP DỤNG (chương ' + n + '): TẦNG ' + cur.tier + ' — ' + cur.text.slice(0, 260) : '')
     + (function () { const k = conspiracyClueFor(st, n); return k ? (k.kind === 'due' ? '\nVẬT CHỨNG ĐẾN LƯỢT LỘ (chương ' + n + '): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']' : '\nVẬT CHỨNG KẾ TIẾP (chưa lộ, chỉ được gợi nhẹ): ' + k.clue.text + ' [dự kiến chương ' + k.clue.from + '–' + k.clue.to + ']') : ''; })();
 }
+/* V14.7.34: dọn bộ nhớ "mồ côi". Xóa hết chương (hoặc xóa lệch thứ tự) nhưng Timeline/Foreshadowing/Knowledge/Threads/Scenes… vẫn còn mục của chương không còn tồn tại (ảnh người dùng: 0 chương mà vẫn "Diễn biến gần: Ch16…"). Mục có số chương > tổng số chương hiện có bị bỏ; khi 0 chương thì bỏ hết dữ liệu sinh từ chương. Không đụng nhân vật/Current Status/cài đặt. */
+function pruneOrphanChapterMemory(st) {
+  const total = Array.isArray(st && st.chapters) ? st.chapters.length : 0, removed = {};
+  const orphan = (...vals) => { const nums = vals.map(Number).filter(n => Number.isFinite(n) && n > 0); return total === 0 || nums.some(n => n > total); };
+  const prune = (key, test) => { const a = Array.isArray(st[key]) ? st[key] : []; const kept = a.filter(x => !test(x || {})); if (kept.length !== a.length) { removed[key] = a.length - kept.length; st[key] = kept; } };
+  prune('timeline', e => orphan(e.chapter));
+  prune('memoryEvents', e => orphan(e.chapter));
+  prune('foreshadowing', f => orphan(f.plantedChapter, f.lastUpdated, f.resolvedChapter));
+  prune('knowledgeLedger', k => orphan(k.firstChapter, k.lastUpdated));
+  prune('threads', t => orphan(t.chapterIntroduced, t.lastUpdatedChapter));
+  prune('scenes', x => orphan(x.chapter));
+  prune('consentLog', x => orphan(x.chapter));
+  const tr = st.characterStateTracker && typeof st.characterStateTracker === 'object' ? st.characterStateTracker : {};
+  Object.keys(tr).forEach(k => { if (tr[k] && orphan(tr[k].chapter)) { delete tr[k]; removed.characterStateTracker = (removed.characterStateTracker || 0) + 1; } });
+  if (total === 0 && st.layeredMemory && st.layeredMemory.summaries) { ['L1', 'L2', 'L3', 'L4'].forEach(L => { if ((st.layeredMemory.summaries[L] || []).length) { removed['layered.' + L] = st.layeredMemory.summaries[L].length; st.layeredMemory.summaries[L] = []; } }); }
+  st.lastStatusChapter = Math.min(Number(st.lastStatusChapter || 0), total);
+  st.lastMemorySyncChapter = Math.min(Number(st.lastMemorySyncChapter || 0), total);
+  removed.total = Object.keys(removed).filter(k => k !== 'total').reduce((a, k) => a + removed[k], 0);
+  return removed;
+}
 function chapterCraftPlanBlock(st, chapterNumber) {
   const n = Math.max(1, Number(chapterNumber) || 1), L = [];
   L.push('THAY ĐỔI QUAN HỆ (bắt buộc, mỗi chương một lần): trong beat [R] cuối ghi rõ AI mất gì / được gì / lộ gì với ai, khiến quan hệ giữa hai nhân vật khác đi so với đầu chương (quyền lực, niềm tin, nợ, bí mật). Thêm một chiêu/đạo cụ mới mà quan hệ không đổi thì KHÔNG tính.');
@@ -5975,7 +5995,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.33";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.34";
   }
 
   let lastErr = null;
@@ -7178,7 +7198,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.33";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.34";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -7382,6 +7402,7 @@ $ID("deleteChapterBtn").addEventListener("click", async ()=>{
     state.currentChapterIndex = state.chapters.length - 1;
   }
 
+  if(wipe) try{ pruneOrphanChapterMemory(state); }catch(_){}
   // Xóa chương là thao tác dữ liệu quan trọng: ghi NGAY vào IndexedDB + emergency copy,
   // không chờ debounce 1,75s, để iOS/Safari không giữ lại bản memory cũ.
   persistNow({sync:true});
@@ -8014,6 +8035,16 @@ $ID("conspiracySaveBtn")?.addEventListener("click", ()=>{
   state.conspiracyBible = String(($ID("conspiracyBibleInput")||{}).value||"").trim();
   persist();
   const st=$ID("conspiracyStatus"); if(st) st.textContent = state.conspiracyBible ? ("✅ Đã lưu làm canon ("+state.conspiracyBible.length+" ký tự"+(state.conspiracyBible.length>CONSPIRACY_MAX_CHARS?" — QUÁ DÀI, phần cuối trên "+CONSPIRACY_MAX_CHARS+" ký tự sẽ bị cắt, hãy rút gọn":"")+") — mọi chương viết sau sẽ bám bản này.") : "Đã xóa bản âm mưu.";
+});
+
+/* V14.7.34: nút dọn bộ nhớ mồ côi (chương không còn nhưng Timeline/Foreshadowing/Knowledge/Threads… vẫn còn). */
+$ID("memoryOrphanBtn")?.addEventListener("click", async ()=>{
+  const n=(state.chapters||[]).length;
+  const ok=await showConfirm(n? ("Xóa các mục bộ nhớ thuộc chương lớn hơn "+n+" (không còn trong truyện)?") : "Truyện đang có 0 chương. Xóa toàn bộ Timeline, Foreshadowing, Knowledge, Threads, Scenes, L1–L4 sinh từ chương cũ? (Nhân vật và Current Status được giữ.)", {okText:"Dọn", danger:true});
+  if(!ok) return;
+  const r=pruneOrphanChapterMemory(state);
+  persistNow({sync:true}); renderAll();
+  setStatus(r.total ? ("Đã dọn "+r.total+" mục mồ côi: "+Object.keys(r).filter(k=>k!=="total").map(k=>k+" "+r[k]).join(", ")+".") : "Không có mục mồ côi nào.", false);
 });
 
 function updateCharDedupeUI(){

@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.34] — Xóa hết chương nhưng bộ nhớ còn (mục mồ côi)
+- **Lỗi (ảnh người dùng):** 0 chương, L0–L5 đều 0, nhưng Memory Engine vẫn hiện Timeline 7 sự kiện, Foreshadowing 2, Knowledge 11, "Diễn biến gần: Ch16…". Khi xóa chương mà không có snapshot chương trước (xóa đến chương 1, hoặc xóa lệch thứ tự), nhánh khôi phục không chạy nên chỉ lọc theo đúng số chương bị xóa, các mục có số chương cũ vẫn còn.
+- **Sửa:** `pruneOrphanChapterMemory` (timeline, memoryEvents, foreshadowing, knowledgeLedger, threads, scenes, consentLog, characterStateTracker): mục có số chương > số chương hiện có bị bỏ; 0 chương thì bỏ hết và dọn L1–L4. Tự chạy sau mỗi lần xóa chương khi bật "Xoá kèm bộ nhớ"; thêm nút "🧹 Dọn bộ nhớ mồ côi (chương đã xóa)" ở Memory Engine để dọn dữ liệu đang tồn đọng. Không đụng nhân vật, Current Status, cài đặt.
+- **Test:** `v14_7_34_orphan_memory`. Chưa thử trên iPhone/model thật.
+
 ## [V14.7.33] — Canon âm mưu dài không bị cắt + lịch vật chứng theo chương
 - **Lỗi:** `conspiracyBlock` cắt canon ở 3.400 ký tự; bản của người dùng ~5.640 ký tự nên phần cuối (vật chứng cố định, điều cấm lộ, quy tắc nhân vật) bị mất đúng chỗ quan trọng nhất.
 - **Sửa:** giới hạn `CONSPIRACY_MAX_CHARS = 7000`; lúc Lưu báo số ký tự và cảnh báo nếu vượt.
