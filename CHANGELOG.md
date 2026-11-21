@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.37] — Sổ rút kinh nghiệm, model theo bước, lọc danh xưng chung
+- **Sổ rút kinh nghiệm:** không huấn luyện model. App tính lại từ chính các chương (autoUpdateIssues, review.hardFailures/warnings, continuityWarnings): lỗi cùng loại lặp ở ≥2 chương (7 loại: địa điểm, beats, cast, lặp cụm, kết chương, quyền lực, canon) → thành 1 dòng nhắc trong prompt scene (tối đa 4 dòng, ≤700 ký tự); tự mờ nếu >7 chương không tái phạm; xóa chương tự cập nhật. Có danh sách trong Thiết lập để Tắt/Bật từng bài học hoặc tắt hẳn.
+- **Model theo bước:** trước đây `stepModels` có trong code nhưng KHÔNG có ô nhập. Nay có 4 ô (Hậu kỳ, Quality Gate, kiểm tra scene, gợi ý chương sau); để trống = model chính.
+- **Nút "Kiểm tra JSON của model Hậu kỳ":** gửi một đoạn mẫu, báo đọc được JSON không, nhận ra nhân vật không, câu trích có khớp nguyên văn không.
+- **Danh xưng chung** ("Gã hàng xóm", "Giám đốc vận hành") không còn tự thành thẻ NV (từ cuối không viết hoa). "Giám đốc Hoàng", "chị Linh" vẫn hợp lệ; thẻ đã có sẵn không bị đụng.
+- **Test:** `v14_7_37_learning`. Chưa thử với model thật/iPhone/Netlify.
+
 ## [V14.7.36] — Character Database trống dù Memory/Status chạy
 - **Lỗi (ảnh người dùng, chẩn đoán chương: "Quỳnh Anh (evidence không khớp văn bản chương)"):** cổng evidence cấp hàng nhân vật đòi trích ≥70% từ nguyên văn; AI trích tóm lược là cả thẻ bị bỏ.
 - **Sửa:** nhận hàng nếu evidence cấp hàng, hoặc bất kỳ fieldEvidence/stateEvidence khớp chương, hoặc NV đã có trong roster được nhắc tên. Từng trường vẫn qua cổng riêng.

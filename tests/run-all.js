@@ -42,6 +42,7 @@ const dir = __dirname; const suites = [
   ["V14.7.34 dọn bộ nhớ mồ côi sau khi xóa chương", process.execPath, ["v14_7_34_orphan_memory.test.js"]],
   ["V14.7.35 guide chống cụm sáo tới được prompt", process.execPath, ["v14_7_35_overused_reaches_prompt.test.js"]],
   ["V14.7.36 cổng hàng nhân vật không bỏ cả thẻ", process.execPath, ["v14_7_36_char_row_gate.test.js"]],
+  ["V14.7.37 sổ rút kinh nghiệm + danh xưng chung + JSON model", process.execPath, ["v14_7_37_learning.test.js"]],
   ["V14.7.16 cảnh nóng có nội tâm/hồi tưởng và không bị cắt sang cảnh khác", process.execPath, ["v14_7_16_inner_continuity.test.js"]],
   ["V14.7.15 không tả lại ngoại hình đã giới thiệu (chống lặp cao 185cm...)", process.execPath, ["v14_7_15_no_repeat_description.test.js"]],
   ["V14.7.14b chương trước dừng giữa cảnh nóng -> viết tiếp; từ khóa 18+ đủ rộng", process.execPath, ["v14_7_14b_unfinished_scene.test.js"]],

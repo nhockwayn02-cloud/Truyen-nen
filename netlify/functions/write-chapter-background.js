@@ -967,6 +967,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
     SENTENCE_RHYTHM_RULE,
     compactOverusedGuide(o.state),
+    lessonsBlock(o.state),
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.isFinalScene ? 'KẾT CHƯƠNG CÓ MÓC: câu cuối KHÔNG được là lời tóm tắt nội tâm hay kế hoạch ("cô biết…", "chuẩn bị cho…"). Kết bằng một hình ảnh cụ thể, một câu thoại, hoặc một thông tin/biến cố mới khiến người đọc muốn lật trang.' : '',
@@ -1046,6 +1047,73 @@ function compactOverusedGuide(st) {
   const hard = OVERUSED_WATCH.filter(w => w.hard).map(w => '"' + w.p + '"≤' + w.max).join(', ');
   const auto = detectOverusedPhrases(st && st.chapters, 5);
   return 'TRÁNH SÁO (số = tối đa/chương): ' + hard + (auto.length ? '; không lặp lại: ' + auto.map(x => '"' + x + '"').join(', ') : '') + '. Tả hành động cụ thể thay vì gọi tên cảm xúc.';
+}
+/* V14.7.37: SỔ RÚT KINH NGHIỆM. Không huấn luyện model; app suy ra các lỗi đã LẶP LẠI từ chính các chương (cảnh báo, hard failure) và nhắc ngắn trong prompt chương sau.
+   Tính lại từ chương mỗi lần (không lưu riêng) nên xóa/viết lại chương tự cập nhật; chỉ lưu state.lessonMuted (bài học người dùng tắt) và state.lessonsOff. */
+const LESSON_RULES = [
+  { key: 'place', re: /LOCATION_TIME|sai địa điểm|trái với kế hoạch là|sai (?:chỗ|nơi)/i, advice: 'Mở mỗi cảnh đúng địa điểm và thời điểm ghi trong kế hoạch; không tự đổi nơi diễn ra.' },
+  { key: 'beats', re: /MUST_CHANGE|Thiếu hành động|thiếu (?:beat|việc bắt buộc)|chưa (?:thực hiện|làm) (?:đủ )?beat/i, advice: 'Làm ĐỦ mọi hành động bắt buộc của cảnh (beats) bằng hành động cụ thể trước khi sang cảnh khác.' },
+  { key: 'cast', re: /chưa có trong Character Database|ngoài danh sách nhân vật|ALLOWED CAST/i, advice: 'Chỉ dùng nhân vật trong danh sách cho phép; người mới (nếu được phép) phải có tên riêng, không gọi bằng danh xưng chung.' },
+  { key: 'repeat', re: /lặp(?: lại)? (?:cụm|cảm giác|mô tả|ý)|OVERUSED|cụm sáo|sự lặp lại/i, advice: 'Không lặp cảm giác/cụm từ đã dùng ở chương trước; tả bằng chi tiết mới.' },
+  { key: 'ending', re: /kết chương|câu cuối.*tóm tắt|ENDING_SUMMARY|chưa tới điểm kết|CHƯA TỚI ĐIỂM KẾT/i, advice: 'Kết chương bằng hành động, hình ảnh hoặc câu thoại còn treo, không tóm tắt nội tâm.' },
+  { key: 'power', re: /quyền lực|vị thế|chức vụ|cấp bậc|rank/i, advice: 'Giữ đúng thang quyền lực đã khai báo; chỉ thay đổi khi có nguyên nhân riêng được viết ra.' },
+  { key: 'canon', re: /mâu thuẫn|canon|trái với (?:hồ sơ|Current Status)|continuity/i, advice: 'Đối chiếu Current Status và hồ sơ nhân vật trước khi viết; không tự đổi sự thật đã chốt.' }
+];
+function lessonSourceText(ch) {
+  const out = [];
+  const add = v => { if (v == null) return; if (Array.isArray(v)) v.forEach(add); else if (typeof v === 'object') out.push(JSON.stringify(v)); else out.push(String(v)); };
+  if (!ch || typeof ch !== 'object') return '';
+  add(ch.autoUpdateIssues);
+  if (ch.review && typeof ch.review === 'object') { add(ch.review.hardFailures); add(ch.review.warnings); }
+  add(ch.continuityWarnings);
+  return out.join('\n');
+}
+function lessonStats(state) {
+  const items = LESSON_RULES.map(r => ({ key: r.key, advice: r.advice, chapters: [] }));
+  (state && state.chapters || []).forEach((ch, i) => {
+    const t = lessonSourceText(ch); if (!t) return;
+    LESSON_RULES.forEach((r, k) => { if (r.re.test(t)) items[k].chapters.push(i + 1); });
+  });
+  return items.filter(x => x.chapters.length);
+}
+function activeLessons(state, max) {
+  if (!state || state.lessonsOff) return [];
+  const muted = Array.isArray(state.lessonMuted) ? state.lessonMuted : [];
+  const total = (state.chapters || []).length;
+  return lessonStats(state).filter(x => x.chapters.length >= 2 && !muted.includes(x.key) && x.chapters[x.chapters.length - 1] >= total - 7)
+    .sort((a, b) => b.chapters[b.chapters.length - 1] - a.chapters[a.chapters.length - 1] || b.chapters.length - a.chapters.length).slice(0, max || 4);
+}
+function lessonsBlock(state) {
+  const a = activeLessons(state, 4); if (!a.length) return '';
+  const txt = 'RÚT KINH NGHIỆM (lỗi đã lặp ở các chương trước — tránh lặp lại): ' + a.map(x => x.advice + ' (gặp ở chương ' + x.chapters.slice(-3).join(', ') + ')').join(' | ');
+  return txt.length > 700 ? txt.slice(0, 700) : txt;
+}
+/* V14.7.37: danh xưng chung ("Gã hàng xóm", "Giám đốc vận hành", "Bảo vệ") không phải tên riêng → không tự thành thẻ NV.
+   Quy tắc: từ CUỐI không viết hoa. "Giám đốc Hoàng", "Quỳnh Anh", "chị Linh" vẫn hợp lệ. */
+function isGenericAddressName(name) {
+  const w = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!w.length) return false;
+  const last = w[w.length - 1].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+  return !!last && /^\p{Ll}/u.test(last);
+}
+/* V14.7.37: kiểm tra model có trả JSON hậu kỳ dùng được không (dùng cho nút "Kiểm tra JSON của model"). */
+const JSON_HEALTH_SAMPLE = 'Quỳnh Anh bước vào phòng nghỉ, mặt tái đi. Cô là thư ký của tổng giám đốc, kiêu ngạo và hay quát mắng người khác. "Anh định tống tiền tôi sao?" Quỳnh Anh run lên khi Lạc giơ điện thoại.';
+function jsonHealthPrompt() {
+  return 'Đọc đoạn chương và CHỈ trả MỘT JSON object hợp lệ, không markdown: {"characters":[{"name":"","role":"","evidence":"<trích NGUYÊN VĂN từ đoạn>","fieldEvidence":{"role":"<trích nguyên văn>"}}]}\n<chapter>\n' + JSON_HEALTH_SAMPLE + '\n</chapter>';
+}
+function jsonHealthCheck(parsed, rawText) {
+  const notes = []; let ok = true;
+  if (!parsed || typeof parsed !== 'object') return { ok: false, notes: ['FAIL: không đọc được JSON (model trả văn bản/markdown hoặc bị cắt).'] };
+  notes.push('PASS: đọc được JSON.');
+  const rows = Array.isArray(parsed.characters) ? parsed.characters : null;
+  if (!rows || !rows.length) { return { ok: false, notes: notes.concat(['FAIL: thiếu mảng "characters" hoặc rỗng.']) }; }
+  const r = rows.find(x => x && /quỳnh anh/i.test(String(x.name || ''))) || rows[0];
+  if (!/quỳnh anh/i.test(String(r.name || ''))) { ok = false; notes.push('FAIL: không nhận ra nhân vật Quỳnh Anh.'); } else notes.push('PASS: nhận ra nhân vật.');
+  const quotes = [r.evidence].concat(Object.values(r.fieldEvidence && typeof r.fieldEvidence === 'object' ? r.fieldEvidence : {})).filter(q => typeof q === 'string' && q.trim());
+  if (!quotes.length) { ok = false; notes.push('FAIL: không có câu trích evidence.'); }
+  else if (quotes.some(q => evidenceInText(q, JSON_HEALTH_SAMPLE))) notes.push('PASS: có câu trích khớp nguyên văn.');
+  else { ok = false; notes.push('FAIL: câu trích là tóm lược, không khớp nguyên văn (dễ bị bỏ thẻ nhân vật).'); }
+  return { ok, notes };
 }
 /* Kiểu mở chương: so với 2 chương trước. */
 function openingKind(text) {
@@ -3620,6 +3688,7 @@ function resolveCharacterTarget(state, name) {
   /* V14.7.20: "chị Linh", "anh Hùng", "Linh" (gọi tắt) → bỏ danh xưng rồi khớp tên đầy đủ/bí danh; chỉ nhận khi DUY NHẤT một người khớp. */
   const stripped = stripNameHonorific(name), ns = normalizeName(stripped);
   if (!ns || NAME_PRONOUN_TAILS.includes(ns)) return { kind: "none" };   // chỉ là danh xưng / đại từ ("chị", "anh ấy")
+  if (isGenericAddressName(name)) return { kind: "none" };   // V14.7.37: "Gã hàng xóm", "Giám đốc vận hành" không phải tên riêng
   if (ns.length < 2) return { kind: "new" };
   const hits = [];
   const matches = nm => { const x = normalizeName(nm); return !!x && (x === ns || x.endsWith(" " + ns) || (x.length >= 3 && ns.endsWith(" " + x))); };

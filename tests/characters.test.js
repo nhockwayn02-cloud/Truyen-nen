@@ -20,8 +20,8 @@ t("resolve: tên MC / nhãn chung / bí danh MC → main; NV có sẵn → chara
   assert.strictEqual(T.resolveCharacterTarget(st, "Lạc").kind, "main");
   assert.strictEqual(T.resolveCharacterTarget(st, "Ân").kind, "character");
   assert.strictEqual(T.resolveCharacterTarget(st, "Duyên").character.name, "Trần Mỹ Duyên");
-  assert.strictEqual(T.resolveCharacterTarget(st, "Người lạ").kind, "new");
-  assert.strictEqual(T.resolveCharacterTarget({ mainCharProfile: MC(""), characters: [] }, "nhân vật chính").kind, "new", "chưa khai báo MC thì không đoán");
+  assert.strictEqual(T.resolveCharacterTarget(st, "Người lạ").kind, "none", "V14.7.37: danh xưng chung không thành NV mới");
+  assert.strictEqual(T.resolveCharacterTarget({ mainCharProfile: MC(""), characters: [] }, "nhân vật chính").kind, "none", "chưa khai báo MC thì không đoán và cũng không tạo thẻ 'nhân vật chính' (V14.7.37)");
 });
 t("Ca của người dùng: MC=Bùi Lạc, DB có 'nhân vật chính' + 'Bùi Lạc' + 'Ân' → gợi ý gộp 2 mục đầu vào MC, KHÔNG đụng 'Ân'", () => {
   const st = { mainCharProfile: MC("Bùi Lạc"), characters: [C("Ân", { role: "antagonist", tier: "major" }), C("Trần Mỹ Duyên"), C("nhân vật chính", { tier: "major" }), C("Bùi Lạc", { role: "protagonist" }), C("bà chủ trọ")] };
