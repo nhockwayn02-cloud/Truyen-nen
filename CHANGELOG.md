@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.38] — Bước Arc tự đo theo diễn biến thật (viết không cần Outline)
+- **Vấn đề:** không có Outline thì kế hoạch chương chỉ thấy 500 ký tự đầu của Arc + "chương X/Y"; phần sau của Arc (đoạn dài ~7.000 ký tự) AI không thấy.
+- **Sửa:** `arcStageBlock`: tách Arc thành câu theo thứ tự; so cặp âm tiết có trọng số hiếm với tóm tắt 6 chương gần nhất; lấy mốc XA NHẤT đã chạm tới (truyện hay quay lại chủ đề cũ nên câu khớp nhất dao động); khớp vượt mốc chặn theo phần trăm chương bị bỏ; không khớp thì lùi về tiến độ chương. Chỉ đưa "Đang ở" + "Bước kế" vào kế hoạch chương (phần Arc xa hơn bị giấu). Nếu truyện đang đi nhanh hơn nhịp trung bình → nhắc đào sâu bằng diễn biến mới.
+- Không chèn khi chương đã có Outline (Outline thắng) hoặc ở bước chấm chất lượng; không gọi AI thêm; không có công tắc (tự động).
+- **Thử trên 30 chương thật:** mốc tiến từ "edging" (câu 13) tới "tuyên thệ/quy tắc Dominant" (câu 24/63) nhưng còn dao động vài bước giữa các chương.
+- **Test:** `v14_7_38_arc_stage`. Chưa thử với model thật/iPhone/Netlify.
+
 ## [V14.7.37] — Sổ rút kinh nghiệm, model theo bước, lọc danh xưng chung
 - **Sổ rút kinh nghiệm:** không huấn luyện model. App tính lại từ chính các chương (autoUpdateIssues, review.hardFailures/warnings, continuityWarnings): lỗi cùng loại lặp ở ≥2 chương (7 loại: địa điểm, beats, cast, lặp cụm, kết chương, quyền lực, canon) → thành 1 dòng nhắc trong prompt scene (tối đa 4 dòng, ≤700 ký tự); tự mờ nếu >7 chương không tái phạm; xóa chương tự cập nhật. Có danh sách trong Thiết lập để Tắt/Bật từng bài học hoặc tắt hẳn.
 - **Model theo bước:** trước đây `stepModels` có trong code nhưng KHÔNG có ô nhập. Nay có 4 ô (Hậu kỳ, Quality Gate, kiểm tra scene, gợi ý chương sau); để trống = model chính.

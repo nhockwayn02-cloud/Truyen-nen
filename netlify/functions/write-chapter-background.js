@@ -3171,7 +3171,48 @@ function outlineChapterLines(content, ol) {
   });
   return _outlineRemapLocal(map, ol);
 }
-function arcProgressPrompt(st, nOverride) {
+/* V14.7.38: BƯỚC ARC TỰ ĐO. Không có Outline thì AI chỉ thấy 500 ký tự đầu của Arc. Tách Arc (viết theo thứ tự thời gian) thành các câu, so từ khóa
+   (cặp âm tiết có trọng số hiếm) với tóm tắt các chương gần nhất để biết truyện thật sự đang ở câu nào; đưa "bước hiện tại" + "bước kế" cho kế hoạch chương.
+   Phần trăm chương chỉ là mốc chặn (không cho nhảy quá xa) và đường lui khi độ khớp thấp. Phần Arc xa hơn KHÔNG đưa vào. */
+function arcSentences(goal) {
+  const raw = String(goal || '').replace(/\s+/g, ' ').trim().split(/(?<=[.!?…])\s+/).filter(Boolean), out = [];
+  raw.forEach(x => { if (out.length && out[out.length - 1].length < 45) out[out.length - 1] += ' ' + x; else out.push(x); });
+  return out;
+}
+function _arcBigrams(text) {
+  const w = _normWords(text), set = new Set();
+  for (let i = 0; i + 2 <= w.length; i++) { if (w[i].length + w[i + 1].length >= 5) set.add(w[i] + ' ' + w[i + 1]); }
+  return set;
+}
+function arcStageEstimate(st, n) {
+  const arc = activeArcOf(st); if (!arc) return null;
+  const sents = arcSentences(arc.goal); if (sents.length < 6) return null;
+  const S = sents.length, start = Number(arc.startChapter) || 1, end = Number(arc.endChapterPlanned) || 0;
+  const pctIdx = end > start ? Math.max(0, Math.min(S - 1, Math.floor(((n - start) / (end - start + 1)) * S))) : 0;
+  const bg = sents.map(_arcBigrams), df = new Map();
+  bg.forEach(set => set.forEach(b => df.set(b, (df.get(b) || 0) + 1)));
+  /* Truyện luôn quay lại chủ đề cũ (cô thư ký, bảo vệ ca đêm...) nên câu khớp NHẤT của từng chương dao động; Arc lại theo thời gian → lấy mốc XA NHẤT đã chạm tới
+     trong 6 chương gần nhất (mỗi chương cần độ khớp đủ cao), rồi chặn bằng phần trăm chương để một lần khớp nhầm không kéo AI nhảy xa. */
+  const cap = Math.min(S - 1, pctIdx + Math.ceil(S * 0.3));
+  const chs = ((st && st.chapters) || []).slice(0, Math.max(0, n - 1)).slice(-6);
+  let best = -1;
+  chs.forEach(ch => {
+    const t = String((ch && (ch.summary || String(ch.text || '').slice(0, 1800))) || ''); if (!t) return;
+    const cb = _arcBigrams(t); let top = -1, topS = 0;
+    bg.forEach((set, k) => { let sc = 0; set.forEach(b => { if (cb.has(b)) sc += 1 / df.get(b); }); if (sc > topS || (sc === topS && sc > 0 && k > top)) { topS = sc; top = k; } });
+    if (top >= 0 && topS >= 1.0 && top <= cap && top > best) best = top;   // khớp vượt mốc chặn = nhiều khả năng khớp nhầm → bỏ, không kẹp
+  });
+  let cur = best >= 0 ? Math.min(best, cap) : pctIdx, by = best >= 0 ? 'diễn biến' : 'tiến độ chương';
+  return { sentences: sents, cur, by, pctIdx, S, ahead: cur - pctIdx >= Math.ceil(S * 0.15) };
+}
+function arcStageBlock(st, n) {
+  let e = null; try { e = arcStageEstimate(st, n); } catch (_) { e = null; }
+  if (!e) return '';
+  const cut = (v, k) => v.length > k ? v.slice(0, k) + '…' : v;
+  const now = e.sentences.slice(e.cur, e.cur + 2).join(' '), next = e.sentences.slice(e.cur + 2, e.cur + 4).join(' ');
+  return 'BƯỚC ARC ƯỚC LƯỢNG (tự đo theo ' + e.by + '; chỉ là gợi ý nhịp, canon đã viết luôn ưu tiên hơn):\n- Đang ở: ' + cut(now, 520) + '\n- Bước kế (CHƯA làm hết ở chương này): ' + cut(next, 360) + '\n- ' + (e.ahead ? 'Truyện đang đi NHANH hơn nhịp trung bình của Arc: ưu tiên đào sâu bước hiện tại bằng diễn biến MỚI (biến cố, hệ quả, nhân vật phụ, leo thang khác kiểu) trước khi sang bước kế.' : '') + '\n- Nếu các chương trước đã làm xong "Đang ở" thì chuyển sang bước kế; KHÔNG nhảy quá một bước, KHÔNG dùng diễn biến xa hơn của Arc, KHÔNG lặp một bậc đã làm.';
+}
+function arcProgressPrompt(st, nOverride, opts) {
   const chapters = (st && Array.isArray(st.chapters)) ? st.chapters : [];
   const n = Number(nOverride) > 0 ? Number(nOverride) : chapters.length + 1;
   const arc = activeArcOf(st), lines = [];
@@ -3198,6 +3239,7 @@ function arcProgressPrompt(st, nOverride) {
     } else lines.push(cut(ol.content, 1500));
     if (ol.to - n <= 1) lines.push("- Giai đoạn Outline sắp kết: chương này phải tiến tới mốc kết giai đoạn.");
   }
+  if (opts && opts.stage && !ol) { const sb = arcStageBlock(st, n); if (sb) lines.push(sb); }   // V14.7.38
   return lines.join("\n");
 }
 
@@ -4018,7 +4060,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     outlineItems, outlineMeta: chapterContract.outlineMeta || null,
     state: st, context: o.context, recent,
     directive: st.directive, hint: (chapterHintVerification(st, chapterNumber).text || ""), requiredBeats,
-    arcProgress: arcProgressPrompt(st, chapterNumber),
+    arcProgress: arcProgressPrompt(st, chapterNumber, { stage: true }),
     allowedCast: chapterContract.allowedCharacters.join(', '),
     forbiddenDrift: chapterContract.forbiddenDrift.join(' '), chapterContract
   });
