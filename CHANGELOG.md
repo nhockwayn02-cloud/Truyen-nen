@@ -1,5 +1,19 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.41] — Chỉnh nhịp 18+ theo 19 chương mẫu của người dùng
+- **Đo từ mẫu (19 chương):** ~70% chương có cảnh nóng (chương cốt truyện 1/3/12/15 không có); chương nóng dành 40–60% độ dài cho cảnh nóng; mỗi cảnh thêm một yếu tố mới (đạo cụ/địa điểm/nấc quyền lực); nhiều chương kết bằng tin nhắn/cuộc gọi của kẻ thù; nhịp khuất phục của tác giả nhanh hơn thang V14.7.40.
+- **Sửa:** thang khuất phục nhanh hơn (theo chương <2/<5/<10/≥10; theo số lần <=0/1/3/nhiều); mục tiêu PRIMARY nâng lên 40–60% độ dài chương + móc kết chương; thêm `noveltyLedger` ("Sổ leo thang": đã dùng/chưa dùng, mỗi cảnh nóng thêm ≥1 yếu tố mới) đưa vào prompt lập kế hoạch; `degenerationCheck` bắt đoạn dài lặp nguyên văn.
+- **Giới hạn:** sổ leo thang dò bằng từ khóa; chưa thử với model thật/iPhone/Netlify.
+- **Test:** `v14_7_41_calibration`.
+
+## [V14.7.40] — PRIMARY luôn có cảnh nóng, thang khuất phục theo nấc, bắt văn lẫn lời chat
+- **Nguyên nhân (từ backup 6 chương):** bộ lập kế hoạch Scene Graph (đường mặc định) KHÔNG có khối "lịch cảnh nóng" — khối này chỉ nằm ở bộ lập kế hoạch văn bản cũ mà đường adaptive không dùng. Câu cũ "chỉ đặt cảnh trưởng thành khi mạch truyện cần" còn cho phép bỏ cảnh nóng. Không có bước kiểm plan nên chương 4 không có beat nóng nào.
+- **Sửa:** `matureScenePlanBlock` đưa vào prompt Scene Graph: Trọng tâm PRIMARY bắt buộc ≥1 scene "cảnh nóng" (2 nhân vật ≥18, targetWords ≥1100, nấc kháng cự → cơ thể phản bội → điểm gãy → day dứt). Plan thiếu beat nóng bị từ chối và lập lại; sau lượt cuối vẫn thiếu thì `injectHotBeat` tự chèn beat [S] xác định → chương PRIMARY không còn thiếu cảnh nóng. Chỉ áp cho PRIMARY (SECONDARY/AUTO giữ hành vi cũ).
+- **Thang khuất phục:** `submissionLadder` tính nấc cho từng nhân vật theo số chương từ lúc xuất hiện và số chương đã có cảnh nóng cùng nhân vật (lấy nấc thấp hơn). 4 nấc: chống đối → giằng xé → phụ thuộc → quy phục (chỉ nấc 4 mới được tự nguyện/gọi chủ/tuyên thệ). Khối này nằm trong plan và trong prompt scene nóng.
+- **Cổng văn suy biến:** thêm dấu hiệu model tự chèn "Final rewrite/BẢN CUỐI/Xin lỗi! Tôi bị lỗi…" và văn lẫn lời chat (≥4 chỗ). Không tính "á" đơn vì là tiếng rên trong cảnh nóng (đã thấy ở backup).
+- **Giới hạn:** thang nấc là ràng buộc trong prompt (model vẫn có thể lệch) và đếm "cảnh nóng" bằng từ khóa; chưa thử với model thật.
+- **Test:** `v14_7_40_primary_heat_pacing`.
+
 ## [V14.7.39] — Dọn rò rỉ model, cổng văn suy biến, định tuyến plan/check
 - **Dọn rò rỉ (xác định, không tốn tiền AI), chạy trong `stripForeign`:** thay từ tiếng Anh lẻ trong câu Việt (without→"mà không", because→"vì", tonight→"đêm nay", when→"lúc", ...), xóa câu model tự rò ("Chi tiết dưới đây viết đầy đủ..."), nhãn "Nội tâm người nữ:", dấu `*` lẻ, ".," → ". ". Từ mượn hợp lệ (carton, jean, garage...) giữ nguyên; từ lạ khác vẫn do findStrayWords xử lý.
 - **Cổng văn suy biến** (`degenerationCheck`): cụm lặp ≥9 lần, dòng ngắn lặp ≥4, chữ vỡ/dính, đoạn không dấu, câu lẩm bẩm "Viết lại". Kiểm trên văn BẢN GỐC của model (bước dọn lặp sẽ che mất vòng lặp). Bắt được → lỗi cứng của scene, viết lại bằng model chính (`fallbackModel`). 0/30 dương tính giả trên chương thật của người dùng.

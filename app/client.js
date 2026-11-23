@@ -454,7 +454,7 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Số scene, chức năng và độ dài scene phải LINH HOẠT theo diễn biến; không dùng khuôn Scene 1 mở đầu, Scene 2 xung đột, Scene 3 cảnh nóng.',
     'Có thể gom nhiều beat vào một scene hoặc tách một beat thành nhiều scene nếu nhịp truyện cần.',
     'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
-    'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.',
+    (o.matureBlock ? o.matureBlock : 'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.'),
     'Không thêm biến cố lớn ngoài brief/canon. Không tự biến nhân vật phụ/nhân vật mới thành tuyến chính nếu Outline/Arc không giao việc đó. Không đổi nghề, tài nguyên, địa vị hoặc mục tiêu sinh tồn của nhân vật chính.',
     o.chapterContract ? 'CHAPTER CONTRACT BẤT BIẾN — không được sửa các trường này:\n' + JSON.stringify(promptChapterContract(o.chapterContract)) : '',
     o.allowedCast ? 'ALLOWED CAST — chỉ dùng các nhân vật/tên dưới đây; nhân vật khác chỉ được xuất hiện thoáng qua nếu chính Outline/Brief cho phép và không được thành tuyến chính:\n' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1800) : '',
@@ -1020,6 +1020,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     SENTENCE_RHYTHM_RULE,
     compactOverusedGuide(o.state),
     lessonsBlock(o.state),
+    (o.state && o.state.mature && sceneIsAdult(o.state, s)) ? submissionLadderBlock(o.state, (o.chapterNumber || ((o.state.chapters || []).length + 1)), o.state.chapters) : '',
     o.allowedCast ? 'ALLOWED CAST — không biến tên ngoài danh sách thành nhân vật chính: ' + String(o.allowedCast).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.forbiddenDrift ? 'CẤM DRIFT KHỎI ARC: ' + String(o.forbiddenDrift).replace(/\s+/g, ' ').slice(0, 900) : '',
     o.isFinalScene ? 'KẾT CHƯƠNG CÓ MÓC: câu cuối KHÔNG được là lời tóm tắt nội tâm hay kế hoạch ("cô biết…", "chuẩn bị cho…"). Kết bằng một hình ảnh cụ thể, một câu thoại, hoặc một thông tin/biến cố mới khiến người đọc muốn lật trang.' : '',
@@ -1471,6 +1472,112 @@ function matureChapterPlanBlock(o) {
     "- Beat khác nằm GIỮA lúc đang quan hệ (tu luyện, hấp thụ linh khí, tin nhắn, người đi ngang...) KHÔNG được thành cảnh riêng chen giữa: ghi nó là chi tiết LỒNG trong chính cảnh nóng (cảm nhận/suy nghĩ/tiếng động) hoặc xếp SAU khi cảnh nóng kết thúc."
   ].join("\n");
 }
+/* V14.7.40: (1) PRIMARY phải có cảnh nóng ở Scene Graph; (2) thang khuất phục theo nấc, không đổ quá nhanh. */
+const HOT_BEAT_RE = /cảnh nóng|quan hệ (?:thể xác|tình dục)|giao hợp|làm tình|ân ái|lên giường|cưỡng ép thể xác|thể xác|tình dục|nhục dục|hoan lạc|cực khoái|\bsex\b/i;
+function planHasHotBeat(graph) {
+  return !!(graph && Array.isArray(graph.scenes) && graph.scenes.some(sc => HOT_BEAT_RE.test([sc.purpose, sc.mustChange, ...(sc.beats || [])].join(' '))));
+}
+function chapterNeedsHeat(st) {
+  if (!st || !st.mature) return false;
+  const mf = normalizeChapterMatureFocus(st.chapterMatureFocus);
+  return mf === 'primary';
+}
+const SUBMISSION_STAGES = [
+  null,
+  'NẤC 1 — CHỐNG ĐỐI: còn căm ghét/sợ/tính toán trả đũa; bị ép từng bước nhỏ; cơ thể có phản ứng nhưng miệng và lý trí vẫn cự tuyệt; KHÔNG gọi chủ, KHÔNG thề phục tùng, KHÔNG chủ động xin.',
+  'NẤC 2 — GIẰNG XÉ: cơ thể phản bội nhiều hơn, bắt đầu bị cuốn nhưng tự dằn vặt, vẫn tìm cách chống/giữ thể diện; có thể nhượng bộ có điều kiện; KHÔNG tự nguyện hoàn toàn, KHÔNG tuyên thệ.',
+  'NẤC 3 — PHỤ THUỘC: thèm khát/lệ thuộc rõ, đôi lúc chủ động nhưng còn xấu hổ, ghen, toan tính hoặc gượng cứng ngoài mặt; vẫn có phản kháng nhỏ.',
+  'NẤC 4 — QUY PHỤC: được phép tự nguyện, chủ động, gọi chủ/tuyên thệ; vẫn giữ tính cách riêng, không biến thành con rối.'
+];
+function submissionStageFor(chaptersSince, encounters) {
+  const byCh = chaptersSince < 2 ? 1 : chaptersSince < 5 ? 2 : chaptersSince < 10 ? 3 : 4;
+  const byEnc = encounters <= 0 ? 1 : encounters <= 1 ? 2 : encounters <= 3 ? 3 : 4;
+  return Math.min(byCh, byEnc);
+}
+function submissionLadder(st, chapterNumber, priorChapters) {
+  if (!st || !st.mature) return [];
+  const mc = normalizeName((st.mainCharProfile && st.mainCharProfile.name) || '');
+  const prior = (Array.isArray(priorChapters) ? priorChapters : (st.chapters || [])).filter(c => c && c.text);
+  const recentTxt = normalizeName(prior.slice(-3).map(c => c.text).join(' '));
+  const out = [];
+  (Array.isArray(st.characters) ? st.characters : []).forEach(c => {
+    const nm = String(c && c.name || '').trim();
+    if (!nm || normalizeName(nm) === mc || (c.tier === 'minor' && !recentTxt.includes(normalizeName(nm)))) return;
+    if (c.dead || (typeof isGenericAddressName === 'function' && isGenericAddressName(nm))) return;
+    const key = normalizeName(nm);
+    if (!recentTxt.includes(key) && c.tier !== 'major') return;
+    const first = Math.max(1, Number(c.firstAppearance) || 1);
+    const enc = prior.filter(p => normalizeName(p.text).includes(key) && textHasNsfwKeyword(p.text)).length;
+    out.push({ name: nm, stage: submissionStageFor(Math.max(0, chapterNumber - first), enc), encounters: enc, since: Math.max(0, chapterNumber - first) });
+  });
+  return out.slice(0, 5);
+}
+function submissionLadderBlock(st, chapterNumber, priorChapters) {
+  const l = submissionLadder(st, chapterNumber, priorChapters); if (!l.length) return '';
+  return 'THANG KHUẤT PHỤC (chống đổ quá nhanh) — mỗi nhân vật chỉ được tiến TỐI ĐA tới nấc cho phép, mỗi chương chỉ nhích tối đa 1 nấc nhỏ, không nhảy cóc:\n'
+    + l.map(x => '- ' + x.name + ': cho phép tới ' + SUBMISSION_STAGES[x.stage]).join('\n')
+    + '\nKẻ nắm quyền trì hoãn có chủ đích; nhân vật nữ phải giữ chính kiến, tính cách và lý do riêng; mỗi lần khuất phục thêm một chút phải có cái giá/hậu quả cụ thể.';
+}
+const NOVELTY_AXES = [
+  ['dùng miệng', /bú |ngậm|liếm/i], ['trói/bịt mắt/còng', /trói|còng|bịt mắt|dây lụa/i],
+  ['vòng cổ/xích/bò bằng bốn chân', /vòng cổ|xích|\bbò\b/i], ['dụng cụ rung/điều khiển từ xa', /trứng rung|điều khiển từ xa/i],
+  ['nơi công cộng/công sở/nhà hàng/trong xe', /nhà hàng|văn phòng|trong xe|phòng họp/i], ['thụt rửa/nút đệm', /thụt|phích cắm|nút đệm/i],
+  ['máy móc/lồng/sáp nến', /cỗ máy|piston|lồng|sáp nến/i], ['trước gương', /gương/i], ['đánh đòn/roi', /paddle|đánh đòn|roi/i]
+];
+function noveltyLedger(st, priorChapters) {
+  const prior = (Array.isArray(priorChapters) ? priorChapters : (st && st.chapters) || []).filter(c => c && c.text && textHasNsfwKeyword(c.text));
+  const used = NOVELTY_AXES.filter(a => prior.some(c => a[1].test(c.text))).map(a => a[0]);
+  const fresh = NOVELTY_AXES.filter(a => used.indexOf(a[0]) < 0).map(a => a[0]);
+  return { used, fresh };
+}
+function noveltyLedgerBlock(st, priorChapters) {
+  const n = noveltyLedger(st, priorChapters);
+  if (!n.used.length && !n.fresh.length) return '';
+  return 'SỔ LEO THANG (mỗi cảnh nóng phải thêm ÍT NHẤT MỘT yếu tố mới: đạo cụ, địa điểm hoặc nấc quyền lực; không lặp nguyên cảnh cũ, không lặp đoạn văn):'
+    + (n.used.length ? '\n- Đã dùng: ' + n.used.join('; ') : '')
+    + (n.fresh.length ? '\n- Chưa dùng (ưu tiên chọn 1): ' + n.fresh.join('; ') : '');
+}
+function matureScenePlanBlock(st, chapterNumber, priorChapters) {
+  if (!st || !st.mature) return '';
+  const mf = normalizeChapterMatureFocus(st.chapterMatureFocus);
+  if (mf === 'none') return '';
+  const primary = mf === 'primary';
+  const parts = [
+    'LỊCH CẢNH NÓNG (truyện người lớn 18+, Trọng tâm = ' + mf.toUpperCase() + '):',
+    primary
+      ? '- Chương này BẮT BUỘC có ít nhất MỘT scene là CẢNH NÓNG chính (targetWords ≥ 1100): ghi đúng cụm "cảnh nóng" trong beats, nêu 2 nhân vật tham gia (đều ≥18 tuổi, đúng tên hồ sơ), địa điểm, tình huống dẫn tới, và điều cảnh đó làm đổi quan hệ/thế lực. Nếu cốt truyện chương có nhiều tình huống thì chọn tình huống hợp nhất để đặt cảnh nóng; không bỏ cảnh nóng để nhường chỗ cho đoạn dẫn truyện. Cảnh nóng chiếm khoảng 40–60% độ dài chương (các đoạn dẫn/âm mưu đặt trước hoặc sau, chương kết bằng móc nối như tin nhắn/cuộc gọi của kẻ thù).'
+      : '- Nên có cảnh nóng nếu quan hệ đã tích tụ đủ; nếu có thì ghi cụm "cảnh nóng" trong beats và nêu 2 nhân vật (≥18).',
+    '- Nếu Arc/Outline không nhắc cảnh nóng: vẫn thêm dưới dạng beat hỗ trợ [S] bám đúng tình huống và nhân vật đang có; không lệch mốc chính của Arc.',
+    '- Mỗi cảnh nóng phải đổi bối cảnh, động lực hoặc thế lực so với cảnh trước, và có hậu quả sau cảnh.',
+    '- Cảnh nóng có kháng cự/quyền lực: lên nhịp theo nấc (kháng cự → cơ thể phản bội → điểm gãy → day dứt); điểm gãy đặt nửa sau cảnh, không đổ ngay.'
+  ];
+  const nov = noveltyLedgerBlock(st, priorChapters);
+  if (nov) parts.push(nov);
+  const lad = submissionLadderBlock(st, chapterNumber, priorChapters);
+  if (lad) parts.push(lad);
+  return parts.join('\n');
+}
+// Chèn beat cảnh nóng xác định khi model lập plan thiếu (chỉ khi PRIMARY, sau khi đã thử lại).
+function injectHotBeat(graph, st, chapterContract) {
+  if (!graph || !Array.isArray(graph.scenes) || !graph.scenes.length) return graph;
+  const mc = (st.mainCharProfile && st.mainCharProfile.name) || '';
+  const isMc = n => normalizeName(n) === normalizeName(mc);
+  const lad = submissionLadder(st, (st.chapters || []).length + 1, st.chapters || []);
+  const allowed = (chapterContract && chapterContract.allowedCharacters) || [];
+  const inGraph = [];
+  graph.scenes.forEach(sc => (sc.characters || []).forEach(n => { if (n && !isMc(n) && !inGraph.includes(n) && !(typeof isGenericAddressName === 'function' && isGenericAddressName(n))) inGraph.push(n); }));
+  const cands = [].concat(lad.map(x => x.name), inGraph, allowed.filter(n => !isMc(n)));
+  const pn = (cands.find(n => inGraph.some(g => normalizeName(g) === normalizeName(n))) || cands[0] || '');
+  if (!pn || !mc) return graph;
+  let idx = graph.scenes.findIndex(sc => (sc.characters || []).some(n => normalizeName(n) === normalizeName(pn)) && (sc.characters || []).some(n => normalizeName(n) === normalizeName(mc)));
+  if (idx < 0) idx = graph.scenes.length - 1;
+  const sc = graph.scenes[idx];
+  sc.beats = (sc.beats || []).concat(['[S] cảnh nóng giữa ' + mc + ' và ' + pn + ' (đều trưởng thành): kháng cự → cơ thể phản bội → điểm gãy nhỏ → day dứt; đổi thế lực/quan hệ, nhân vật nữ chưa đổ hoàn toàn']);
+  sc.characters = Array.from(new Set([].concat(sc.characters || [], [mc, pn])));
+  sc.targetWords = Math.max(Number(sc.targetWords) || 0, 1100);
+  graph.heatInjected = true;
+  return graph;
+}
 function cultivationActive(st) {
   if (!st) return false;
   const hasLadder = Array.isArray(st.realmLadder) ? st.realmLadder.length > 0 : !!String(st.realmLadder || "").trim();
@@ -1698,6 +1805,14 @@ function degenerationCheck(text) {
   lines.forEach(l => { if (l.split(/\s+/).length >= 15 && !DIA.test(l)) noDia++; });
   if (noDia >= 2) reasons.push(noDia + ' đoạn viết không dấu');
   if (/(^|\n)\s*(?:Viết lại (?:gọn|lần cuối|từ đầu)|Bản viết gọn|Viêt laji)/i.test(t)) reasons.push('model tự lẩm bẩm "viết lại"');
+  // V14.7.40: model tự nói chuyện/đánh dấu bản thảo giữa văn xuôi (GLM): "Xin lỗi! Tôi bị lỗi", "Final rewrite", "BẢN CUỐI", "á đúng vậy đó".
+  if (/(?:^|\n)\s*(?:\*\*)?\s*(?:final (?:rewrite|version|draft)|BẢN CUỐI(?: CÙNG)?|BẢN VIẾT LẠI|rewrite|draft \d)\b/i.test(t) || /(?:^|\n)\s*Xin lỗi[!,.]?[^\n]{0,40}\b(?:tôi|mình)\b[^\n]{0,40}(?:lỗi|nhầm|viết lại)/i.test(t)) reasons.push('model chèn lời thoại/đánh dấu bản thảo vào truyện');
+  // V14.7.41: đoạn văn dài lặp nguyên văn (lỗi chương mẫu ch17).
+  const pc = new Map(); lines.forEach(l => { if (l.length >= 80) { const k = l.toLowerCase(); pc.set(k, (pc.get(k) || 0) + 1); } });
+  let dupP = 0; pc.forEach(n => { if (n >= 2) dupP += n - 1; });
+  if (dupP >= 2) reasons.push(dupP + ' đoạn văn dài bị lặp nguyên văn');
+  const FILLER = (t.match(/(?:^|[\s"“])(?:á đúng|ờ nhỉ|ừ nhỉ|đúng vậy đó|ok luôn|oke|nhỉ nhỉ)(?=[\s,.!?"”]|$)/gi) || []).length;
+  if (FILLER >= 4) reasons.push('văn lẫn lời chat (' + FILLER + ' chỗ)');
   return { bad: reasons.length > 0, reasons };
 }
 function stripForeign(text) {
@@ -4148,7 +4263,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
   let outlineMap = '';
   const planPrompt = buildAdaptiveScenePlanPrompt({
     outlineItems, outlineMeta: chapterContract.outlineMeta || null,
-    state: st, context: o.context, recent,
+    state: st, context: o.context, recent, matureBlock: matureScenePlanBlock(st, chapterNumber, priorChapters),
     directive: st.directive, hint: (chapterHintVerification(st, chapterNumber).text || ""), requiredBeats,
     arcProgress: arcProgressPrompt(st, chapterNumber, { stage: true }),
     allowedCast: chapterContract.allowedCharacters.join(', '),
@@ -4169,6 +4284,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         const checked = validateAdaptiveScenePlan(candidate, chapterContract);
         lastCandidate = candidate; lastChecked = checked;
         if (checked.ok && outlineItems) { const om = validateOutlineMapping(candidate, outlineItems); if (om.length) { checked.ok = false; checked.mappingOnly = true; checked.errors = om.map(x => 'OUTLINE: ' + x); } }
+        if (checked.ok && chapterNeedsHeat(st) && !planHasHotBeat(candidate)) { checked.ok = false; checked.heatOnly = true; checked.errors = ['THIẾU CẢNH NÓNG: Trọng tâm PRIMARY bắt buộc có ít nhất một scene ghi đúng cụm "cảnh nóng" trong beats, nêu 2 nhân vật trưởng thành, targetWords ≥ 1100.']; }
         lastChecked = checked;
         if (checked.ok) { graph = candidate; if (outlineItems) outlineMap = 'ai'; } else planError = checked.errors.join(' | ');
       }
@@ -4188,7 +4304,9 @@ async function runAdaptiveChapterPipeline(o, deps) {
     }
   }
   if (!graph && outlineItems && lastCandidate && lastChecked && lastChecked.mappingOnly) { graph = buildOutlineGraph(lastCandidate, outlineItems, chapterContract.outlineMeta, limits, chapterContract); outlineMap = 'fallback'; }
+  if (!graph && lastCandidate && lastChecked && lastChecked.heatOnly) { graph = injectHotBeat(lastCandidate, st, chapterContract); }
   if (!graph) return { rejected: true, reason: 'PLAN_REJECTED: ' + (planError || 'Scene Graph không hợp lệ') };
+  if (chapterNeedsHeat(st) && !planHasHotBeat(graph)) graph = injectHotBeat(graph, st, chapterContract);
 
   // V14.0.12: nhân vật có tên trong Outline/chương trước (chưa vào Character Database) được thêm vào cast cho từng scene,
   // để prompt scene không cấm đúng người mà Outline yêu cầu.
@@ -6152,7 +6270,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.39";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.40";
   }
 
   let lastErr = null;
@@ -7356,7 +7474,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.39";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.40";
     }
     // Lightweight probe: request 1 token
     const body = {

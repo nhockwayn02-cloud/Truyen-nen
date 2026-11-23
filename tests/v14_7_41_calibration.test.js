@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const core=fs.readFileSync(path.join(__dirname,'../shared/core.js'),'utf8');
+const ctx=vm.createContext({console});
+vm.runInContext(core+';this.f={submissionStageFor,noveltyLedger,noveltyLedgerBlock,degenerationCheck,matureScenePlanBlock}',ctx);
+const F=ctx.f;
+(function(){assert.strictEqual(F.submissionStageFor(1,0),1);assert.strictEqual(F.submissionStageFor(2,1),2);assert.strictEqual(F.submissionStageFor(6,3),3);assert.strictEqual(F.submissionStageFor(12,5),4);console.log('PASS ladder nhanh hơn');})();
+(function(){const st={chapters:[{text:'Cô bị trói, bịt mắt. Hắn liếm khắp người cô, tinh dịch, cực khoái, nơi nhà hàng.'}]};
+ const n=F.noveltyLedger(st,st.chapters);assert(n.used.includes('trói/bịt mắt/còng')&&n.used.includes('dùng miệng'));assert(n.fresh.includes('trước gương'));
+ assert(/SỔ LEO THANG/.test(F.noveltyLedgerBlock(st,st.chapters)));console.log('PASS sổ leo thang');})();
+(function(){const p='Đây là một đoạn văn dài được lặp lại nguyên văn để kiểm tra bộ bắt lặp đoạn của hệ thống ngay lập tức.';
+ const W=['gió','mưa','đèn','cửa','sông','núi','phố','bếp','thư','kiếm','trà','đêm'];const body=Array.from({length:12},(_,i)=>W[i]+' '+W[(i+5)%12]+' '+W[(i+7)%12]+' vang lên lúc '+(i+1)+' giờ, người '+W[(i+3)%12]+' im lặng nhìn '+W[(i+9)%12]+' lúc '+W[(i+2)%12]+' qua, rồi '+W[(i+4)%12]+' tắt.').join('\n');
+ assert(F.degenerationCheck(body+'\n'+p+'\n'+p+'\n'+p).reasons.some(r=>/lặp nguyên văn/.test(r)));
+ const rb=F.degenerationCheck(body);assert(!rb.bad, JSON.stringify(rb.reasons));console.log('PASS bắt đoạn lặp');})();
+const m=F.matureScenePlanBlock({mature:true,chapterMatureFocus:'primary',chapters:[],characters:[]},5,[]);assert(/40–60%/.test(m));console.log('PASS 40–60%');
