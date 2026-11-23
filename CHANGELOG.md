@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.39] — Dọn rò rỉ model, cổng văn suy biến, định tuyến plan/check
+- **Dọn rò rỉ (xác định, không tốn tiền AI), chạy trong `stripForeign`:** thay từ tiếng Anh lẻ trong câu Việt (without→"mà không", because→"vì", tonight→"đêm nay", when→"lúc", ...), xóa câu model tự rò ("Chi tiết dưới đây viết đầy đủ..."), nhãn "Nội tâm người nữ:", dấu `*` lẻ, ".," → ". ". Từ mượn hợp lệ (carton, jean, garage...) giữ nguyên; từ lạ khác vẫn do findStrayWords xử lý.
+- **Cổng văn suy biến** (`degenerationCheck`): cụm lặp ≥9 lần, dòng ngắn lặp ≥4, chữ vỡ/dính, đoạn không dấu, câu lẩm bẩm "Viết lại". Kiểm trên văn BẢN GỐC của model (bước dọn lặp sẽ che mất vòng lặp). Bắt được → lỗi cứng của scene, viết lại bằng model chính (`fallbackModel`). 0/30 dương tính giả trên chương thật của người dùng.
+- **Định tuyến (worker):** chương nóng không còn đẩy mọi lời gọi sang model NSFW. Lập kế hoạch lượt đầu và 2 lời gọi chỉ chấm JSON dùng model chính (hoặc model "check" ở mục 10.3). Văn xuôi (scene, bù từ, vá, sửa) vẫn dùng model NSFW. Đo trên trạng thái truyện thật: chỉ khoảng 20% lượng đầu vào chuyển được sang model chính (không phải 3/4 như nói trước đó).
+- **Test:** `v14_7_39_cleanup_routing` (gồm bài thử pipeline). Dữ liệu giả của `e2e.py` được đổi sang văn đa dạng vì cổng mới bắt đúng loại văn giả lặp một câu hàng chục lần. Chưa thử với model thật/iPhone/Netlify.
+
 ## [V14.7.38] — Bước Arc tự đo theo diễn biến thật (viết không cần Outline)
 - **Vấn đề:** không có Outline thì kế hoạch chương chỉ thấy 500 ký tự đầu của Arc + "chương X/Y"; phần sau của Arc (đoạn dài ~7.000 ký tự) AI không thấy.
 - **Sửa:** `arcStageBlock`: tách Arc thành câu theo thứ tự; so cặp âm tiết có trọng số hiếm với tóm tắt 6 chương gần nhất; lấy mốc XA NHẤT đã chạm tới (truyện hay quay lại chủ đề cũ nên câu khớp nhất dao động); khớp vượt mốc chặn theo phần trăm chương bị bỏ; không khớp thì lùi về tiến độ chương. Chỉ đưa "Đang ở" + "Bước kế" vào kế hoạch chương (phần Arc xa hơn bị giấu). Nếu truyện đang đi nhanh hơn nhịp trung bình → nhắc đào sâu bằng diễn biến mới.

@@ -1,5 +1,14 @@
 """Test E2E v11 — chạy: python3 tests/e2e.py  (cần playwright + chromium)"""
 import http.server, threading, socketserver, os, sys, json, functools, shutil, re
+
+import random as _rnd
+_ON="b c d g h k l m n t v x ch th nh kh ph tr gi qu s r".split(); _RI="a à á ạ e ê ề i í o ô ố ơ u ư ừ an ân ăn em ên in on ôn ơn un ang anh ênh inh ong ông ung".split()
+def fake_prose(n, seed=[11]):
+    # V14.7.39: văn giả ĐA DẠNG (cổng văn suy biến sẽ bắt văn lặp cùng một câu hàng trăm lần)
+    r=_rnd.Random(seed[0]); seed[0]+=1; out=[]; k=0
+    while k<n:
+        m=8+r.randint(0,10); w=[r.choice(_ON)+r.choice(_RI) for _ in range(m)]; w[0]=w[0].capitalize(); out.append(" ".join(w)+"."); k+=m
+    return " ".join(out)
 from playwright.sync_api import sync_playwright
 import gzip
 def body_text(req):
@@ -174,7 +183,8 @@ with sync_playwright() as p:
                 "S3": "Con tàu chậm rãi rời bến, An nhìn ánh đèn lùi xa và siết chặt lá thư.",
             }
             base = scene_bases.get(scene_id, "An lặng lẽ đi tiếp, quan sát con đường và nghĩ về quyết định sắp tới.")
-            text = "\n\n".join(base + " Ở nhịp thứ %d, một chi tiết nhỏ khiến An dừng lại rồi bước tiếp." % i for i in range(50))
+            # V14.7.39: văn giả đa dạng (một câu lặp 50 lần là văn suy biến, cổng mới sẽ bắt)
+            text = "\n\n".join((base + " " if i == 0 else "") + fake_prose(18) + (" Một chi tiết nhỏ khiến An dừng lại rồi bước tiếp." if i % 9 == 0 else "") for i in range(50))
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":text},"finish_reason":"stop"}]}, ensure_ascii=False)); return
         if "VÁ CỤC BỘ BẢN THẢO" in prompt:
             # Chương V13+ dài ~5.000 từ nên không thể viết lại cả chương: AI chỉ trả danh sách vá.
@@ -202,13 +212,13 @@ with sync_playwright() as p:
             calls["stream"] += 1
             # Một chunk dài giúp test tập trung vào pipeline UI, không phụ thuộc
             # timing giữa nhiều chunk nhỏ trong parser SSE của trình duyệt.
-            words = " ".join(["Gió", "thổi", "qua", "con", "phố", "vắng."] * 120)
+            words = fake_prose(720)
             sse = "data: " + json.dumps({"choices":[{"delta":{"content":words}}]}, ensure_ascii=False) + "\n\n"
             sse += "data: " + json.dumps({"choices":[{"delta":{},"finish_reason":"stop"}]}) + "\n\ndata: [DONE]\n\n"
             route.fulfill(status=200, content_type="text/event-stream", body=sse)
         else:
             calls["json"] += 1
-            content = "[]" if ("mảng JSON" in prompt or "MẢNG" in prompt) else ("Gió trong chương này kể về một đêm mưa. Nhân vật chính rời phố cũ. " * 30)
+            content = "[]" if ("mảng JSON" in prompt or "MẢNG" in prompt) else fake_prose(420)
             if "JSON" in prompt and "mảng" not in prompt.lower(): content = "{}"
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"choices":[{"message":{"content":content},"finish_reason":"stop"}]}))
     page.route("**/chat/completions", mock_api)

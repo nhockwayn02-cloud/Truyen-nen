@@ -1610,10 +1610,48 @@ function removeEnglishLeaksDetailed(text) {
 }
 function removeEnglishLeaks(text) { return removeEnglishLeaksDetailed(text).text; }
 
+/* V14.7.39: DỌN RÒ RỈ CỦA MODEL (xác định, không tốn tiền AI). Model (nhất là bản uncensored/abliterated) hay: chèn từ tiếng Anh lẻ vào câu Việt, tự nhắc lệnh
+   ("Chi tiết dưới đây viết đầy đủ..."), để nhãn "Nội tâm người nữ:", sót dấu * và viết ".," thay dấu chấm. Chỉ sửa ca chắc chắn; từ lạ khác vẫn để findStrayWords xử lý. */
+const EN_LEAK_MAP = [
+  [/\bresidual lingering\b/gi, 'còn đọng lại'], [/\bwithout\b/gi, 'mà không'], [/\bbecause\b/gi, 'vì'], [/\btonight\b/gi, 'đêm nay'], [/\bwhen\b/gi, 'lúc'],
+  [/\bwhile\b/gi, 'trong khi'], [/\bcorresponding\b/gi, 'tương ứng'], [/\bresidual\b/gi, 'còn sót'], [/\blingering\b/gi, 'đọng lại'], [/\bhowever\b/gi, 'tuy nhiên'],
+  [/\bsuddenly\b/gi, 'đột nhiên'], [/\bslowly\b/gi, 'chậm rãi'], [/\bquietly\b/gi, 'lặng lẽ'], [/\bsilently\b/gi, 'lặng lẽ'], [/(?<=\p{L})Warm\b/gu, ' ấm'], [/\bwarm\b/gi, 'ấm']
+];
+function cleanModelArtifacts(text) {
+  let t = String(text || ''); if (!t) return t;
+  EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
+  t = t.replace(/Chi tiết dưới đây[^.\n]*\.\s*/g, '').replace(/(^|\n)\s*(?:Bản viết gọn|Viết lại(?: gọn| lần cuối)?)\s*:\s*/g, '$1');
+  t = t.replace(/(^|\n)(\s*)Nội tâm(?: của)?(?: người nữ| nhân vật nữ| nhân vật| hắn| cô ta| nàng)?\s*:\s*/g, '$1$2');
+  t = t.split('\n').map(l => (((l.match(/\*/g) || []).length % 2) ? l.replace(/\*+/g, '') : l)).join('\n');
+  t = t.replace(/([.!?…])\s*,\s+(?=[\p{Lu}"“—])/gu, '$1 ').replace(/\.:\s+/g, ': ');
+  return t;
+}
+/* V14.7.39: CỔNG VĂN SUY BIẾN. Phát hiện model sụp (lặp cụm, dòng "Vẫn" lặp, chữ vỡ/dính, văn không dấu, câu lẩm bẩm "Viết lại"). */
+function degenerationCheck(text) {
+  const t = String(text || ''), reasons = [], words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 30) return { bad: false, reasons };
+  const g = new Map();
+  for (let i = 0; i + 4 <= words.length; i++) { const k = words.slice(i, i + 4).join(' ').toLowerCase(); g.set(k, (g.get(k) || 0) + 1); }
+  let wk = '', wn = 0; g.forEach((n, k) => { if (n > wn) { wn = n; wk = k; } });
+  if (wn >= 9) reasons.push('cụm "' + wk.slice(0, 40) + '" lặp ' + wn + ' lần');
+  const lines = t.split('\n').map(x => x.trim()).filter(Boolean); let run = 1, runMax = 1;
+  for (let i = 1; i < lines.length; i++) { if (lines[i] === lines[i - 1] && lines[i].length < 40) { run++; runMax = Math.max(runMax, run); } else run = 1; }
+  if (runMax >= 4) reasons.push('một dòng ngắn lặp liên tiếp ' + runMax + ' lần');
+  let single = 0, singleMax = 0;
+  words.forEach(w => { if (/^\p{L}$/u.test(w)) { single++; singleMax = Math.max(singleMax, single); } else single = 0; });
+  if (singleMax >= 6) reasons.push('chữ bị vỡ thành mảnh 1 ký tự');
+  const longW = words.filter(w => w.replace(/[^\p{L}]/gu, '').length >= 28).length;
+  if (longW >= 2) reasons.push('chữ bị dính liền (' + longW + ' chuỗi quá dài)');
+  const DIA = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i; let noDia = 0;
+  lines.forEach(l => { if (l.split(/\s+/).length >= 15 && !DIA.test(l)) noDia++; });
+  if (noDia >= 2) reasons.push(noDia + ' đoạn viết không dấu');
+  if (/(^|\n)\s*(?:Viết lại (?:gọn|lần cuối|từ đầu)|Bản viết gọn|Viêt laji)/i.test(t)) reasons.push('model tự lẩm bẩm "viết lại"');
+  return { bad: reasons.length > 0, reasons };
+}
 function stripForeign(text) {
   text = stripThinkingOutput(text); // V12.21
   if (!text) return text;
-  return sanitizeChapterText(text);
+  return cleanModelArtifacts(sanitizeChapterText(text));   // V14.7.39
 }
 // V12.32.6c: bước làm sạch thuần (không có stripThinkingOutput) — dùng cho nút Chuẩn hóa trên chương đã lưu.
 /* V14.3.5: model (đặc biệt model gốc Trung) rò chữ pinyin "de" (的/得/地) vào văn xuôi: "Sự kiêu hãnh cuối cùng de một tiểu thư". Trước đây không bị bắt vì mọi từ < 4 chữ cái bị bỏ qua.
@@ -4156,7 +4194,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     const _boost = (deps.sceneTargetBoost !== false && ratioN) ? Math.min(1.35, Math.max(1, 1 / Math.max(0.6, ratioSum / ratioN))) : 1;
     const pScene = _boost > 1.05 ? Object.assign({}, scene, { targetWords: Math.round(scene.targetWords * _boost) }) : scene;
     const sceneT0 = Date.now(), sceneMetric = { sceneId: scene.id, outlineItems: Array.isArray(scene.outlineItems) ? scene.outlineItems.slice() : [], targetWords: Number(scene.targetWords) || 0, attempts: 0, retries: 0, inputChars: 0, outputWords: 0, status: 'running', errors: [], patched: false, aiReviews: 0 };
-    let correction = '', accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
+    let correction = '', degenFallback = false, accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
     for (let sa = 0; sa <= maxSceneRetries; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
@@ -4176,17 +4214,18 @@ async function runAdaptiveChapterPipeline(o, deps) {
         correction
       });
       sceneMetric.inputChars += prompt.length;
-      let text;
+      let text, rawDg = { bad: false, reasons: [] };
       try {
         const r = await callAI(prompt, {
           maxTokens: Math.min(3600, Math.max(1100, Math.ceil(pScene.targetWords * 1.9))),
           temperature: Math.max(0.5, (route.nsfw ? 0.78 : 0.72) - (sa ? 0.1 : 0)),
-          modelOverride: route.model,
+          modelOverride: (degenFallback && deps.fallbackModel) ? deps.fallbackModel : route.model,   // V14.7.39: lượt viết lại sau khi model sụp → dùng model chính
           systemPrompt: SCENE_SYSTEM_PROMPT,
           frequency_penalty: 0.22,
           presence_penalty: 0.18,
           streaming: false
         });
+        rawDg = degenerationCheck(String(r && r.text || ''));   // V14.7.39: kiểm trên văn BẢN GỐC — bước dọn/cắt lặp bên dưới sẽ che mất vòng lặp
         text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
         sceneMetric.outputWords = Math.max(sceneMetric.outputWords, countWords(text));
         if (detectNonVietnamese(text)) text = stripForeign(text);
@@ -4203,6 +4242,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
+      { const dg = rawDg.bad ? rawDg : degenerationCheck(text); if (dg.bad) { errors.unshift('VĂN SUY BIẾN: ' + dg.reasons.join('; ') + ' — viết lại sạch, câu đủ dấu, không lặp.'); degenFallback = true; } }   // V14.7.39
       lastText = text; lastAiOnly = !errors.length;
       /* V14.3.2: scene kể LẠI sự kiện của scene trước (khác câu chữ) -> viết lại. Không phải lỗi cứng: hết lượt thì giữ bản cuối + cảnh báo (như lỗi chỉ do AI rà), không hủy job. */
       let overlapErr = '';
@@ -6215,8 +6255,12 @@ async function generateAdaptiveWorkerChapter(job, c) {
   const callAI = async (prompt, opts) => {
     const planCall = opts.systemPrompt === SCENE_PLAN_SYSTEM_PROMPT;
     const baseTokens = opts.maxTokens || 3000;
+    /* V14.7.39: chương nóng không còn đẩy MỌI lời gọi sang model NSFW. Chỉ văn xuôi (scene/bù từ/vá/sửa) giữ model NSFW; lập kế hoạch lượt đầu dùng model chính
+       (lượt thử lại mới dùng model NSFW phòng bị từ chối nội dung), và 2 lời gọi chỉ đọc-chấm JSON dùng model "check" (hoặc model chính). */
+    const judgeCall = /^\s*KIỂM TRA (?:MỘT SCENE|SỰ KIỆN BẮT BUỘC)/.test(String(prompt || ""));
+    const callModel = (planCall && baseTokens <= 5000) ? job.model : judgeCall ? modelForStep(state, "check", job.model) : (opts.modelOverride || model);
     const run = () => (planCall ? callExtract : callWithRetry)({
-      endpoint: job.apiEndpoint, apiKey: job.apiKey, model: opts.modelOverride || model,
+      endpoint: job.apiEndpoint, apiKey: job.apiKey, model: callModel,
       messages: [{ role: "system", content: opts.systemPrompt || SYSTEM_PROMPT }, { role: "user", content: prompt }],
       maxTokens: Math.min(AI_MAX_OUTPUT_TOKENS, baseTokens + thinkMargin), temperature: opts.temperature,
       frequencyPenalty: opts.frequency_penalty, presencePenalty: opts.presence_penalty,
@@ -6248,7 +6292,7 @@ async function generateAdaptiveWorkerChapter(job, c) {
   const res = await runAdaptiveChapterPipeline(
     { context: mirrorContext, priorChapters: chapters, model, usingNsfw: isNsfw },
     {
-      state, callAI, route,
+      state, callAI, route, fallbackModel: job.model,
       onSceneError: (id, msg) => { sceneApiError = String(id || "") + ": " + String(msg || "").replace(/\s+/g, " ").slice(0, 300); },
       buildContract: buildChapterContractForGeneration,
       requiredBeats: adaptiveRequiredBeatBlock,
