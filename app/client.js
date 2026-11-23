@@ -1786,6 +1786,23 @@ function cleanModelArtifacts(text) {
   return t;
 }
 /* V14.7.39: CỔNG VĂN SUY BIẾN. Phát hiện model sụp (lặp cụm, dòng "Vẫn" lặp, chữ vỡ/dính, văn không dấu, câu lẩm bẩm "Viết lại"). */
+/* V14.7.41: văn sụp giữa chừng ("america america america…") — giữ phần ĐẦU còn sạch, cắt từ đoạn hỏng đầu tiên. Trả '' nếu không còn gì đáng giữ. */
+function salvageBeforeDegeneration(raw) {
+  const DIA = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
+  const paras = String(raw || '').split(/\n+/).map(x => x.trim()).filter(Boolean), keep = [];
+  const seen = new Set();
+  for (const p of paras) {
+    const w = p.split(/\s+/);
+    let run = 1, runMax = 1; for (let i = 1; i < w.length; i++) { if (w[i].toLowerCase() === w[i - 1].toLowerCase() && /\p{L}/u.test(w[i])) { run++; runMax = Math.max(runMax, run); } else run = 1; }
+    const longW = w.filter(x => x.replace(/[^\p{L}]/gu, '').length >= 28).length;
+    const g = new Map(); let rep = 0; for (let i = 0; i + 3 <= w.length; i++) { const k = w.slice(i, i + 3).join(' ').toLowerCase(); const n = (g.get(k) || 0) + 1; g.set(k, n); if (n >= 3) rep++; }
+    const noDia = w.length >= 15 && !DIA.test(p);
+    const dup = p.length >= 80 && seen.has(p.toLowerCase());
+    if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup) break;
+    seen.add(p.toLowerCase()); keep.push(p);
+  }
+  return keep.join('\n\n');
+}
 function degenerationCheck(text) {
   const t = String(text || ''), reasons = [], words = t.split(/\s+/).filter(Boolean);
   if (words.length < 30) return { bad: false, reasons };
@@ -4364,8 +4381,8 @@ async function runAdaptiveChapterPipeline(o, deps) {
     const _boost = (deps.sceneTargetBoost !== false && ratioN) ? Math.min(1.35, Math.max(1, 1 / Math.max(0.6, ratioSum / ratioN))) : 1;
     const pScene = _boost > 1.05 ? Object.assign({}, scene, { targetWords: Math.round(scene.targetWords * _boost) }) : scene;
     const sceneT0 = Date.now(), sceneMetric = { sceneId: scene.id, outlineItems: Array.isArray(scene.outlineItems) ? scene.outlineItems.slice() : [], targetWords: Number(scene.targetWords) || 0, attempts: 0, retries: 0, inputChars: 0, outputWords: 0, status: 'running', errors: [], patched: false, aiReviews: 0 };
-    let correction = '', degenFallback = false, accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
-    for (let sa = 0; sa <= maxSceneRetries; sa++) {
+    let correction = '', degenFallback = false, degenSalvaged = false, degenTries = 0, maxTr = maxSceneRetries, accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
+    for (let sa = 0; sa <= maxTr; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
       sceneMetric.attempts = sceneTries; sceneMetric.retries = Math.max(0, sceneTries - 1);
@@ -4387,16 +4404,18 @@ async function runAdaptiveChapterPipeline(o, deps) {
       let text, rawDg = { bad: false, reasons: [] };
       try {
         const r = await callAI(prompt, {
-          maxTokens: Math.min(3600, Math.max(1100, Math.ceil(pScene.targetWords * 1.9))),
-          temperature: Math.max(0.5, (route.nsfw ? 0.78 : 0.72) - (sa ? 0.1 : 0)),
+          maxTokens: Math.min(3600, Math.max(1100, Math.ceil(pScene.targetWords * (degenTries ? 1.5 : 1.9)))),   // V14.7.41: sau khi sụp → giới hạn ngắn hơn, nhiệt thấp, phạt lặp mạnh hơn
+          temperature: degenTries ? 0.55 : Math.max(0.5, (route.nsfw ? 0.78 : 0.72) - (sa ? 0.1 : 0)),
           modelOverride: (degenFallback && deps.fallbackModel) ? deps.fallbackModel : route.model,   // V14.7.39: lượt viết lại sau khi model sụp → dùng model chính
           systemPrompt: SCENE_SYSTEM_PROMPT,
-          frequency_penalty: 0.22,
-          presence_penalty: 0.18,
+          frequency_penalty: degenTries ? 0.4 : 0.22,
+          presence_penalty: degenTries ? 0.3 : 0.18,
           streaming: false
         });
-        rawDg = degenerationCheck(String(r && r.text || ''));   // V14.7.39: kiểm trên văn BẢN GỐC — bước dọn/cắt lặp bên dưới sẽ che mất vòng lặp
-        text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(r && r.text || ''))))).trim();
+        let rawTxt = String(r && r.text || '');
+        rawDg = degenerationCheck(rawTxt);
+        if (rawDg.bad) { const sv = salvageBeforeDegeneration(rawTxt); if (countWords(sv) >= Math.max(200, Math.round((Number(scene.targetWords) || 0) * 0.5)) && !degenerationCheck(sv).bad) { rawTxt = sv; rawDg = { bad: false, reasons: [] }; degenSalvaged = true; pushSceneWarn(scene.id + ': model sụp giữa chừng — đã cắt phần hỏng, giữ ' + countWords(sv) + ' từ đầu còn sạch', true); } }
+        text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(rawTxt)))).trim();   // V14.7.39: kiểm trên văn BẢN GỐC (trước bước dọn)
         sceneMetric.outputWords = Math.max(sceneMetric.outputWords, countWords(text));
         if (detectNonVietnamese(text)) text = stripForeign(text);
         // V14.0.8: scene viết LẠI đoạn đã có (model mở đầu lại cùng một cảnh) -> cắt phần lặp, giống đường viết tiếp của writer cũ.
@@ -4412,7 +4431,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
-      { const dg = rawDg.bad ? rawDg : degenerationCheck(text); if (dg.bad) { errors.unshift('VĂN SUY BIẾN: ' + dg.reasons.join('; ') + ' — viết lại sạch, câu đủ dấu, không lặp.'); degenFallback = true; } }   // V14.7.39
+      { const dg = rawDg.bad ? rawDg : degenerationCheck(text); if (dg.bad) { errors.unshift('VĂN SUY BIẾN: ' + dg.reasons.join('; ') + ' — viết lại sạch, câu đủ dấu, không lặp.'); degenFallback = true; degenTries++; if (degenTries === 1 && maxTr === maxSceneRetries) maxTr++; } }  // V14.7.41: model sụp → thêm 1 lượt viết (tổng 3) }   // V14.7.39
       lastText = text; lastAiOnly = !errors.length;
       /* V14.3.2: scene kể LẠI sự kiện của scene trước (khác câu chữ) -> viết lại. Không phải lỗi cứng: hết lượt thì giữ bản cuối + cảnh báo (như lỗi chỉ do AI rà), không hủy job. */
       let overlapErr = '';

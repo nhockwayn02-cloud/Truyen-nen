@@ -1,5 +1,10 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.42] — Cứu scene khi model sụp ("america america…")
+- **Lỗi:** model sụp giữa scene (lặp cụm, chữ dính, đoạn không dấu); cả 2 lượt viết đều sụp → SCENE_REJECTED, hủy job.
+- **Sửa:** `salvageBeforeDegeneration` cắt từ đoạn hỏng đầu tiên, giữ phần đầu còn sạch nếu ≥ max(200 từ, 50% ngân sách scene); khi sụp được thêm 1 lượt viết (tổng 3) với nhiệt độ 0,55, giới hạn token 1,5×, phạt lặp 0,4/0,3. (Bản 14.7.41 kèm: chỉnh nhịp 18+ theo mẫu.)
+- **Giới hạn:** nếu model sụp ngay từ đầu cả 3 lượt vẫn hủy; khi đó nên đổi model (GLM hay sụp ở scene dài). Chưa thử model thật.
+
 ## [V14.7.41] — Chỉnh nhịp 18+ theo 19 chương mẫu của người dùng
 - **Đo từ mẫu (19 chương):** ~70% chương có cảnh nóng (chương cốt truyện 1/3/12/15 không có); chương nóng dành 40–60% độ dài cho cảnh nóng; mỗi cảnh thêm một yếu tố mới (đạo cụ/địa điểm/nấc quyền lực); nhiều chương kết bằng tin nhắn/cuộc gọi của kẻ thù; nhịp khuất phục của tác giả nhanh hơn thang V14.7.40.
 - **Sửa:** thang khuất phục nhanh hơn (theo chương <2/<5/<10/≥10; theo số lần <=0/1/3/nhiều); mục tiêu PRIMARY nâng lên 40–60% độ dài chương + móc kết chương; thêm `noveltyLedger` ("Sổ leo thang": đã dùng/chưa dùng, mỗi cảnh nóng thêm ≥1 yếu tố mới) đưa vào prompt lập kế hoạch; `degenerationCheck` bắt đoạn dài lặp nguyên văn.

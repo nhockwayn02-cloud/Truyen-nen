@@ -12,3 +12,11 @@ const F=ctx.f;
  assert(F.degenerationCheck(body+'\n'+p+'\n'+p+'\n'+p).reasons.some(r=>/lặp nguyên văn/.test(r)));
  const rb=F.degenerationCheck(body);assert(!rb.bad, JSON.stringify(rb.reasons));console.log('PASS bắt đoạn lặp');})();
 const m=F.matureScenePlanBlock({mature:true,chapterMatureFocus:'primary',chapters:[],characters:[]},5,[]);assert(/40–60%/.test(m));console.log('PASS 40–60%');
+(function(){
+  const vm2=require('vm');const c2=vm2.createContext({console});vm2.runInContext(core+';this.f={salvageBeforeDegeneration,degenerationCheck}',c2);
+  const good=Array.from({length:6},(_,i)=>'Đoạn '+i+' của cảnh này kể về chuyến đi qua phố cũ, mưa rơi trên mái ngói và ngọn đèn hắt bóng lên tường rất lâu.').join('\n');
+  const bad=good+'\n'+Array(18).fill('america').join(' ')+'\nxinchaocacbanvuilongdoctiepdoanvanvoidaydudaunhunghoitrongchuongtruyen';
+  const sv=c2.f.salvageBeforeDegeneration(bad);
+  assert(c2.f.degenerationCheck(bad).bad);assert(sv.split('\n\n').length===6&&!c2.f.degenerationCheck(sv).bad);
+  console.log('PASS cắt phần sụp, giữ phần đầu sạch');
+})();
