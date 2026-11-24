@@ -168,12 +168,12 @@ function compactSceneTail(text, maxChars) {
    nên model tự bịa (thư ký riêng chủ tịch thành giúp việc, căn hộ cao cấp thành nhà tồi tàn) rồi Gate bắt lỗi "vượt hồ sơ". Khối này đưa hồ sơ của đúng các nhân vật có mặt trong scene vào prompt. */
 const SCENE_PROFILE_FIELDS = [['position', 'chức vụ/địa vị', 70], ['occupation', 'nghề', 60], ['role', 'vai trò', 60], ['faction', 'tổ chức', 50], ['age', 'tuổi', 12], ['gender', 'giới tính', 14],
   ['maritalStatus', 'hôn nhân', 30], ['spouseName', 'người yêu/phối ngẫu', 40], ['residence', 'nơi ở', 90], ['home', 'nơi ở', 90], ['housing', 'nơi ở', 90], ['currentLocation', 'đang ở', 60],
-  ['wealth', 'tài sản/mức sống', 70], ['assets', 'tài sản', 70], ['income', 'thu nhập', 50], ['notes', 'ghi chú hồ sơ', 220], ['appearance', 'ngoại hình', 160], ['height', 'chiều cao', 24], ['bodyType', 'dáng người', 50], ['measurements', 'SỐ ĐO', 90], ['hair', 'tóc', 40], ['eyes', 'mắt', 30], ['skin', 'da', 30], ['voice', 'giọng', 40], ['scent', 'mùi', 30], ['style', 'phong cách ăn mặc', 60], ['scars', 'sẹo', 40], ['tattoos', 'xăm', 40], ['personality', 'tính cách', 90],
+  ['wealth', 'tài sản/mức sống', 70], ['assets', 'tài sản', 70], ['income', 'thu nhập', 50], ['notes', 'ghi chú hồ sơ', 220], ['appearance', 'ngoại hình', 320], ['height', 'chiều cao', 24], ['bodyType', 'dáng người', 50], ['measurements', 'SỐ ĐO', 90], ['hair', 'tóc', 40], ['eyes', 'mắt', 30], ['skin', 'da', 30], ['voice', 'giọng', 40], ['scent', 'mùi', 30], ['style', 'phong cách ăn mặc', 60], ['scars', 'sẹo', 40], ['tattoos', 'xăm', 40], ['personality', 'tính cách', 160], ['weakness', 'điểm yếu', 70], ['fear', 'nỗi sợ', 70], ['strength', 'điểm mạnh', 70],
   ['speech', 'cách nói', 70], ['goals', 'mục tiêu', 70], ['relevanceToMC', 'quan hệ với NVC', 70]];
 /* V14.7.4: neo ngoại hình cho đường viết từng scene (trước đây chỉ đường viết thường có): hồ sơ hình thể phải ra được thành chữ cụ thể. */
 /* V14.7.13: văn chương thân thể. Các neo trước đây ép "bằng con số" nên văn bản đọc như báo cáo ("dài 25 cm", "84-60-88"). Số liệu hồ sơ nay là dữ kiện ngầm cần DỊCH thành hình ảnh/cảm giác/tương phản. */
 const BODY_PROSE_CRAFT = 'VĂN CHƯƠNG THÂN THỂ — số đo/kích thước trong hồ sơ là DỮ KIỆN NGẦM, không phải câu để đọc ra. Cấm báo cáo khô kiểu "cao 1m68, 84-60-88", "dài 25 cm". Hãy để thân thể tự kể chuyện qua hình ảnh, cảm giác và tương phản: (1) hình ảnh vật thể/thiên nhiên hợp tông truyện (đầy như quả chín, eo nhỏ đến mức một vòng tay ôm trọn, thân gân guốc to bằng cổ tay...); (2) qua cảm nhận của người nhìn/chạm: ánh mắt dừng ở đâu, bàn tay bị nuốt chìm, trọng lượng, độ nóng, độ mềm/cứng, mùi, tiếng thở; (3) qua chuyển động và vải: bước đi rung nhẹ, vải căng/xô lệch/ướt/nút áo bị đẩy; (4) tương phản (eo nhỏ – hông nở, vẻ lạnh lùng – thân thể run rẩy, da trắng – vết đỏ). Mỗi bộ phận quan trọng tả thành một cụm 2–4 câu liền mạch, giàu giác quan, rồi mới tiếp tục hành động; con số nếu cần chỉ thoáng một lần và nằm trong hình ảnh (vd "to bằng cổ tay", "dài gần hai gang tay"), không nhắc lại. Chỉ lần ĐẦU một bộ phận/đặc điểm xuất hiện mới tả đầy đủ; các lần sau chỉ nhắc bằng MỘT chi tiết mới hoặc cảm giác (chạm, nặng, nóng, run), đổi hẳn góc nhìn/hình ảnh, không lặp lại hình dáng hay con số đã nêu.';
-const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: CHỈ ở lần đầu tiên nhân vật xuất hiện trong truyện (hoặc quay lại sau ≥ 6 chương vắng), hoặc khi trang phục/thân thể THAY ĐỔI, dựng chiều cao, dáng, kích thước/số đo, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA thành hình ảnh cụ thể (không đọc số đo như báo cáo). Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và một hình ảnh/cảm giác cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau. CHỐNG LẶP: nhân vật gắn nhãn ĐÃ GIỚI THIỆU thì TUYỆT ĐỐI không nhắc lại chiều cao/cân nặng/số đo/dáng đã tả, không mở scene hay chương bằng đoạn tả hình thể; số liệu hồ sơ chỉ để giữ nhất quán, không phải để đọc lại — mỗi scene tối đa 1–2 chi tiết thân thể MỚI hoặc phản ứng/cử động hiện tại, khác hẳn hình ảnh đã dùng. ' + BODY_PROSE_CRAFT;
+const SCENE_APPEARANCE_ANCHOR = 'NEO NGOẠI HÌNH — người đọc phải hình dung được thân thể nhân vật: tả KỸ ở lần đầu tiên nhân vật xuất hiện trong truyện, nhắc NGẮN ở lần xuất hiện thứ hai, rồi thôi (và tả lại ngắn khi quay lại sau ≥ 6 chương vắng), hoặc khi trang phục/thân thể THAY ĐỔI, dựng chiều cao, dáng, kích thước/số đo, tóc-mắt-da ĐÚNG theo HỒ SƠ KHÓA thành hình ảnh cụ thể (không đọc số đo như báo cáo). Cấm tính từ trống đứng thay cho hình thể ("căng thẳng", "bó sát", "quyến rũ", "đầy đặn", "cao ráo"): phải gắn với phần cơ thể và một hình ảnh/cảm giác cụ thể; trang phục tả kèm cách nó ôm/hở/xô lệch trên đúng phần thân thể đó. Mục hồ sơ nào trống thì tự đặt chi tiết hợp lý và giữ nhất quán về sau. CHỐNG LẶP: nhân vật gắn nhãn ĐÃ GIỚI THIỆU thì TUYỆT ĐỐI không nhắc lại chiều cao/cân nặng/số đo/dáng đã tả, không mở scene hay chương bằng đoạn tả hình thể; số liệu hồ sơ chỉ để giữ nhất quán, không phải để đọc lại — mỗi scene tối đa 1–2 chi tiết thân thể MỚI hoặc phản ứng/cử động hiện tại, khác hẳn hình ảnh đã dùng. ' + BODY_PROSE_CRAFT;
 /* V14.7.10: hồ sơ 18+ (đặc điểm cơ thể/kích thước, sở thích, giới hạn) trước đây KHÔNG vào prompt viết từng scene nên cảnh nóng không có dữ kiện để tả,
    và không có chỉ dẫn tả phản ứng người chứng kiến (chỉ "to lớn"). Nay: scene nóng của truyện 18+ nhận các trường này + neo tả cụ thể. */
 const SCENE_ADULT_PROFILE_FIELDS = [['sexualExperience', 'đặc điểm/kinh nghiệm 18+', 320], ['preferences', 'sở thích 18+', 140], ['boundaries', 'giới hạn', 90], ['taboos', 'cấm kỵ', 80], ['attractionToMC', 'hấp dẫn với NVC', 90], ['tensionWithMC', 'căng thẳng với NVC', 90]];
@@ -192,11 +192,50 @@ function sceneProfileWithAnchor(st, scene, castNames) {
   return b + '\n\n' + SCENE_APPEARANCE_ANCHOR + (sceneIsAdult(st, scene) ? '\n\n' + SCENE_ADULT_BODY_ANCHOR : '');
 }
 /* V14.7.15: nhân vật đã xuất hiện trong ~4 chương gần nhất = ĐÃ GIỚI THIỆU ngoại hình; prompt cấm tả lại chiều cao/số đo/dáng (trước đây mỗi scene/chương đều "lần đầu" nên lặp "cao 185cm..."). */
-function characterIntroduced(st, c) {
-  const nm = normalizeName(c && c.name || ''); if (!nm) return false;
-  const chs = (st && st.chapters) || [];
-  for (let i = chs.length - 1; i >= Math.max(0, chs.length - 4); i--) { if (normalizeName(String(chs[i] && chs[i].text || '').slice(0, 20000)).includes(nm)) return true; }
+const APPEAR_KW = ['cao', 'thấp', 'gầy', 'mập', 'béo', 'tóc', 'mắt', 'làn da', 'da trắng', 'da ngăm', 'khuôn mặt', 'gương mặt', 'dáng', 'vóc', 'mặc', 'áo', 'váy', 'vest', 'môi', 'mày', 'mũi', 'eo', 'ngực', 'vai', 'tuổi', 'nốt ruồi', 'sẹo'];
+/* V14.7.46: "đã giới thiệu ngoại hình" = chương thật sự CÓ ĐOẠN TẢ (tên + ≥3 từ khóa ngoại hình trong ~360 ký tự), không phải chỉ nhắc tên. */
+function chapterDescribesCharacter(text, name) {
+  const t = String(text || '').slice(0, 30000).toLowerCase(), nm = String(name || '').trim().toLowerCase(); if (!nm || !t) return false;
+  let from = 0, tries = 0;
+  while (tries++ < 8) {
+    const at = t.indexOf(nm, from); if (at < 0) return false;
+    const win = t.slice(Math.max(0, at - 160), at + 200 + nm.length); let hit = 0;
+    for (const k of APPEAR_KW) { if (win.indexOf(k) >= 0 && ++hit >= 3) return true; }
+    from = at + nm.length;
+  }
   return false;
+}
+/* 'first' = chưa ai tả (tả KỸ), 'reminder' = đã tả 1 lần gần đây hoặc vắng lâu (nhắc NGẮN), 'done' = đã tả ≥2 lần gần đây (không tả lại). */
+function characterIntroStage(st, c) {
+  const nm = String(c && c.name || '').trim(); if (!nm) return 'first';
+  const chs = ((st && st.chapters) || []).filter(x => x && x.text); let all = 0, recent = 0;
+  chs.forEach((ch, i) => { if (chapterDescribesCharacter(ch.text, nm)) { all++; if (i >= chs.length - 6) recent++; } });
+  if (!all) return 'first'; if (recent >= 2) return 'done'; return 'reminder';
+}
+function characterIntroduced(st, c) { return characterIntroStage(st, c) !== 'first'; }
+const INTRO_STAGE_TAG = {
+  first: ' [CHƯA GIỚI THIỆU — LẦN ĐẦU: người đọc chưa biết nhân vật này là ai, hãy tả KỸ trong MỘT đoạn riêng: 4–6 chi tiết cụ thể (tuổi/vóc dáng, khuôn mặt, nét riêng dễ nhận ra, trang phục, dáng đi/giọng nói, khí chất) lồng vào hành động; nếu đoạn trước TRONG CHƯƠNG NÀY đã tả rồi thì chỉ nhắc 1 chi tiết]',
+  reminder: ' [ĐÃ GIỚI THIỆU MỘT PHẦN — chỉ nhắc LẠI NGẮN 1–2 chi tiết nhận diện (tối đa một câu), dùng hình ảnh khác lần trước; không tả lại số đo/dáng/khuôn mặt đầy đủ]',
+  done: ' [ĐÃ GIỚI THIỆU NGOẠI HÌNH — KHÔNG tả lại chiều cao/cân nặng/số đo/dáng/khuôn mặt; chỉ thêm chi tiết MỚI hoặc phản ứng hiện tại]'
+};
+/* V14.7.46: hồ sơ nhân vật VẮNG MẶT nhưng đang được nhắc như tài liệu ("nhận hồ sơ A", "đọc lý lịch của A"). */
+const DOSSIER_RE = /hồ sơ|lý lịch|tiểu sử|dossier|thông tin (?:về|của)|tài liệu (?:về|của)|báo cáo (?:về|của)/i;
+function dossierBlock(st, scene) {
+  if (!scene || !st) return '';
+  const hay = [scene.purpose, scene.mustChange, scene.location].concat(Array.isArray(scene.beats) ? scene.beats : []).filter(Boolean).join(' | ');
+  if (!DOSSIER_RE.test(hay)) return '';
+  const present = new Set((scene.characters || []).map(x => normalizeName(x)));
+  const hl = hay.toLowerCase(), pool = [].concat(st.mainCharProfile && st.mainCharProfile.name ? [st.mainCharProfile] : [], st.characters || []);
+  const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const rows = [];
+  pool.forEach(c => {
+    const nm = String(c && c.name || '').trim(); if (!nm || present.has(normalizeName(nm)) || hl.indexOf(nm.toLowerCase()) < 0) return;
+    const f = [['age', 'tuổi'], ['gender', 'giới tính'], ['occupation', 'nghề'], ['position', 'chức vụ'], ['role', 'vai trò'], ['appearance', 'ngoại hình'], ['height', 'chiều cao'], ['hair', 'tóc'], ['personality', 'tính cách'], ['maritalStatus', 'hôn nhân'], ['residence', 'nơi ở'], ['notes', 'xuất thân/ghi chú']]
+      .map(([k, l]) => { const v = cut(c[k], 220); return v ? l + ': ' + v : ''; }).filter(Boolean);
+    if (f.length) rows.push('- ' + nm + ' | ' + f.join(' | '));
+  });
+  if (!rows.length) return '';
+  return 'NỘI DUNG HỒ SƠ ĐANG ĐƯỢC NHẬN/ĐỌC (nhân vật dưới đây KHÔNG có mặt trong cảnh, nhưng hồ sơ về họ được đưa ra): khi nhân vật trong cảnh mở/đọc/nghe về hồ sơ này, PHẢI nêu ra các chi tiết THẬT bên dưới (tuổi, giới tính, nghề/chức vụ, ngoại hình, nét đáng chú ý) bằng cách người đọc hình dung được — không được chỉ ghi "nhận hồ sơ" rồi bỏ qua nội dung; không bịa mâu thuẫn với dữ liệu:\n' + rows.join('\n');
 }
 /* V14.7.27: THỨ BẬC QUYỀN LỰC trong cảnh. Trước đây quy định chênh lệch chức vụ/địa vị chỉ nằm ở ngữ cảnh chung, không vào prompt từng scene; thẻ Current Status (mức phục tùng, tâm lý) lại "ưu tiên hơn hồ sơ gốc" nên dần kéo nhân vật sang sợ hãi/phục tùng, lấn át chức vụ. */
 function powerHierarchyBlock(st, pick) {
@@ -224,10 +263,13 @@ function sceneProfileBlock(st, scene, castNames) {
     if (c && !seen.has(c.name)) { seen.add(c.name); pick.push(c); }
   });
   const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const introRows = [];
   const rows = pick.slice(0, 5).map(c => {
     const f = [], used = new Set();
     SCENE_PROFILE_FIELDS.concat(sceneIsAdult(st, scene) ? SCENE_ADULT_PROFILE_FIELDS : []).forEach(([k, label, n]) => { const v = cut(c[k], n); if (v && !used.has(label + v)) { used.add(label + v); f.push(label + ': ' + v); } });
-    return f.length ? '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + (characterIntroduced(st, c) ? ' [ĐÃ GIỚI THIỆU NGOẠI HÌNH — KHÔNG tả lại chiều cao/cân nặng/số đo/dáng/khuôn mặt; chỉ thêm chi tiết MỚI hoặc phản ứng hiện tại]' : ' [CHƯA GIỚI THIỆU — tả đầy đủ MỘT lần]') + ' | ' + f.join(' | ') : '';
+    const stage = characterIntroStage(st, c), tag = INTRO_STAGE_TAG[stage];
+    if (!f.length) { if (stage !== 'done') introRows.push('- ' + c.name + tag + ' | (hồ sơ còn trống: tự đặt chi tiết hợp vai/nghề/tuổi, cụ thể và nhất quán về sau — chương xong sẽ được ghi vào hồ sơ)'); return ''; }
+    return '- ' + c.name + (st.mainCharProfile && st.mainCharProfile.name === c.name ? ' (NVC)' : '') + tag + ' | ' + f.join(' | ');
   }).filter(Boolean);
   /* Trạng thái hiện tại tích lũy từ Current Status (mới hơn hồ sơ gốc; ưu tiên khi khác nhau): nghề, nơi ở, trang phục, địa vị, tính cách công khai/riêng tư... */
   const SF = [['occupation', 'công việc hiện tại', 80], ['residence', 'nơi ở hiện tại', 100], ['socialStatus', 'địa vị/quan hệ xã hội', 90], ['clothing', 'trang phục hiện tại', 90], ['marks', 'dấu vết trên cơ thể', 90],
@@ -240,11 +282,12 @@ function sceneProfileBlock(st, scene, castNames) {
     const f = SF.map(([k, label, n]) => { const v = cut(typeof ch[k] === 'object' ? JSON.stringify(ch[k]) : ch[k], n); return v ? label + ': ' + v : ''; }).filter(Boolean);
     return f.length ? '- ' + c.name + ' | ' + f.join(' | ') : '';
   }).filter(Boolean);
-  if (!rows.length && !srows.length) return '';
+  if (!rows.length && !srows.length && !introRows.length) return '';
+  const introPart = introRows.length ? '\nNHÂN VẬT CHƯA CÓ HỒ SƠ — chỉ dẫn giới thiệu:\n' + introRows.join('\n') : '';
   const hier = [powerHierarchyBlock(st, pick), innerVoiceBlock(st, pick)].filter(Boolean).join('\n');
   const statusPart = srows.length ? '\nTRẠNG THÁI HIỆN TẠI (Current Status mới nhất — nếu khác hồ sơ gốc thì theo mục này):\n' + srows.join('\n').slice(0, 2200) : '';
-  if (!rows.length) return 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart + (hier ? '\n' + hier : '');
-  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Hình thể (chiều cao, dáng, SỐ ĐO, tóc, mắt, da…) có trong hồ sơ thì dùng ĐÚNG, không bịa số khác. Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 3800) + statusPart + (hier ? '\n' + hier : '');
+  if (!rows.length) return (srows.length ? 'TRẠNG THÁI NHÂN VẬT TRONG SCENE — giữ đúng nghề, nơi ở, địa vị, trang phục, tính cách công khai/riêng tư:' + statusPart : 'NHÂN VẬT TRONG SCENE:') + introPart + (hier ? '\n' + hier : '');
+  return 'HỒ SƠ KHÓA CỦA NHÂN VẬT TRONG SCENE (ưu tiên hơn ý tưởng của cảnh) — giữ ĐÚNG chức vụ/nghề, địa vị, nơi ở và mức sống, tính cách, cách nói. KHÔNG tự đổi sang nghề/địa vị thấp hơn hay cao hơn (vd thư ký riêng của chủ tịch không thành người giúp việc), KHÔNG tả nơi ở/mức sống khác hồ sơ (căn hộ cao cấp không thành nhà tồi tàn). Hình thể (chiều cao, dáng, SỐ ĐO, tóc, mắt, da…) có trong hồ sơ thì dùng ĐÚNG, không bịa số khác. Chi tiết hồ sơ không có thì không bịa trái ngược:\n' + rows.join('\n').slice(0, 3800) + introPart + statusPart + (hier ? '\n' + hier : '');
 }
 
 /* ===== V14.5.13 — THẺ NHÂN VẬT TRONG CURRENT STATUS (toàn thẻ, tích lũy) =====
@@ -1016,6 +1059,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     o.sceneScope ? sceneScopedChecklistBlock(s, o.sceneScope) : o.requiredBeats ? 'REQUIRED CHECKLIST — scene này phải thực hiện hoặc bàn giao rõ một mục; cuối chương mọi mục phải có bằng chứng:\n' + String(o.requiredBeats).replace(/\s+/g, ' ').slice(0, 1200) : '',
     o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
     sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
+    dossierBlock(o.state, s),
     o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
     SENTENCE_RHYTHM_RULE,
     compactOverusedGuide(o.state),
@@ -1578,6 +1622,60 @@ function injectHotBeat(graph, st, chapterContract) {
   graph.heatInjected = true;
   return graph;
 }
+/* V14.7.46: AI ĐIỀN HỒ SƠ CÒN TRỐNG. Bước đọc chương bị cấm bịa (đúng, để khỏi sai canon) nên nhân vật mới chỉ có tên; nút này cho phép dựng thẻ hồ sơ
+   nhất quán với truyện, CHỈ vào ô trống, không ghi đè ô người dùng đã nhập, không đụng nhóm 18+ (người dùng tự nhập). */
+const CHAR_FILL_FIELDS = [['age', 'tuổi', 12], ['gender', 'giới tính', 12], ['occupation', 'nghề', 70], ['position', 'chức vụ', 70], ['height', 'chiều cao', 24], ['bodyType', 'dáng người', 70],
+  ['hair', 'tóc', 50], ['eyes', 'mắt', 40], ['skin', 'da', 40], ['voice', 'giọng nói', 60], ['style', 'phong cách ăn mặc', 90], ['scars', 'sẹo/dấu vết', 60], ['tattoos', 'hình xăm', 60],
+  ['appearance', 'ngoại hình tổng quát', 320], ['personality', 'tính cách', 260], ['speech', 'cách nói', 140], ['goals', 'mục tiêu', 200], ['secret', 'bí mật', 200], ['weakness', 'điểm yếu', 160],
+  ['fear', 'nỗi sợ', 140], ['strength', 'điểm mạnh', 160], ['notes', 'ghi chú xuất thân/quá khứ', 300]];
+function emptyCharFillFields(c) {
+  return CHAR_FILL_FIELDS.map(f => f[0]).filter(k => !String(c && c[k] != null ? c[k] : '').trim());
+}
+function characterMentionExcerpts(st, name, max) {
+  const nm = String(name || '').trim().toLowerCase(); if (!nm) return [];
+  const out = [], chs = (st && st.chapters) || [];
+  for (let i = chs.length - 1; i >= 0 && out.length < (max || 3); i--) {
+    const t = String(chs[i] && chs[i].text || ''), at = t.toLowerCase().indexOf(nm);
+    if (at >= 0) out.push('Ch.' + (i + 1) + ': …' + t.slice(Math.max(0, at - 220), at + 320).replace(/\s+/g, ' ') + '…');
+  }
+  return out.reverse();
+}
+function buildCharacterFillPrompt(st, c, keys) {
+  st = st || {}; const cut = (v, n) => { v = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n) + '…' : v; };
+  const labelOf = k => (CHAR_FILL_FIELDS.find(f => f[0] === k) || [k, k])[1], capOf = k => (CHAR_FILL_FIELDS.find(f => f[0] === k) || [0, 0, 200])[2];
+  const known = Object.keys(c || {}).filter(k => ['name', 'tier', 'role', 'relevanceToMC', 'maritalStatus', 'spouseName', 'faction', 'currentLocation', 'residence', 'wealth'].concat(CHAR_FILL_FIELDS.map(f => f[0])).includes(k) && String(c[k] || '').trim() && keys.indexOf(k) < 0)
+    .map(k => '- ' + (k === 'name' ? 'tên' : k === 'tier' ? 'tầm quan trọng' : k === 'role' ? 'vai trò' : labelOf(k)) + ': ' + cut(c[k], 300));
+  const mc = st.mainCharProfile || {}, others = (st.characters || []).filter(x => x && x.name && x !== c && !x.dead).slice(0, 12)
+    .map(x => '- ' + x.name + [x.gender, x.age ? x.age + ' tuổi' : '', x.role || x.occupation || x.position].filter(Boolean).map(v => ', ' + v).join(''));
+  const ex = characterMentionExcerpts(st, c && c.name, 3);
+  return [
+    'Bạn là biên tập viên hồ sơ nhân vật cho một tiểu thuyết Việt Nam. Hãy DỰNG các mục còn trống trong thẻ hồ sơ của nhân vật dưới đây, sao cho cụ thể, đời thường và NHẤT QUÁN với truyện.',
+    st.genre ? 'THỂ LOẠI: ' + cut(st.genre, 120) : '', st.worldSetting ? 'BỐI CẢNH: ' + cut(st.worldSetting, 500) : '', st.mainPlot ? 'CỐT TRUYỆN: ' + cut(st.mainPlot, 900) : '',
+    mc.name ? 'NHÂN VẬT CHÍNH: ' + mc.name + [mc.gender, mc.age ? mc.age + ' tuổi' : '', mc.occupation || mc.role].filter(Boolean).map(v => ', ' + v).join('') : '',
+    others.length ? 'NHÂN VẬT KHÁC (để tránh trùng/mâu thuẫn):\n' + others.join('\n') : '',
+    'NHÂN VẬT CẦN ĐIỀN: ' + (c && c.name) + '\nĐÃ CÓ (CANON — tuyệt đối giữ đúng, không mâu thuẫn):\n' + (known.length ? known.join('\n') : '- (chưa có gì ngoài tên)'),
+    ex.length ? 'ĐOẠN TRUYỆN ĐÃ VIẾT CÓ NHÂN VẬT NÀY (canon, ưu tiên hơn mọi suy đoán):\n' + ex.join('\n') : '',
+    'CÁC MỤC CẦN ĐIỀN (chỉ trả về các khóa này):\n' + keys.map(k => '- ' + k + ' (' + labelOf(k) + ', tối đa ~' + capOf(k) + ' ký tự)').join('\n'),
+    'QUY TẮC: (1) Mọi chi tiết phải khớp phần ĐÃ CÓ và đoạn truyện; không đổi nghề/chức vụ/tuổi nếu đã có. (2) Nhân vật người lớn: tuổi ≥ 18; nếu hồ sơ/đoạn truyện cho thấy nhân vật dưới 18 thì giữ đúng như vậy và KHÔNG tạo chi tiết thân thể gợi dục. (3) Ngoại hình viết bằng hình ảnh cụ thể (khuôn mặt, dáng, nét riêng), không chung chung "xinh đẹp". (4) Không viết nội dung tình dục; các mục 18+ do người dùng tự nhập. (5) Mục nào không thể điền hợp lý thì để "".',
+    'CHỈ TRẢ JSON thuần, đúng một object, khóa đúng như trên, giá trị là chuỗi tiếng Việt.'
+  ].filter(Boolean).join('\n\n');
+}
+function parseCharacterFill(obj, keys) {
+  const out = {}; if (!obj || typeof obj !== 'object') return out;
+  keys.forEach(k => {
+    let v = obj[k]; if (v == null) return; if (Array.isArray(v)) v = v.join(', '); v = String(v).replace(/\s+/g, ' ').trim(); if (!v) return;
+    const cap = (CHAR_FILL_FIELDS.find(f => f[0] === k) || [0, 0, 200])[2] * 1.5; if (v.length > cap) v = v.slice(0, Math.round(cap)).replace(/\s+\S*$/, '') + '…';
+    if (k === 'age') { const n = parseInt(v, 10); if (!(n > 0 && n < 130)) return; v = String(n); }
+    out[k] = v;
+  });
+  return out;
+}
+function applyCharacterFill(c, fill) {
+  const done = []; if (!c || !fill) return done;
+  Object.keys(fill).forEach(k => { if (!String(c[k] != null ? c[k] : '').trim() && String(fill[k] || '').trim()) { c[k] = fill[k]; done.push(k); } });
+  if (done.length) { c.aiFilledFields = Array.from(new Set((c.aiFilledFields || []).concat(done))); }
+  return done;
+}
 function cultivationActive(st) {
   if (!st) return false;
   const hasLadder = Array.isArray(st.realmLadder) ? st.realmLadder.length > 0 : !!String(st.realmLadder || "").trim();
@@ -1785,6 +1883,41 @@ function cleanModelArtifacts(text) {
   t = t.replace(/([.!?…])\s*,\s+(?=[\p{Lu}"“—])/gu, '$1 ').replace(/\.:\s+/g, ': ');
   return t;
 }
+/* V14.7.46: model TRÔI LAN MAN — câu 45–110 từ gần như không dấu phẩy, hay kết bằng "…", chèn giọng bản tin/quảng cáo ("các bạn ơi", "bye bye", "quê hương tôi…").
+   Đối chiếu 19 chương tác giả: 0–1 câu thưa dấu/chương; chương app lan man: 12–39 câu. */
+const DRIFT_CHATTER_RE = /các bạn ơi|bye bye|hẹn gặp lại|cảm ơn (?:mọi người|các bạn) đã theo dõi|nghen các bạn|chia sẻ tiếp những|quê hương tôi|đất Việt Nam ta|kỷ nguyên số hóa/i;
+function splitSentencesKeep(p) { return String(p || '').match(/[^.!?]+(?:[.!?]+["”“'»)]*|$)\s*/g) || [String(p || '')]; }
+function isSparseLongSentence(sn) {
+  const w = String(sn).trim().split(/\s+/).filter(Boolean).length; if (w < 45) return false;
+  const c = (String(sn).match(/[,;:—–]/g) || []).length;
+  return c / w < 0.04;
+}
+function countRunOnDrift(text) {
+  let sparse = 0, chatter = 0;
+  String(text || '').split(/\n+/).forEach(p => { splitSentencesKeep(p).forEach(sn => { if (isSparseLongSentence(sn)) sparse++; if (DRIFT_CHATTER_RE.test(sn)) chatter++; }); });
+  return { sparse, chatter };
+}
+/* Cắt xác định: câu lan man → giữ ~26 từ đầu (tại ranh giới từ) rồi đóng câu; câu chứa giọng bản tin → bỏ phần từ chỗ lạc. Trả { text, trimmed }. */
+function trimRunOnDrift(text) {
+  let trimmed = 0;
+  const out = String(text || '').split('\n').map(line => {
+    if (!line.trim()) return line;
+    const parts = splitSentencesKeep(line).map(sn => {
+      const m = sn.match(DRIFT_CHATTER_RE);
+      let cut = null;
+      if (m) { const pre = sn.slice(0, m.index).split(/\s+/).filter(Boolean); cut = pre.slice(0, Math.max(0, Math.min(pre.length, 26))).join(' '); }
+      else if (isSparseLongSentence(sn)) cut = sn.trim().split(/\s+/).slice(0, 26).join(' ');
+      if (cut === null) return sn;
+      trimmed++;
+      cut = cut.replace(/[\s,;:—–…-]+$/, '');
+      if (!cut || cut.split(/\s+/).length < 4) return '';
+      const q = (cut.match(/[“”"]/g) || []).length % 2 ? '”' : '';
+      return cut + '.' + q + ' ';
+    });
+    return parts.join('').replace(/[ \t]+$/, '').replace(/([.!?])\s*\.+/g, '$1');
+  }).filter((l, i, a) => l.trim() || (i > 0 && a[i - 1].trim()));
+  return { text: out.join('\n'), trimmed };
+}
 /* V14.7.39: CỔNG VĂN SUY BIẾN. Phát hiện model sụp (lặp cụm, dòng "Vẫn" lặp, chữ vỡ/dính, văn không dấu, câu lẩm bẩm "Viết lại"). */
 /* V14.7.41: văn sụp giữa chừng ("america america america…") — giữ phần ĐẦU còn sạch, cắt từ đoạn hỏng đầu tiên. Trả '' nếu không còn gì đáng giữ. */
 function salvageBeforeDegeneration(raw) {
@@ -1828,6 +1961,9 @@ function degenerationCheck(text) {
   const pc = new Map(); lines.forEach(l => { if (l.length >= 80) { const k = l.toLowerCase(); pc.set(k, (pc.get(k) || 0) + 1); } });
   let dupP = 0; pc.forEach(n => { if (n >= 2) dupP += n - 1; });
   if (dupP >= 2) reasons.push(dupP + ' đoạn văn dài bị lặp nguyên văn');
+  { const rd = countRunOnDrift(t); // V14.7.46
+    if (rd.chatter >= 1) reasons.push('văn lạc sang giọng bản tin/quảng cáo (' + rd.chatter + ' chỗ)');
+    if (rd.sparse >= 2) reasons.push(rd.sparse + ' câu dài lê thê gần như không dấu câu (model lan man)'); }
   const FILLER = (t.match(/(?:^|[\s"“])(?:á đúng|ờ nhỉ|ừ nhỉ|đúng vậy đó|ok luôn|oke|nhỉ nhỉ)(?=[\s,.!?"”]|$)/gi) || []).length;
   if (FILLER >= 4) reasons.push('văn lẫn lời chat (' + FILLER + ' chỗ)');
   return { bad: reasons.length > 0, reasons };
@@ -1855,7 +1991,7 @@ function sanitizeChapterText(text) {
   if (!text) return text;
   text = removeEnglishLeaks(text);   // V12.23
   let t = String(text)
-    .replace(/，/g, ", ").replace(/。/g, ". ").replace(/！/g, "! ").replace(/？/g, "? ").replace(/：/g, ": ").replace(/、/g, ", ")
+    .replace(/，/g, ", ").replace(/。/g, ". ").replace(/！/g, "! ").replace(/？/g, "? ").replace(/：/g, ": ").replace(/、/g, ", ").replace(/；/g, "; ").replace(/（/g, " (").replace(/）/g, ") ").replace(/\u2014{2,}|—\s*—/g, " — ")
     .replace(/[\u3400-\u4DBF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0600-\u06FF\u0900-\u097F]+/g, "");
   t = stripJunkSymbols(t);
   t = fixPinyinDe(t);
@@ -4381,7 +4517,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
     const _boost = (deps.sceneTargetBoost !== false && ratioN) ? Math.min(1.35, Math.max(1, 1 / Math.max(0.6, ratioSum / ratioN))) : 1;
     const pScene = _boost > 1.05 ? Object.assign({}, scene, { targetWords: Math.round(scene.targetWords * _boost) }) : scene;
     const sceneT0 = Date.now(), sceneMetric = { sceneId: scene.id, outlineItems: Array.isArray(scene.outlineItems) ? scene.outlineItems.slice() : [], targetWords: Number(scene.targetWords) || 0, attempts: 0, retries: 0, inputChars: 0, outputWords: 0, status: 'running', errors: [], patched: false, aiReviews: 0 };
-    let correction = '', degenFallback = false, degenSalvaged = false, degenTries = 0, maxTr = maxSceneRetries, accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
+    let correction = '', degenFallback = false, degenSalvaged = false, degenTries = 0, degenKindRunOn = false, maxTr = maxSceneRetries, accepted = null, skipScene = false, lastErrors = [], sceneTries = 0, lastText = '', lastAiOnly = false, bestAiOnly = null, beatChecked = false;
     for (let sa = 0; sa <= maxTr; sa++) {
       if (sa > 0 && timeLeft() < minSceneMs) break;
       sceneTries++;
@@ -4408,13 +4544,14 @@ async function runAdaptiveChapterPipeline(o, deps) {
           temperature: degenTries ? 0.55 : Math.max(0.5, (route.nsfw ? 0.78 : 0.72) - (sa ? 0.1 : 0)),
           modelOverride: (degenFallback && deps.fallbackModel) ? deps.fallbackModel : route.model,   // V14.7.39: lượt viết lại sau khi model sụp → dùng model chính
           systemPrompt: SCENE_SYSTEM_PROMPT,
-          frequency_penalty: degenTries ? 0.4 : 0.22,
-          presence_penalty: degenTries ? 0.3 : 0.18,
+          frequency_penalty: degenTries ? (degenKindRunOn ? 0.08 : 0.4) : 0.22,   // V14.7.46: lan man = phạt lặp cao ép model đi tìm từ lạ → hạ phạt; lặp cụm → tăng phạt
+          presence_penalty: degenTries ? (degenKindRunOn ? 0.04 : 0.3) : 0.18,
           streaming: false
         });
         let rawTxt = String(r && r.text || '');
         rawDg = degenerationCheck(rawTxt);
         if (rawDg.bad) { const sv = salvageBeforeDegeneration(rawTxt); if (countWords(sv) >= Math.max(200, Math.round((Number(scene.targetWords) || 0) * 0.5)) && !degenerationCheck(sv).bad) { rawTxt = sv; rawDg = { bad: false, reasons: [] }; degenSalvaged = true; pushSceneWarn(scene.id + ': model sụp giữa chừng — đã cắt phần hỏng, giữ ' + countWords(sv) + ' từ đầu còn sạch', true); } }
+        if (rawDg.bad && !degenSalvaged && sa >= maxTr) { const tr0 = trimRunOnDrift(rawTxt); if (tr0.trimmed && !degenerationCheck(tr0.text).bad) { rawTxt = tr0.text; rawDg = { bad: false, reasons: [] }; degenSalvaged = true; pushSceneWarn(scene.id + ': model lan man — đã cắt ' + tr0.trimmed + ' câu lê thê/lạc giọng ở lượt cuối, nên đọc lại', true); } }   // V14.7.46
         text = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(rawTxt)))).trim();   // V14.7.39: kiểm trên văn BẢN GỐC (trước bước dọn)
         sceneMetric.outputWords = Math.max(sceneMetric.outputWords, countWords(text));
         if (detectNonVietnamese(text)) text = stripForeign(text);
@@ -4431,7 +4568,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       }
       const chk = checkSceneQuality(text, scene, { contract: chapterContract, isFinal: i === graph.scenes.length - 1, endingAnchor: graph.endingAnchor });
       let errors = chk.errors.slice(), warns = chk.warnings.slice();
-      { const dg = rawDg.bad ? rawDg : degenerationCheck(text); if (dg.bad) { errors.unshift('VĂN SUY BIẾN: ' + dg.reasons.join('; ') + ' — viết lại sạch, câu đủ dấu, không lặp.'); degenFallback = true; degenTries++; if (degenTries === 1 && maxTr === maxSceneRetries) maxTr++; } }  // V14.7.41: model sụp → thêm 1 lượt viết (tổng 3) }   // V14.7.39
+      { const dg = rawDg.bad ? rawDg : degenerationCheck(text); if (dg.bad) { errors.unshift('VĂN SUY BIẾN: ' + dg.reasons.join('; ') + ' — viết lại sạch, câu đủ dấu, không lặp.'); degenFallback = true; degenKindRunOn = dg.reasons.some(r => /lan man|bản tin|quảng cáo/.test(r)) && !dg.reasons.some(r => /lặp \d+ lần|bị lặp/.test(r)); degenTries++; if (degenTries === 1 && maxTr === maxSceneRetries) maxTr++; } }  // V14.7.41: model sụp → thêm 1 lượt viết (tổng 3) }   // V14.7.39
       lastText = text; lastAiOnly = !errors.length;
       /* V14.3.2: scene kể LẠI sự kiện của scene trước (khác câu chữ) -> viết lại. Không phải lỗi cứng: hết lượt thì giữ bản cuối + cảnh báo (như lỗi chỉ do AI rà), không hủy job. */
       let overlapErr = '';
@@ -6289,7 +6426,7 @@ async function callAI(prompt, opts){
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + key };
   if(isOpenRouter){
     headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-    headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.40";
+    headers["X-Title"] = "Xuong Truyen AI Pro Max";
   }
 
   let lastErr = null;
@@ -7408,6 +7545,7 @@ $ID("beatLedgerToggle").addEventListener("change", ()=>{ state.beatLedgerCheck =
 $ID("sceneAiReviewToggle").addEventListener("change", ()=>{ state.sceneAiReview = $ID("sceneAiReviewToggle").checked; persist(); });
 $ID("qualityAcceptSoftToggle").addEventListener("change", ()=>{ state.qualityAcceptSoft = !$ID("qualityAcceptSoftToggle").checked; persist(); });
 $ID("requiredBeatBarrierToggle").addEventListener("change", ()=>{ state.requiredBeatBarrier = $ID("requiredBeatBarrierToggle").checked; persist(); });
+$ID("autoFillNewCharsToggle").addEventListener("change", ()=>{ state.autoFillNewChars = $ID("autoFillNewCharsToggle").checked; persist(); });   // V14.7.46
 function syncAccuracyModeControls(){
   const strict=state.accuracyMode===true, mode=$ID("accuracyModeToggle");
   if(mode) mode.checked=strict;
@@ -7493,7 +7631,7 @@ $ID("saveKeyBtn").addEventListener("click", async ()=>{
     const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + state.apiKey };
     if(isOpenRouter){
       headers["HTTP-Referer"] = location.protocol === "file:" ? "https://localhost" : location.origin;
-      headers["X-Title"] = "Xuong Truyen AI Pro Max v14.7.40";
+      headers["X-Title"] = "Xuong Truyen AI Pro Max";
     }
     // Lightweight probe: request 1 token
     const body = {
@@ -8071,12 +8209,29 @@ function charDetailHtml(c, idx){
       + TIERS.map(t=>'<option value="'+t+'"'+(t===c.tier?' selected':'')+'>'+t+'</option>').join("")
     + '</select>'
     + '<button class="btn btn-ghost btn-sm" data-char-togglelock="'+idx+'" title="'+(c.coreLocked!==false ? 'Hồ sơ gốc đang bị AI khóa; bấm để cho AI tự cập nhật ngoại hình/tính cách/mục tiêu sau mỗi chương' : 'AI đang được phép tự cập nhật hồ sơ gốc; bấm để khóa lại')+'">'+(c.coreLocked!==false ? '🔐 Core' : '🔓 Đang cho AI cập nhật')+'</button>'
+    + '<button class="btn btn-ghost btn-sm" data-char-aifill="'+idx+'" title="AI chỉ điền các ô còn TRỐNG (tuổi, giới tính, ngoại hình, tính cách…), không ghi đè ô bạn đã nhập, không động tới mục 18+">✨ AI điền hồ sơ trống</button>'
     + '<button class="btn btn-ghost btn-sm" data-char-save="'+idx+'">💾 Lưu</button>'
     + '<button class="btn btn-outline-red btn-sm" data-char-del="'+idx+'">🗑 Xóa</button>'
     + '</div>';
   return html;
 }
 function renderCharacters(){ renderCharactersCore(); XTA_HOOKS.fire("chars"); }
+/* V14.7.46: dựng hồ sơ trống bằng AI — dùng chung cho nút bấm tay và tự chạy khi có nhân vật mới. Trả danh sách ô đã điền. */
+async function aiFillCharacterProfile(c){
+  const keys = emptyCharFillFields(c); if(!keys.length) return [];
+  const r = await callAI(buildCharacterFillPrompt(state, c, keys), { maxTokens: 1600, temperature: 0.6, streaming:false });
+  return applyCharacterFill(c, parseCharacterFill(safeJsonParse(r && r.text), keys));
+}
+async function autoFillNewCharacters(names){
+  if(state.autoFillNewChars === false || !names || !names.length) return [];
+  const out = [];
+  for(const nm of Array.from(new Set(names)).slice(0,4)){
+    const c = state.characters.find(x=>x && x.name===nm); if(!c || c.dead) continue;
+    if(emptyCharFillFields(c).length < 6) continue;   // đã có khá đủ thì thôi
+    try{ const d = await aiFillCharacterProfile(c); if(d.length) out.push(nm+" ("+d.length+" ô)"); }catch(_){}
+  }
+  return out;
+}
 function renderCharactersCore(){
   normalizeCharacterCoreLocks();
   const fd=$ID("femaleCharacterDefinitionInput"); if(fd && document.activeElement!==fd) fd.value=state.femaleCharacterDefinition||"";
@@ -8135,6 +8290,23 @@ function renderCharactersCore(){
       const ri = parseInt(btn.getAttribute("data-rel-del"),10);
       state.characters[idx].relationships.splice(ri,1);
       openCharDetails.add(idx); persist(); renderCharacters();
+    });
+  });
+  charList.querySelectorAll("[data-char-aifill]").forEach(btn=>{   /* V14.7.46 */
+    btn.addEventListener("click", async ()=>{
+      const idx = parseInt(btn.getAttribute("data-char-aifill"),10), c = state.characters[idx]; if(!c) return;
+      openCharDetails.add(idx); saveCharacterFromDom(idx);   // lưu trước những gì người dùng vừa gõ để không bị coi là ô trống
+      const keys = emptyCharFillFields(c);
+      if(!keys.length){ setStatus("Hồ sơ của "+(c.name||"NV")+" đã đủ các mục, không có ô trống để AI điền.", false); return; }
+      const ok = await showConfirm("AI sẽ điền "+keys.length+" ô còn trống của \""+(c.name||"NV")+"\" (chỉ ô trống; ô bạn đã nhập được giữ nguyên; không động tới mục 18+). Tốn 1 lượt gọi AI. Tiếp tục?", { okText:"Điền" });
+      if(!ok) return;
+      btn.disabled = true; setStatus("Đang dựng hồ sơ cho "+(c.name||"NV")+"…", true);
+      try{
+        const done = await aiFillCharacterProfile(c);
+        if(!done.length){ setStatus("AI không trả được mục nào dùng được. Thử lại hoặc điền tay.", false); }
+        else { persist(); renderCharacters(); setStatus("Đã điền "+done.length+" ô cho "+(c.name||"NV")+": "+done.join(", ")+". Hãy đọc lại; sửa tay nếu chưa ưng.", false); }
+      }catch(e){ setStatus("Không điền được hồ sơ: "+String(e&&e.message||e).slice(0,200), false); }
+      finally{ btn.disabled = false; }
     });
   });
   charList.querySelectorAll("[data-char-save]").forEach(btn=>{
@@ -9008,7 +9180,7 @@ async function updateCharactersIncremental(text, chapterNumber, silent){
     chunks.push(text.slice(pos,end)); if(end>=text.length) break; pos=Math.max(pos+1,end-overlap);
   }
   const mcName=(state.mainCharProfile&&state.mainCharProfile.name)||"";
-  let nNew=0,nUpd=0,failed=0,repaired=0;
+  let nNew=0,nUpd=0,failed=0,repaired=0; const newCharNames=[];
   const nameList=state.characters.slice(0,100).map(c=>{
     const locked=c.coreLocked!==false;
     let line="- "+c.name+(c.dead?" [ĐÃ CHẾT]":"")+(locked?" [KHÓA HỒ SƠ GỐC]":" [MỞ KHÓA: được cập nhật ngoại hình/tính cách/mục tiêu]");
@@ -9045,9 +9217,11 @@ async function updateCharactersIncremental(text, chapterNumber, silent){
       }
       if(!Array.isArray(arr)){failed++;continue;}
       if(wasRepair) repaired++;
-      arr.forEach(u=>{const r=mergeCharacterUpdate(u,chapterNumber,chunks[i]);if(r&&r.isNewChar)nNew++;else if(r)nUpd++;});
+      arr.forEach(u=>{const r=mergeCharacterUpdate(u,chapterNumber,chunks[i]);if(r&&r.isNewChar){nNew++; newCharNames.push(r.name);}else if(r)nUpd++;});
     }catch(err){failed++;}
   }
+  // V14.7.46: nhân vật MỚI xuất hiện → dựng nốt hồ sơ trống (tuổi/giới tính/ngoại hình…) để chương sau có neo mô tả. Tắt được bằng công tắc.
+  let autoFilled=[]; if(newCharNames.length){ try{ autoFilled=await autoFillNewCharacters(newCharNames); }catch(_){} }
   // Character rescan does not synchronize Long-term Memory. Keep its sync cursor unchanged.
   persist(); renderCharacters(); captureChapterSnapshot(chapterNumber);
   if(!silent) setStatus(failed?"⚠ NV ch"+chapterNumber+": "+nNew+" mới, "+nUpd+" cập nhật, "+failed+" lô lỗi." : "NV ch"+chapterNumber+": +"+nNew+" mới, "+nUpd+" cập nhật"+(repaired?"; đã cứu JSON ở "+repaired+" lô.":"."),false);
@@ -11601,7 +11775,14 @@ $ID("fmtParaBtn").addEventListener("click", async ()=>{
   const c = state.chapters[idx];
   const orig = String(c.text||"");
   /* V12.32.6c: nút này là bước CHUẨN HÓA: dọn ký tự/chữ lạ, markdown/emoji, ghi chú AI, lặp bất thường -> bỏ cảnh viết lặp -> ngắt đoạn. */
-  const sanitized = sanitizeChapterText(orig);
+  let sanitized = sanitizeChapterText(orig), driftNote = "";
+  { /* V14.7.46: văn lan man (câu 45–110 từ gần như không dấu phẩy, lạc sang giọng bản tin) — hỏi rồi cắt gọn, KHÔNG tự cắt âm thầm. */
+    const rd = countRunOnDrift(sanitized);
+    if(rd.sparse + rd.chatter > 0){
+      const tr = trimRunOnDrift(sanitized);
+      if(tr.trimmed && await showConfirm("Phát hiện " + tr.trimmed + " câu lan man/lạc giọng (rất dài, gần như không dấu phẩy, hoặc chèn lời kiểu bản tin). Cắt gọn mỗi câu còn ~26 từ đầu rồi đóng câu? (Nên đọc lại sau khi cắt; muốn văn hay hơn thì viết lại scene đó.)", { okText: "Cắt gọn" })){ sanitized = tr.text; driftNote = " Đã cắt gọn " + tr.trimmed + " câu lan man."; }
+    }
+  }
   const cleanedChars = Math.max(0, orig.length - sanitized.length);
   /* V14.3.1: dedupeRepeatedScene CẮT TỪ CHỖ LẶP ĐẦU TIÊN TRỞ ĐI nên chương 5.000 từ có thể còn ~1.500 từ nếu bị nhận nhầm là "viết lặp từ đầu".
      Nay: cắt chỉ khi mất ≤ 20% số từ; nếu mất nhiều hơn thì chỉ bỏ riêng các đoạn trùng gần nguyên văn, giữ phần còn lại. */
@@ -11619,7 +11800,7 @@ $ID("fmtParaBtn").addEventListener("click", async ()=>{
   const next = formatParagraphs(deduped);
   const stray = findStrayWords(next, charNameList());
   const strayMsg = stray.length ? " Từ lạ cần kiểm tra: " + stray.slice(0,8).join(", ") + "." : "";
-  const cleanMsg = cleanedChars > 0 ? " Đã dọn ~" + cleanedChars + " ký tự rác/lạ." : "";
+  const cleanMsg = (cleanedChars > 0 ? " Đã dọn ~" + cleanedChars + " ký tự rác/lạ." : "") + driftNote;
   if(next === orig.trim()){ setStatus("Chương này đã sạch và ngắt đoạn ổn rồi." + strayMsg, false); if(stray.length){ await offerFixStray(idx, stray); } return; }
   if(cutDup){
     const ok = await showConfirm("Phát hiện chương bị viết lặp lại từ đầu. Cắt bỏ phần lặp (còn ~" + countWords(next) + " từ)?", { okText: "Cắt phần lặp" });
@@ -12183,6 +12364,7 @@ function hydrateFormFromState(){
   $ID("beatLedgerToggle").checked = state.beatLedgerCheck === true;
   $ID("qualityAcceptSoftToggle").checked = state.qualityAcceptSoft === false;
   $ID("requiredBeatBarrierToggle").checked = state.requiredBeatBarrier !== false;
+  $ID("autoFillNewCharsToggle").checked = state.autoFillNewChars !== false;   // V14.7.46
   $ID("outlineBeatGateToggle").checked = state.outlineBeatGate !== false;
   syncAccuracyModeControls();
   autoContinueToggle.checked = state.autoContinueEnabled !== false;
@@ -12714,7 +12896,13 @@ async function mergeBackgroundChapter(statusData,record){
     state.chapters=incoming.chapters;
     state.currentChapterIndex=state.chapters.length-1;
   }
+  const _prevCharKeys=new Set((state.characters||[]).map(x=>normalizeName((x&&x.name)||"")));
   state.characters=mergeArrayByIdOrName(state.characters,incoming.characters||[]);
+  /* V14.7.46b: đường viết chương thường đi qua job nền → nhân vật MỚI đến từ đây (không qua updateCharactersIncremental). Dựng nốt hồ sơ trống, chạy nền, không chặn lưu chương. */
+  { const _newNames=(state.characters||[]).filter(x=>x&&x.name&&!_prevCharKeys.has(normalizeName(x.name))).map(x=>x.name);
+    if(_newNames.length && state.autoFillNewChars!==false){
+      setTimeout(()=>{ autoFillNewCharacters(_newNames).then(done=>{ if(done&&done.length){ persist(); try{ renderCharacters(); }catch(_){} setStatus("✨ AI đã dựng hồ sơ trống cho nhân vật mới: "+done.join(", ")+". Nên đọc lại.", false); } }).catch(()=>{}); },0);
+    } }
   state.locations=mergeArrayByIdOrName(state.locations,incoming.locations||[]);
   state.items=mergeArrayByIdOrName(state.items,incoming.items||[]);
   const localThreadSnapshot=(state.threads||[]).slice(), incomingThreadSnapshot=incoming.threads||[];
@@ -12739,7 +12927,7 @@ async function mergeBackgroundChapter(statusData,record){
     const remoteTimeLog=Array.isArray(incoming.statusState.timeLog)?incoming.statusState.timeLog:[];
     state.statusState=incoming.statusState;
     if(syncStoryClockFromStatus(state)){ try{ storyClockEl.value=state.storyClock; }catch(_){} }
-    const byChapter=new Map(); remoteTimeLog.concat(localTimeLog).forEach(x=>{if(x&&Number(x.chapter)>0)byChapter.set(Number(x.chapter),x);});
+    const byChapter=new Map(); remoteTimeLog.concat(localTimeLog).forEach(x=>{ if(!(x&&Number(x.chapter)>0))return; const k=Number(x.chapter), cur=byChapter.get(k); /* V14.7.47: mốc MỚI hơn (updatedAt) thắng — trước đây bản local cũ đè mốc job nền vừa viết lại. Hòa → giữ bản job (remote). */ if(!cur||(Number(x.updatedAt)||0)>(Number(cur.updatedAt)||0))byChapter.set(k,x); });
     state.statusState.timeLog=Array.from(byChapter.values()).sort((a,b)=>Number(a.chapter)-Number(b.chapter)).slice(-500);
   }
   state.lastStatusChapter=incoming.lastStatusChapter||state.lastStatusChapter;
@@ -13111,7 +13299,7 @@ if(window.__XTA_TEST__){
     persist, persistNow, flushPersist, buildContextBlock, underageNames, ageGuardPrompt,
     writeEmergencyCopy, readEmergencyRecord, serializeStoryRecord, hydrateFromRecord, removeStoryFromDisk,
     setIdbPut(fn){ idbPut = fn; }, getIdbPut(){ return idbPut; },
-    newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint,
+    newCharacter, newMainCharProfile, renderCharacters, generateNextChapterHint, mergeBackgroundChapter, autoFillNewCharacters, safeJsonParse, callAI, updateCharactersIncremental, updateWorldIncremental, updateCurrentStatusIncremental,
     mergeCharacterUpdate, saveMainCharFromForm, hydrateMainCharForm, renderItems, buildChapterContractForGeneration,
     chapterWordLimits, condenseChapterToBounds, countWords
   };

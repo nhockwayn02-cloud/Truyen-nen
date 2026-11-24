@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const core=fs.readFileSync(path.join(__dirname,'../shared/core.js'),'utf8');
+const ctx=vm.createContext({console});
+vm.runInContext(core+';this.f={emptyCharFillFields,buildCharacterFillPrompt,parseCharacterFill,applyCharacterFill,CHAR_FILL_FIELDS}',ctx);const F=ctx.f;
+let n=0;const t=(m,f)=>{try{f();console.log('PASS',m);}catch(e){console.log('FAIL',m,e.message);n++;}};
+const st={genre:'đô thị',mainCharProfile:{name:'Lạc',age:'30'},characters:[{name:'Hà Phương',role:'trưởng phòng hành chính',age:'45',gender:'nữ'}],chapters:[{text:'Sáng đó Hà Phương đứng chờ ở sảnh với chín hộp hồ sơ.'}]};
+const c={name:'Hà Phương',age:'45',gender:'nữ',role:'trưởng phòng hành chính',appearance:'',personality:'khắc nghiệt'};
+t('ô trống: không gồm ô đã nhập',()=>{const k=F.emptyCharFillFields(c);assert(k.includes('appearance')&&k.includes('hair')&&!k.includes('age')&&!k.includes('personality'));});
+t('không có khóa 18+ trong danh sách điền',()=>assert(!F.CHAR_FILL_FIELDS.some(f=>/sexual|prefer|bound|taboo|attraction|tension|consent/i.test(f[0]))));
+t('prompt: canon + đoạn truyện + chỉ khóa trống, cấm 18+',()=>{const k=F.emptyCharFillFields(c),p=F.buildCharacterFillPrompt(st,c,k);assert(/tính cách: khắc nghiệt/.test(p));assert(/chín hộp hồ sơ/.test(p));assert(/- appearance \(/.test(p));assert(!/- age \(/.test(p));assert(/dưới 18/.test(p)&&/Không viết nội dung tình dục/.test(p));});
+t('parse: chỉ lấy khóa yêu cầu, tuổi hợp lệ, cắt dài',()=>{const r=F.parseCharacterFill({appearance:'a '.repeat(500),hair:'đen',age:'abc',bogus:'x',eyes:''},['appearance','hair','age','eyes']);assert(r.appearance.length<=490&&r.hair==='đen'&&!('age'in r)&&!('bogus'in r)&&!('eyes'in r));});
+t('apply: không ghi đè ô đã có, ghi nhận ô AI điền',()=>{const d=F.applyCharacterFill(c,{personality:'ĐÈ',appearance:'Cao, gầy, tóc búi gọn.'});assert.strictEqual(c.personality,'khắc nghiệt');assert.strictEqual(c.appearance,'Cao, gầy, tóc búi gọn.');assert.deepStrictEqual(Array.from(d),['appearance']);assert(c.aiFilledFields.includes('appearance'));});
+process.exit(n?1:0);

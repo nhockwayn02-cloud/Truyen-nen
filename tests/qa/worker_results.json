@@ -1,0 +1,100 @@
+[
+ {
+  "id": "W1",
+  "area": "Chương dài",
+  "name": "6 scene × 1500 từ ≈ 9000 từ: hoàn tất, đủ nội dung, kết sạch, không lặp đoạn",
+  "status": "PASS",
+  "evidence": "status=completed words=7419 issues=[\"Adaptive: 5/6 scene (7419 từ thô → 7419 sau dọn), 0 lượt bù từ, đã cắt 2 đoạn viết lặp, 0s viết\"] endsClean=true dupParas=0 truncated=false err="
+ },
+ {
+  "id": "W2",
+  "area": "Viết nền / cắt giữa chừng",
+  "name": "scene bị cắt (finish=length, đứt giữa câu) → phải thử lại/nối tiếp, chương không đứt giữa câu",
+  "status": "PASS",
+  "evidence": "status=completed words=2712 endsClean=true sceneCalls=6 tail=\"n can.\n\nX895 mon mô nơ gan se khề nhung khong nhan ganh thạ.\""
+ },
+ {
+  "id": "W3",
+  "area": "Viết nền / cắt giữa chừng",
+  "name": "mọi lượt đều bị cắt → không được lưu im lặng như chương hoàn chỉnh (phải fail hoặc cảnh báo)",
+  "status": "PASS",
+  "evidence": "status=completed truncatedFlag=false words=593 err="
+ },
+ {
+  "id": "W4a",
+  "area": "API",
+  "name": "API 429 rồi OK: thử lại có giới hạn và hoàn tất",
+  "status": "PASS",
+  "evidence": "status=completed sceneCalls=5 leakedKey=false err=\"\""
+ },
+ {
+  "id": "W4b",
+  "area": "API",
+  "name": "API 403 liên tục: báo rõ 403, thử lại có giới hạn, không lộ key",
+  "status": "PASS",
+  "evidence": "status=failed sceneCalls=2 leakedKey=false err=\"SCENE_FAILED: lỗi API khi viết scene (S1: API 403: Workspace/privacy: model not allowed) — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.\""
+ },
+ {
+  "id": "W4c",
+  "area": "API",
+  "name": "API 404 Model not found: báo rõ mã/ tên model",
+  "status": "PASS",
+  "evidence": "status=failed sceneCalls=2 leakedKey=false err=\"SCENE_FAILED: lỗi API khi viết scene (S1: API 404: Model not found) — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.\""
+ },
+ {
+  "id": "W4d",
+  "area": "API",
+  "name": "API 402/hết token: báo rõ, không treo",
+  "status": "PASS",
+  "evidence": "status=failed sceneCalls=2 leakedKey=false err=\"SCENE_FAILED: lỗi API khi viết scene (S1: API 402: Insufficient credits / out of tokens) — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.\""
+ },
+ {
+  "id": "W4e",
+  "area": "API",
+  "name": "API 401 key sai: báo rõ, không lộ key",
+  "status": "PASS",
+  "evidence": "status=failed sceneCalls=2 leakedKey=false err=\"SCENE_FAILED: lỗi API khi viết scene (S1: API 401: Invalid API key [đã che API key]) — không dùng writer cũ để tránh lệch Arc. Hãy thử lại.\""
+ },
+ {
+  "id": "W5a",
+  "area": "Viết nền / đúng model",
+  "name": "chương thường: plan+scene dùng MAIN, không dùng NSFW",
+  "status": "PASS",
+  "evidence": "plan=MAIN scene=MAIN other=MAIN nsfwUsed=false"
+ },
+ {
+  "id": "W5b",
+  "area": "Viết nền / đúng model",
+  "name": "chương 18+: scene dùng NSFW",
+  "status": "PASS",
+  "evidence": "plan=MAIN,NSFW scene=NSFW other=NSFW,MAIN status=completed err="
+ },
+ {
+  "id": "W6",
+  "area": "Viết tiếp chương / nhiều chương",
+  "name": "12 chương liên tiếp: tất cả hoàn tất, không lặp đoạn, độ dài ổn định",
+  "status": "PASS",
+  "evidence": "done=12/12 fails= words=2410,2418,2426,2426,2419,2407,2410,2419,2424,2382,2408,2407 dupParas=0"
+ },
+ {
+  "id": "W6b",
+  "area": "Viết tiếp chương / mạch truyện",
+  "name": "prompt scene đầu của chương N chứa đoạn cuối chương N-1 (giữ mạch)",
+  "status": "PASS",
+  "evidence": "chương thiếu đuôi chương trước: 0/11"
+ },
+ {
+  "id": "W6c",
+  "area": "Viết tiếp chương / lặp đoạn",
+  "name": "chương mới không mở bằng đoạn y nguyên của chương cũ",
+  "status": "PASS",
+  "evidence": "openRepeat=0"
+ },
+ {
+  "id": "W7",
+  "area": "Viết tiếp chương / lặp đoạn",
+  "name": "model chép lại 2 đoạn cuối chương trước vào đầu chương mới → phải bị chặn/gỡ",
+  "status": "PASS",
+  "evidence": "status=completed repeatedInFinal=false calls=4"
+ }
+]

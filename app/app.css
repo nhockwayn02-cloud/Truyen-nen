@@ -348,3 +348,5 @@ html{color-scheme:dark}
   .story-tabs{padding:7px 10px;}
   .status-bar{padding:6px 12px;gap:7px 12px;font-size:11px;}
 }
+/* V14.7.47: iPhone Safari tự phóng to trang khi focus ô nhập <16px. Các luật .char-detail/.rel-item/.mode-control đặc hiệu hơn nên thắng khối @supports ở trên → ép 16px trên thiết bị cảm ứng. */
+@media (hover:none) and (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select,.char-detail input,.char-detail textarea,.char-detail select,.rel-item .row3 input,.mode-control select{font-size:16px !important}}

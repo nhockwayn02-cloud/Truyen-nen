@@ -39,7 +39,7 @@ const db = new Map(); const mockBlobs = { connectLambda() {}, getStore() { retur
 const origLoad = Module._load; Module._load = function (req, ...a) { return req === '@netlify/blobs' ? mockBlobs : origLoad.call(this, req, ...a); };
 let sd = 99; const rn = () => (sd = (sd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const ON = 'b c d g h k l m n t v x ch th nh kh ph tr gi qu s r'.split(' '), RI = 'a à á ạ e ê ề i í o ô ố ơ u ư ừ an ân ăn em ên in on ôn ơn un ang anh ênh inh ong ông ung'.split(' ');
-const pw = k => Array.from({ length: k }, () => ON[Math.floor(rn() * ON.length)] + RI[Math.floor(rn() * RI.length)]).join(' ');
+const pw = k => Array.from({ length: k }, (_, i) => ON[Math.floor(rn() * ON.length)] + RI[Math.floor(rn() * RI.length)] + (i % 20 === 19 ? '.' : i % 7 === 6 ? ',' : '')).join(' ');   // V14.7.43: có dấu câu — văn thật không là một câu dài 900 từ
 let seen = [];
 global.fetch = async (url, init) => {
   const body = JSON.parse(init.body), sys = (body.messages.find(m => m.role === 'system') || {}).content || '', usr = (body.messages.find(m => m.role === 'user') || {}).content || '';

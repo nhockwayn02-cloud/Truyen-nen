@@ -1,5 +1,41 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.47] — Kiểm tra toàn bộ theo bảng 10 tình huống: sửa 3 lỗi thật
+- **Cách kiểm:** 14 kịch bản phía worker (job nền) + 25 kiểm tra phía trình duyệt, dùng API giả (không gọi model thật). Đã đăng ký vào `npm test`: `qa/worker_sweep.test.js`, `v14_7_47_qa_client_sweep.test.js`.
+- **Lỗi 1 (hàng 5 Memory Timeline):** `mergeBackgroundChapter` ghép mốc thời gian theo kiểu "local đè remote" → khi viết lại/viết nền một chương, mốc CŨ ở máy đè mốc MỚI do job nền vừa ghi. Sửa: mốc có `updatedAt` mới hơn thắng; mốc chỉ có ở một phía vẫn được giữ.
+- **Lỗi 2 (hàng 7/6 API key):** job nền thất bại vẫn giữ API key (mã hóa hoặc rõ) trong kho. Sửa: xóa `apiKey`/`apiKeyEncrypted` khi job `failed`.
+- **Lỗi 3 (hàng 10 iPhone):** ô nhập trong hồ sơ nhân vật/quan hệ/chế độ có chữ 10.5–11.5px, đặc hiệu hơn luật 16px của iOS → Safari tự phóng to trang khi bấm vào ô. Sửa: ép 16px trên thiết bị cảm ứng (`hover:none`+`pointer:coarse`).
+- **Nhỏ:** chương thiếu từ hiện "⚠ Thiếu từ x/y" ngay ở dòng tiến độ; bỏ số phiên bản cũ cứng trong header `X-Title`.
+- **Đã xác nhận ĐÚNG (không cần sửa):** hồ sơ gốc khóa không bị AI ghi đè (chi tiết mới đi vào `newDetails`); AI trả rác/cụt/429 không làm mất nhân vật, World Bible; JSON cụt được cứu phần đủ, không bịa; 401/402/403/404 không retry vô ích, 429 retry có giới hạn, không lộ key; localStorage đầy vẫn giữ chương và tải lại còn; model MAIN/NSFW định tuyến đúng; 12 chương liền không lặp.
+- **Chưa kiểm:** model thật, Safari iPhone thật (chỉ giả lập Chromium), Netlify thật.
+
+## [V14.7.46] — Sửa lỗi V14.7.45: tự dựng hồ sơ nhân vật mới KHÔNG chạy khi viết chương bình thường
+- **Phát hiện khi kiểm tra trên trình duyệt thật:** V14.7.45 chỉ gắn "tự dựng hồ sơ" vào `updateCharactersIncremental` (chỉ chạy khi bấm Rescan NV). Đường viết chương thường chạy hậu kỳ trên job nền rồi gộp qua `mergeBackgroundChapter`, nên nhân vật mới không được dựng hồ sơ.
+- **Sửa:** `mergeBackgroundChapter` nhận diện nhân vật mới sau khi gộp, rồi chạy `autoFillNewCharacters` ở nền (không chặn lưu chương), tôn trọng công tắc. `__xta` xuất thêm 2 hàm để kiểm thử.
+- **Test:** `v14_7_46_autofill_job_path` chạy Chromium thật + API giả: bật → 1 lượt AI và điền ô trống; tắt → 0 lượt; không ghi đè tuổi/giới tính đã có.
+- **Đã kiểm trên trình duyệt (API giả):** nút "✨ AI điền hồ sơ trống" bấm được, hộp xác nhận hoạt động, prompt chứa canon + đoạn truyện, ô đã nhập không bị ghi đè.
+- **Chưa kiểm:** model thật, iPhone, Netlify; đường job nền thật (mới thử gọi trực tiếp `mergeBackgroundChapter`).
+
+## [V14.7.45] — Giới thiệu nhân vật: tả kỹ lần đầu, nhắc ngắn lần hai, rồi thôi; hồ sơ vắng mặt; tự dựng hồ sơ nhân vật mới
+- **Nguyên nhân:** (1) "đã giới thiệu ngoại hình" chỉ cần tên xuất hiện trong 4 chương gần nhất → nhân vật chưa từng được tả vẫn bị cấm tả; (2) nhân vật hồ sơ trống không có khối hồ sơ/neo ngoại hình nào; (3) hồ sơ của người vắng mặt ("nhận hồ sơ A") không vào scene.
+- **Sửa:** `characterIntroStage`: `first` (chưa có đoạn tả → tả KỸ 4–6 chi tiết, một đoạn riêng), `reminder` (đã tả 1 lần gần đây hoặc vắng ≥6 chương → nhắc NGẮN 1–2 chi tiết), `done` (tả ≥2 lần gần đây → không tả lại). "Có đoạn tả" = tên + ≥3 từ khóa ngoại hình trong ~360 ký tự, không phải chỉ nhắc tên. Nhân vật hồ sơ trống vẫn nhận chỉ dẫn giới thiệu. `dossierBlock`: khi beat/mục đích scene nhắc hồ sơ/lý lịch/thông tin của X và X vắng mặt, thẻ của X (tuổi, giới tính, nghề, ngoại hình…) được đưa vào cảnh, bắt buộc nêu chi tiết thật. Nới giới hạn: ngoại hình 320, tính cách 160 ký tự; thêm điểm yếu/nỗi sợ/điểm mạnh vào scene (KHÔNG thêm bí mật để khỏi lộ).
+- **Tự dựng hồ sơ:** sau khi chương cập nhật Character DB, nhân vật MỚI còn ≥6 ô trống được AI dựng hồ sơ (tối đa 4/lần), tắt bằng công tắc "✨ Tự dựng hồ sơ trống khi có nhân vật MỚI" (mặc định bật).
+- **Giới hạn:** nhận diện "đã tả" bằng từ khóa; scene thứ hai cùng chương chỉ được nhắc bằng chỉ dẫn trong prompt (không biết scene trước đã tả); chưa thử model thật.
+- **Test:** `v14_7_45_intro_taper`; cập nhật 2 test cũ (V14.7.15, V14.5.11 đường chỉ-có-trạng-thái) theo ngữ nghĩa mới.
+
+## [V14.7.44] — Nút "✨ AI điền hồ sơ trống" cho nhân vật
+- **Nguyên nhân gốc:** bước cập nhật DB sau chương bị cấm bịa ("chỉ điền khi chương nêu rõ") nên nhân vật mới chỉ có tên; scene lại chỉ nhận hồ sơ của người CÓ MẶT trong cảnh → không có dữ kiện để tả → DB tiếp tục trống.
+- **Thêm:** nút trên thẻ nhân vật; một lượt gọi AI dựng các ô trống (tuổi, giới tính, nghề, chức vụ, ngoại hình, tóc/mắt/da…, tính cách, bí mật, điểm yếu…, ghi chú xuất thân) dựa trên canon đã nhập + đoạn truyện có nhân vật + dàn nhân vật khác. CHỈ vào ô trống, không ghi đè, không điền nhóm 18+, nhân vật dưới 18 không tạo chi tiết thân thể gợi dục; ô do AI điền được ghi vào `aiFilledFields`.
+- **Giới hạn:** chưa áp cho Nhân vật chính (form riêng); chưa tự chạy khi nhân vật mới xuất hiện; chưa sửa 2 điểm đã nêu (hồ sơ nhân vật vắng mặt không vào scene; "nhắc tên = đã giới thiệu ngoại hình"). Chưa thử model thật.
+- **Test:** `v14_7_44_char_fill`.
+
+## [V14.7.43] — Bắt và cắt văn "lan man" (câu lê thê, lạc sang giọng bản tin)
+- **Lỗi (từ chương người dùng gửi):** giữa chương model trôi: câu 45–110 từ gần như không dấu phẩy, hay kết "…", chèn "các bạn ơi, bye bye, hẹn gặp lại kỳ sau", "quê hương tôi…". Cổng cũ chỉ bắt lặp cụm/chữ dính nên bỏ lọt; nút Chuẩn hóa cũng không xử lý.
+- **Đối chiếu:** 19 chương tác giả có 0–1 câu thưa dấu/chương; chương app lan man có 12–39 câu → ngưỡng ≥2 câu hoặc ≥1 chỗ giọng bản tin.
+- **Sửa:** `countRunOnDrift` + `degenerationCheck` bắt; lượt viết lại hạ phạt lặp (0,08/0,04) vì phạt cao đẩy model đi tìm từ lạ; lượt cuối nếu vẫn lan man thì `trimRunOnDrift` cắt câu lê thê còn ~26 từ đầu (kèm cảnh báo); nút Chuẩn hóa hỏi rồi cắt gọn; chuẩn hóa dấu toàn chiều rộng `；（）` và `——`.
+- **Giới hạn:** cắt chỉ là cứu hộ (câu cụt, nên đọc lại/viết lại scene); lỗi mạch (đổi "hắn/anh ta", lệch giờ trong chương) chưa tự sửa; nguyên nhân gốc là model — nên đổi model hoặc rút ngắn targetWords nếu tái diễn. Chưa thử model thật.
+- **Test:** `v14_7_43_runon_drift` (có chạy trên file thật của người dùng).
+
 ## [V14.7.42] — Cứu scene khi model sụp ("america america…")
 - **Lỗi:** model sụp giữa scene (lặp cụm, chữ dính, đoạn không dấu); cả 2 lượt viết đều sụp → SCENE_REJECTED, hủy job.
 - **Sửa:** `salvageBeforeDegeneration` cắt từ đoạn hỏng đầu tiên, giữ phần đầu còn sạch nếu ≥ max(200 từ, 50% ngân sách scene); khi sụp được thêm 1 lượt viết (tổng 3) với nhiệt độ 0,55, giới hạn token 1,5×, phạt lặp 0,4/0,3. (Bản 14.7.41 kèm: chỉnh nhịp 18+ theo mẫu.)
