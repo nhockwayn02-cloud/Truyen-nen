@@ -1075,6 +1075,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     o.previousTail ? (o.isOpeningScene
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
+    o.isOpeningScene && o.prevUnfinished ? UNFINISHED_SCENE_RULE : '',
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
     o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
@@ -1937,6 +1938,16 @@ function trimRunOnDrift(text) {
 }
 /* V14.7.39: CỔNG VĂN SUY BIẾN. Phát hiện model sụp (lặp cụm, dòng "Vẫn" lặp, chữ vỡ/dính, văn không dấu, câu lẩm bẩm "Viết lại"). */
 /* V14.7.41: văn sụp giữa chừng ("america america america…") — giữ phần ĐẦU còn sạch, cắt từ đoạn hỏng đầu tiên. Trả '' nếu không còn gì đáng giữ. */
+/* V14.7.50: chương KẾT GIỮA CẢNH (cụt ở "…lớp này tới lớp khác; rồi."). Chương sau thấy "đuôi" là cảnh đang diễn ra nhưng không được báo → model coi đó là phần thừa cần chốt nhanh (vài trăm từ). */
+function endsMidScene(text) {
+  const t = String(text || '').trim(); if (t.length < 200) return false;
+  const tail = t.slice(-160);
+  if (!/[.!?…"”»)]\s*$/.test(tail)) return true;
+  if (/[;,:—]\s*[.…]*\s*$/.test(tail)) return true;
+  return /(?:^|[\s;,—])(?:rồi|và|nhưng|khi|để|thì|mà|như|của|với|còn|nên|vì|nếu|lúc|trong khi)\s*[.…]+\s*$/i.test(tail);
+}
+const UNFINISHED_SCENE_RULE = 'CHƯƠNG TRƯỚC DỪNG GIỮA CẢNH (câu cuối bỏ lửng): đây là cảnh ĐANG DIỄN RA, chưa tới cao trào/dư âm. Scene mở đầu PHẢI tiếp tục đúng khoảnh khắc đó, cùng cường độ, cùng mức chi tiết giác quan và cùng nhịp chậm như đoạn trước; KHÔNG tóm tắt, KHÔNG chốt nhanh cho xong trong vài trăm từ. Cho cảnh đi trọn nhịp: tiếp diễn → leo thang → cao trào → dư âm/hậu quả, rồi mới sang diễn biến mới của chương.';
+function paraHasDrift(p) { return splitSentencesKeep(p).some(sn => isSparseLongSentence(sn) || DRIFT_CHATTER_RE.test(sn)); }
 function salvageBeforeDegeneration(raw) {
   const DIA = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
   const paras = String(raw || '').split(/\n+/).map(x => x.trim()).filter(Boolean), keep = [];
@@ -1948,7 +1959,7 @@ function salvageBeforeDegeneration(raw) {
     const g = new Map(); let rep = 0; for (let i = 0; i + 3 <= w.length; i++) { const k = w.slice(i, i + 3).join(' ').toLowerCase(); const n = (g.get(k) || 0) + 1; g.set(k, n); if (n >= 3) rep++; }
     const noDia = w.length >= 15 && !DIA.test(p);
     const dup = p.length >= 80 && seen.has(p.toLowerCase());
-    const noteOrGlue = isAssistantNotePara(p) || w.some(hasGluedLatin);   // V14.7.49
+    const noteOrGlue = isAssistantNotePara(p) || w.some(hasGluedLatin) || paraHasDrift(p);   // V14.7.49/50: cả câu lê thê/giọng bản tin
     if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup || noteOrGlue) break;
     seen.add(p.toLowerCase()); keep.push(p);
   }
@@ -4524,8 +4535,10 @@ async function runAdaptiveChapterPipeline(o, deps) {
   let previousTail = priorChapters.length
     ? String(priorChapters[priorChapters.length - 1].text || '').slice(-900)
     : '';
+  const prevUnfinished = priorChapters.length > 0 && endsMidScene(String(priorChapters[priorChapters.length - 1].text || ''));   // V14.7.50
   for (let i = 0; i < graph.scenes.length; i++) {
-    const scene = graph.scenes[i];
+    let scene = graph.scenes[i];
+    if (i === 0 && prevUnfinished) scene = Object.assign({}, scene, { targetWords: Math.max(Number(scene.targetWords) || 0, Math.min(2200, Math.round(limits.target * 0.4))) });   // V14.7.50: cảnh bỏ dở được trọn nhịp, không bị chốt vài trăm từ
     if (countWords(pieces.join('\n\n')) >= limits.maxAccept) break;
     if (pieces.length && timeLeft() < minSceneMs) { timedOut = true; break; }
     const route = deps.route(scene, o, previousTail);
@@ -4545,7 +4558,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
       const prompt = buildAdaptiveSceneWritePrompt({
         state: st, scene: pScene, chapterGoal: graph.chapterGoal,
         endingAnchor: graph.endingAnchor, previousTail,
-        isOpeningScene: i === 0 && !!priorChapters.length,
+        isOpeningScene: i === 0 && !!priorChapters.length, prevUnfinished: i === 0 && prevUnfinished,
         stateDelta: sceneStates.length ? sceneStates[sceneStates.length - 1] : null,
         requiredBeats,
         sceneScope: deps.sceneScope === false ? null : sceneScopeOf(graph.scenes, i, chapterContract.outlineMeta, itemsAll),
@@ -11598,6 +11611,25 @@ $ID("continueChapterBtn").addEventListener("click", async ()=>{
       if(!dd.trim() || countWords(dd) < (finishC ? 12 : 40)){ setStatus("Phần viết tiếp lặp lại nội dung đã có nên bị bỏ.", false); setGenerating(false); return; }
       contText = dd; }
     contText = formatParagraphs(stripForeign(stripThinkingOutput(contText)));
+    /* V14.7.50: nút Viết tiếp trước đây KHÔNG có cổng văn suy biến (đường viết chương thì có) → văn lan man/giọng "bye bye" bị nối thẳng vào chương. */
+    { const dgc = degenerationCheck(contText);
+      if(dgc.bad){
+        setStatus("Phần viết tiếp bị trôi văn (" + dgc.reasons[0] + ") — đang viết lại sạch...", true);
+        let bestC = salvageBeforeDegeneration(contText);
+        for(let tr = 0; tr < 2; tr++){
+          try{
+            const rr = await callAI(prompt + "\n\nLẦN VIẾT LẠI (bản trước bị trôi văn): viết 700–1000 từ, câu độ dài vừa phải có đủ dấu chấm/phẩy, mỗi đoạn 2–4 câu, KHÔNG lan man, KHÔNG nói với người đọc, KHÔNG ghi chú, KHÔNG tự kết chương.", { maxTokens:3500, temperature:0.65, modelOverride: targetModel, frequency_penalty:0.05, presence_penalty:0.05 });
+            const tt = formatParagraphs(stripForeign(stripThinkingOutput(rr.text)));
+            if(!degenerationCheck(tt).bad){ bestC = tt; contFinish = rr.finishReason; break; }
+            const sv = salvageBeforeDegeneration(tt); if(countWords(sv) > countWords(bestC)) bestC = sv;
+          }catch(_){ break; }
+        }
+        contText = bestC;
+        if(countWords(contText) < 80){
+          chapterTextEl.textContent = baseText; clearDraftProgress();
+          setStatus("⚠ Viết tiếp bị trôi văn nhiều lần, không có phần sạch để nối — chương giữ nguyên. Bấm Viết tiếp lại hoặc đổi model.", false); setGenerating(false); return;
+        }
+      } }
     if(state.spellCheckEnabled && contText){
       const fixed = await polishVietnamese(contText, { modelOverride: state.model });
       if(fixed) contText = fixed;

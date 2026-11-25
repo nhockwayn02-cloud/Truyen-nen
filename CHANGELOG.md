@@ -1,5 +1,13 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.50] — Nút "Viết tiếp" bị văn trôi; chương sau nối cảnh bỏ dở quá ngắn
+- **Hiện tượng (file người dùng gửi):** chương dừng ở "…lớp này tới lớp khác; rồi." → bấm Viết tiếp thì phần sau lê thê không dấu câu, chèn giọng chat/"bye bye"; xóa đi viết chương mới thì cảnh 18+ chốt trong vài trăm từ.
+- **Nguyên nhân 1:** `continueChapterBtn` không có cổng văn suy biến (đường viết chương thì có), chỉ gọi `stripForeign` rồi nối thẳng. Cũng `salvageBeforeDegeneration` không biết câu lê thê/giọng bản tin nên không cắt được.
+- **Nguyên nhân 2:** chương trước kết GIỮA cảnh nhưng chương sau không được báo → model coi phần đó là đuôi cần chốt nhanh; scene mở đầu cũng chỉ được chia ngân sách từ bình thường.
+- **Sửa:** (a) Viết tiếp: bắt văn trôi → viết lại tối đa 2 lần ở nhiệt độ/penalty thấp, giữ phần sạch, không nối rác; không còn phần sạch thì giữ nguyên chương và báo. (b) `salvageBeforeDegeneration` cắt cả ở đoạn có câu lê thê/giọng bản tin (file thật: cắt đúng tại "…; rồi.", giữ 4.158 từ). (c) `endsMidScene` + `UNFINISHED_SCENE_RULE`: chương trước kết giữa cảnh → scene mở đầu phải tiếp đúng cường độ, không chốt nhanh, và được nâng ngân sách tối thiểu ~40% mục tiêu chương.
+- **Test:** `v14_7_50_continue_gate` (dùng chính file người dùng nếu có, worker giả, Chromium thật).
+- **Chưa kiểm:** model thật có viết đủ dài ở cảnh bỏ dở hay không (mới kiểm prompt và ngân sách, chưa đo độ dài do model sinh).
+
 ## [V14.7.49] — Model chèn "GHI CHÚ KỸ THUẬT"/lời trợ lý giữa chương
 - **Hiện tượng:** giữa chương xuất hiện "GHI CHÚ KỸ THUẬT (không thuộc phần văn xuôi)… Nếu bạn muốn tôi xuất bản phiên bản sạch… hãy xác nhận", kèm chữ Latin dính liền ("lánhanymorefromkeyfobBattery").
 - **Nguyên nhân:** model (GLM/uncensored) bị lệch vai: tự nhận xét bản thảo như trợ lý ngay trong ô văn xuôi, sau khi scene cuối vượt contract và sinh chuỗi lai ngữ. App chưa có bộ bắt kiểu này (chỉ bắt "Viết lại", "Final rewrite", câu "Xin lỗi…").
