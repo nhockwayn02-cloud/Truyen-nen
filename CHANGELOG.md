@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.49] — Model chèn "GHI CHÚ KỸ THUẬT"/lời trợ lý giữa chương
+- **Hiện tượng:** giữa chương xuất hiện "GHI CHÚ KỸ THUẬT (không thuộc phần văn xuôi)… Nếu bạn muốn tôi xuất bản phiên bản sạch… hãy xác nhận", kèm chữ Latin dính liền ("lánhanymorefromkeyfobBattery").
+- **Nguyên nhân:** model (GLM/uncensored) bị lệch vai: tự nhận xét bản thảo như trợ lý ngay trong ô văn xuôi, sau khi scene cuối vượt contract và sinh chuỗi lai ngữ. App chưa có bộ bắt kiểu này (chỉ bắt "Viết lại", "Final rewrite", câu "Xin lỗi…").
+- **Sửa:** `degenerationCheck` bắt ghi chú trợ lý và chữ Latin dính liền (≥16 chữ, có chữ hoa giữa từ hoặc ≥14 chữ Latin liền) → viết lại scene; `salvageBeforeDegeneration` giữ phần sạch phía trước; `stripForeign`/`cleanModelArtifacts` cắt đoạn ghi chú khỏi mọi chương. Không cắt nhầm lời thoại có "ghi chú/lưu ý" hay tên thương hiệu (PlayStation, YouTube).
+- **Test:** `v14_7_49_assistant_note` dùng đúng đoạn người dùng gửi.
+- **Chưa kiểm:** model thật; các biến thể câu chữ khác của lời trợ lý có thể lọt (chỉ bắt các mẫu đã thấy).
+
 ## [V14.7.48] — Người mới phải có tên ngay lần đầu xuất hiện
 - **Nguyên nhân:** prompt viết không hề yêu cầu đặt tên; lại giới hạn "tối đa N nhân vật có tên" nên model hay để người mới chỉ là "cô ta/anh ta". Bước quét nhân vật chỉ ghi theo tên (và cố ý bỏ qua đại từ để khỏi tạo hồ sơ rác/gộp nhầm), nên người không tên không bao giờ vào Character Database.
 - **Sửa (từ gốc):** thêm `NAMING_RULE` vào prompt mọi scene (client + worker): ai có lời thoại/ảnh hưởng cảnh/sẽ quay lại phải có tên riêng ngay lần đầu, rồi mới dùng đại từ; ngoại lệ: ẩn danh có chủ đích theo brief (biệt danh cố định) và người qua đường không ảnh hưởng.

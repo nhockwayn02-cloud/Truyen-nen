@@ -1877,8 +1877,22 @@ const EN_LEAK_MAP = [
   [/\bwhile\b/gi, 'trong khi'], [/\bcorresponding\b/gi, 'tương ứng'], [/\bresidual\b/gi, 'còn sót'], [/\blingering\b/gi, 'đọng lại'], [/\bhowever\b/gi, 'tuy nhiên'],
   [/\bsuddenly\b/gi, 'đột nhiên'], [/\bslowly\b/gi, 'chậm rãi'], [/\bquietly\b/gi, 'lặng lẽ'], [/\bsilently\b/gi, 'lặng lẽ'], [/(?<=\p{L})Warm\b/gu, ' ấm'], [/\bwarm\b/gi, 'ấm']
 ];
+/* V14.7.49: model (GLM/uncensored) chèn GHI CHÚ KỸ THUẬT / lời chào trợ lý ("Nếu bạn muốn tôi xuất bản phiên bản sạch… hãy xác nhận") GIỮA văn xuôi, kèm chữ Latin dính liền ("lánhanymorefromkeyfobBattery"). */
+const ASSISTANT_NOTE_START_RE = /^[\s*_#>\-•]*(?:\(?\s*)?(?:GHI CHÚ(?: KỸ THUẬT| BIÊN TẬP| CỦA (?:TÔI|MODEL|AI))?|LƯU Ý KỸ THUẬT|TECHNICAL NOTE|AUTHOR'?S NOTE)\b/;
+const ASSISTANT_NOTE_BODY_RE = /không thuộc phần văn xuôi|(?:nếu|neu) bạn muốn tôi|hãy xác nhận(?: hoặc| để)|yêu cầu điều chỉnh thêm|xuất bản phiên bản|phiên bản (?:sạch )?(?:đã )?sửa|theo yêu cầu S\d|lỗi drift|vượt quá phạm vi cho phép|lỗi tạo sinh|lỗi lai ngữ|ký tự Latinh|ngoài contract|\bhandoff\b\s*:|beat cuối cùng .{0,60}nên dành/i;
+const GLUED_LATIN_RE = /\p{Ll}\p{Lu}\p{Ll}|[a-z]{14,}/u;   // chữ hoa GIỮA từ (…fobBattery) hoặc ≥14 chữ Latin liền: tiếng Việt không có
+function isAssistantNotePara(p) { const t = String(p || '').trim(); return !!t && (ASSISTANT_NOTE_START_RE.test(t) || ASSISTANT_NOTE_BODY_RE.test(t)); }
+function hasGluedLatin(w) { const x = String(w || '').replace(/[^\p{L}]/gu, ''); return x.length >= 16 && GLUED_LATIN_RE.test(x); }
+function stripAssistantNotes(text) {
+  const src = String(text || ''); if (!src) return src;
+  const paras = src.split(/\n{2,}/); let changed = false;
+  const out = paras.filter(p => { const lines = p.split('\n'); if (isAssistantNotePara(lines[0]) || (lines.length > 1 && lines.every(l => !l.trim() || isAssistantNotePara(l) || /^\s*[-•*]/.test(l)) && lines.some(isAssistantNotePara))) { changed = true; return false; } return true; })
+    .map(p => p.split('\n').filter(l => { if (isAssistantNotePara(l)) { changed = true; return false; } return true; }).join('\n'));
+  return changed ? out.filter(p => p.trim()).join('\n\n') : src;
+}
 function cleanModelArtifacts(text) {
   let t = String(text || ''); if (!t) return t;
+  t = stripAssistantNotes(t);   // V14.7.49
   EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
   t = t.replace(/Chi tiết dưới đây[^.\n]*\.\s*/g, '').replace(/(^|\n)\s*(?:Bản viết gọn|Viết lại(?: gọn| lần cuối)?)\s*:\s*/g, '$1');
   t = t.replace(/(^|\n)(\s*)Nội tâm(?: của)?(?: người nữ| nhân vật nữ| nhân vật| hắn| cô ta| nàng)?\s*:\s*/g, '$1$2');
@@ -1934,7 +1948,8 @@ function salvageBeforeDegeneration(raw) {
     const g = new Map(); let rep = 0; for (let i = 0; i + 3 <= w.length; i++) { const k = w.slice(i, i + 3).join(' ').toLowerCase(); const n = (g.get(k) || 0) + 1; g.set(k, n); if (n >= 3) rep++; }
     const noDia = w.length >= 15 && !DIA.test(p);
     const dup = p.length >= 80 && seen.has(p.toLowerCase());
-    if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup) break;
+    const noteOrGlue = isAssistantNotePara(p) || w.some(hasGluedLatin);   // V14.7.49
+    if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup || noteOrGlue) break;
     seen.add(p.toLowerCase()); keep.push(p);
   }
   return keep.join('\n\n');
@@ -1967,6 +1982,8 @@ function degenerationCheck(text) {
   { const rd = countRunOnDrift(t); // V14.7.46
     if (rd.chatter >= 1) reasons.push('văn lạc sang giọng bản tin/quảng cáo (' + rd.chatter + ' chỗ)');
     if (rd.sparse >= 2) reasons.push(rd.sparse + ' câu dài lê thê gần như không dấu câu (model lan man)'); }
+  { const notes = t.split(/\n+/).filter(isAssistantNotePara).length; if (notes) reasons.push('model chèn ghi chú kỹ thuật/lời trợ lý vào giữa văn (' + notes + ' đoạn)');   // V14.7.49
+    const glued = words.filter(hasGluedLatin).length; if (glued) reasons.push('chữ Latin dính liền lẫn trong câu Việt (' + glued + ' chỗ)'); }
   const FILLER = (t.match(/(?:^|[\s"“])(?:á đúng|ờ nhỉ|ừ nhỉ|đúng vậy đó|ok luôn|oke|nhỉ nhỉ)(?=[\s,.!?"”]|$)/gi) || []).length;
   if (FILLER >= 4) reasons.push('văn lẫn lời chat (' + FILLER + ' chỗ)');
   return { bad: reasons.length > 0, reasons };
