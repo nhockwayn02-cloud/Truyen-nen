@@ -48,6 +48,7 @@ const dir = __dirname; const suites = [
   ["V14.7.46 Tự dựng hồ sơ qua job nền (trình duyệt thật)", process.execPath, ["v14_7_46_autofill_job_path.test.js"]],
   ["V14.7.47 QA worker: bảng 10 tình huống (API/viết dài/lưu/model)", process.execPath, ["qa/worker_sweep.test.js"]],
   ["V14.7.47 QA trình duyệt: JSON/nhân vật/World/Timeline/API/lưu/iPhone", process.execPath, ["v14_7_47_qa_client_sweep.test.js"]],
+  ["V14.7.48 Luật đặt tên người mới ngay lần đầu", process.execPath, ["v14_7_48_naming_rule.test.js"]],
   ["V14.7.45 Giới thiệu nhân vật giảm dần + hồ sơ vắng mặt", process.execPath, ["v14_7_45_intro_taper.test.js"]],
   ["V14.7.44 AI điền hồ sơ nhân vật còn trống", process.execPath, ["v14_7_44_char_fill.test.js"]],
   ["V14.7.43 Văn lan man (câu lê thê, giọng bản tin)", process.execPath, ["v14_7_43_runon_drift.test.js"]],

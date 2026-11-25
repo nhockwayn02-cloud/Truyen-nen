@@ -1,5 +1,11 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.48] — Người mới phải có tên ngay lần đầu xuất hiện
+- **Nguyên nhân:** prompt viết không hề yêu cầu đặt tên; lại giới hạn "tối đa N nhân vật có tên" nên model hay để người mới chỉ là "cô ta/anh ta". Bước quét nhân vật chỉ ghi theo tên (và cố ý bỏ qua đại từ để khỏi tạo hồ sơ rác/gộp nhầm), nên người không tên không bao giờ vào Character Database.
+- **Sửa (từ gốc):** thêm `NAMING_RULE` vào prompt mọi scene (client + worker): ai có lời thoại/ảnh hưởng cảnh/sẽ quay lại phải có tên riêng ngay lần đầu, rồi mới dùng đại từ; ngoại lệ: ẩn danh có chủ đích theo brief (biệt danh cố định) và người qua đường không ảnh hưởng.
+- **Test:** `v14_7_48_naming_rule` (4 lượt scene đều chứa luật).
+- **Chưa kiểm:** model thật có tuân thủ hay không. Nếu vẫn lọt người không tên thì bước tiếp theo là hồ sơ "chưa rõ tên" làm lưới an toàn.
+
 ## [V14.7.47] — Kiểm tra toàn bộ theo bảng 10 tình huống: sửa 3 lỗi thật
 - **Cách kiểm:** 14 kịch bản phía worker (job nền) + 25 kiểm tra phía trình duyệt, dùng API giả (không gọi model thật). Đã đăng ký vào `npm test`: `qa/worker_sweep.test.js`, `v14_7_47_qa_client_sweep.test.js`.
 - **Lỗi 1 (hàng 5 Memory Timeline):** `mergeBackgroundChapter` ghép mốc thời gian theo kiểu "local đè remote" → khi viết lại/viết nền một chương, mốc CŨ ở máy đè mốc MỚI do job nền vừa ghi. Sửa: mốc có `updatedAt` mới hơn thắng; mốc chỉ có ở một phía vẫn được giữ.

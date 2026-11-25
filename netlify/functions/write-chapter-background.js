@@ -168,6 +168,8 @@ const INTRO_STAGE_TAG = {
 };
 /* V14.7.46: hồ sơ nhân vật VẮNG MẶT nhưng đang được nhắc như tài liệu ("nhận hồ sơ A", "đọc lý lịch của A"). */
 const DOSSIER_RE = /hồ sơ|lý lịch|tiểu sử|dossier|thông tin (?:về|của)|tài liệu (?:về|của)|báo cáo (?:về|của)/i;
+/* V14.7.48: người có đất diễn mà không có tên thì Character Database không có chỗ để ghi. Buộc đặt tên NGAY lần xuất hiện đầu. */
+const NAMING_RULE = 'ĐẶT TÊN NGƯỜI MỚI NGAY LẦN ĐẦU: bất kỳ người nào có lời thoại, có hành động ảnh hưởng cảnh, hoặc sẽ còn quay lại thì PHẢI có tên riêng đầy đủ (họ + tên, đúng bối cảnh Việt) ngay lần đầu xuất hiện — tên được nói ra qua lời giới thiệu, người khác gọi, bảng tên hoặc người dẫn truyện, rồi mới dùng đại từ. KHÔNG để người đó chỉ là "cô ta/anh ta/cô ấy/gã đàn ông kia" suốt cảnh. Ngoại lệ duy nhất: người ẩn danh CÓ CHỦ ĐÍCH theo brief/outline (bí ẩn) — khi đó dùng một biệt danh cố định, không đổi giữa chừng. Người qua đường không lời thoại, không ảnh hưởng (phục vụ bàn, tài xế lướt qua) có thể không tên. Không đặt trùng tên với nhân vật đã có.';
 function dossierBlock(st, scene) {
   if (!scene || !st) return '';
   const hay = [scene.purpose, scene.mustChange, scene.location].concat(Array.isArray(scene.beats) ? scene.beats : []).filter(Boolean).join(' | ');
@@ -1008,6 +1010,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     o.chapterContract ? 'CONTRACT COMPACT — scene chỉ được dùng cast, Arc và hướng đi trong contract:\n' + JSON.stringify(o.sceneScope ? sceneScopedContract(o.chapterContract) : promptChapterContract(o.chapterContract)) : '',
     sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
     dossierBlock(o.state, s),
+    NAMING_RULE,
     o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
     SENTENCE_RHYTHM_RULE,
     compactOverusedGuide(o.state),
