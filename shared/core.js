@@ -961,6 +961,7 @@ function buildAdaptiveSceneWritePrompt(o) {
       ? 'ĐOẠN KẾT CHƯƠNG TRƯỚC — KHÓA CẢNH MỞ: phải nối đúng địa điểm, thời điểm và người đang có mặt. Nếu muốn chuyển từ đường phố/phòng/xe sang nơi khác, bắt buộc viết hành động di chuyển hoặc câu chuyển tự nhiên trước khi đổi cảnh; tuyệt đối không nhảy thẳng vào địa điểm mới:\n'
       : 'ĐUÔI SCENE TRƯỚC — nối tiếp, không lặp:\n') + compactSceneTail(o.previousTail, 2400) : 'Mở scene đầu chương.',
     o.isOpeningScene && o.prevUnfinished ? UNFINISHED_SCENE_RULE : '',
+    isHotSceneDef(o.scene) ? HOT_SCENE_COMPLETION_RULE : '',   // V14.7.53
     o.stateDelta ? 'STATE DELTA:\n' + JSON.stringify(compactSceneStateDelta(o.stateDelta)) : '',
     o.style ? 'STYLE LOCK:\n' + String(o.style).replace(/\s+/g, ' ').slice(0, 2800) : '',
     'Giữ nhân vật/địa điểm/thời gian và thay đổi trong contract; không thêm arc hay biến cố lớn. Cảnh trưởng thành (nếu contract có) chỉ dùng người trưởng thành và giữ nhất quán thiết lập.',
@@ -1758,6 +1759,28 @@ function removeEnglishLeaks(text) { return removeEnglishLeaksDetailed(text).text
 
 /* V14.7.39: DỌN RÒ RỈ CỦA MODEL (xác định, không tốn tiền AI). Model (nhất là bản uncensored/abliterated) hay: chèn từ tiếng Anh lẻ vào câu Việt, tự nhắc lệnh
    ("Chi tiết dưới đây viết đầy đủ..."), để nhãn "Nội tâm người nữ:", sót dấu * và viết ".," thay dấu chấm. Chỉ sửa ca chắc chắn; từ lạ khác vẫn để findStrayWords xử lý. */
+/* V14.7.51: (1) model có lúc viết cả cảnh DÍNH dấu câu vào chữ ("đi tới,không thèm trả lời.Nàng") ; (2) rò từ tiếng Anh lẻ ("—but", "—he nói", "one cái gật", "knuckle", "Aftercare"). Sửa chắc chắn, xác định, không tốn AI. */
+function fixGluedPunctuation(text) {
+  return String(text || '')
+    .replace(/([\p{L}\p{Nd}])([,;:!?])(?=\p{L})/gu, '$1$2 ')
+    .replace(/(\p{Ll})\.(?=\p{Lu}\p{Ll})/gu, '$1. ')
+    .replace(/(\p{L})—(?=\p{L})/gu, '$1 — ').replace(/(\p{L})\s—(?=\p{L})/gu, '$1 — ');
+}
+const VI_DIA_RE = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
+const LEAK_WORDS = { but: 'nhưng', and: 'và', or: 'hoặc', from: 'từ', one: 'một', knuckle: 'khớp ngón tay', knuckles: 'khớp ngón tay', aftercare: 'phần chăm sóc sau đó', 'old-file': 'cũ', he: null, she: null };
+function fixEnglishLeaks(text) {
+  let t = String(text || ''); if (!t) return t;
+  const cnt = re => (t.match(re) || []).length;
+  const male = cnt(/\bHắn\b|\bhắn\b/g) >= cnt(/\b[Aa]nh\b/g) ? 'hắn' : 'anh', female = cnt(/\bnàng\b|\bNàng\b/g) >= cnt(/\b[Cc]ô\b/g) ? 'nàng' : 'cô';
+  return t.replace(/(?<![\p{L}\p{N}_-])(old-file|knuckles?|aftercare|but|and|or|from|one|he|she)(?![\p{L}\p{N}_-])/giu, (m, w, off) => {
+    const before = t.slice(Math.max(0, off - 14), off), after = t.slice(off + m.length, off + m.length + 14);
+    const prevW = (before.match(/([\p{L}]+)[^\p{L}]*$/u) || [])[1] || '', nextW = (after.match(/^[^\p{L}]*([\p{L}]+)/u) || [])[1] || '';
+    if (!(VI_DIA_RE.test(prevW) || VI_DIA_RE.test(nextW))) return m;   // quanh đó không phải tiếng Việt → có thể là câu tiếng Anh cố ý, để nguyên
+    const k = w.toLowerCase(); let vi = LEAK_WORDS[k]; if (k === 'he') vi = male; if (k === 'she') vi = female;
+    if (!vi) return m;
+    return /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(before)) ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi;
+  });
+}
 const EN_LEAK_MAP = [
   [/\bresidual lingering\b/gi, 'còn đọng lại'], [/\bwithout\b/gi, 'mà không'], [/\bbecause\b/gi, 'vì'], [/\btonight\b/gi, 'đêm nay'], [/\bwhen\b/gi, 'lúc'],
   [/\bwhile\b/gi, 'trong khi'], [/\bcorresponding\b/gi, 'tương ứng'], [/\bresidual\b/gi, 'còn sót'], [/\blingering\b/gi, 'đọng lại'], [/\bhowever\b/gi, 'tuy nhiên'],
@@ -1779,6 +1802,7 @@ function stripAssistantNotes(text) {
 function cleanModelArtifacts(text) {
   let t = String(text || ''); if (!t) return t;
   t = stripAssistantNotes(t);   // V14.7.49
+  t = fixGluedPunctuation(t); t = fixEnglishLeaks(t);   // V14.7.51
   EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
   t = t.replace(/Chi tiết dưới đây[^.\n]*\.\s*/g, '').replace(/(^|\n)\s*(?:Bản viết gọn|Viết lại(?: gọn| lần cuối)?)\s*:\s*/g, '$1');
   t = t.replace(/(^|\n)(\s*)Nội tâm(?: của)?(?: người nữ| nhân vật nữ| nhân vật| hắn| cô ta| nàng)?\s*:\s*/g, '$1$2');
@@ -1832,6 +1856,25 @@ function endsMidScene(text) {
   return /(?:^|[\s;,—])(?:rồi|và|nhưng|khi|để|thì|mà|như|của|với|còn|nên|vì|nếu|lúc|trong khi)\s*[.…]+\s*$/i.test(tail);
 }
 const UNFINISHED_SCENE_RULE = 'CHƯƠNG TRƯỚC DỪNG GIỮA CẢNH (câu cuối bỏ lửng): đây là cảnh ĐANG DIỄN RA, chưa tới cao trào/dư âm. Scene mở đầu PHẢI tiếp tục đúng khoảnh khắc đó, cùng cường độ, cùng mức chi tiết giác quan và cùng nhịp chậm như đoạn trước; KHÔNG tóm tắt, KHÔNG chốt nhanh cho xong trong vài trăm từ. Cho cảnh đi trọn nhịp: tiếp diễn → leo thang → cao trào → dư âm/hậu quả, rồi mới sang diễn biến mới của chương.';
+/* V14.7.53: CẢNH NÓNG BỊ BỎ DỞ. Scene dừng theo checklist beat (và "dừng ở handoff") nên hành vi đang diễn ra (vd. bị bắt bú) bị ngắt/nhảy giờ trước khi tới cao trào + dư âm. */
+const HOT_CORE_RE = /cặc|lồn|dương vật|âm đạo|âm vật|hột le|nhũ hoa|bầu vú|núm vú/i;
+const HOT_ACT_RE = /liếm|mút|thúc|địt|đụ|nứng|cắm|đâm|dập|rên|ngậm|nuốt|ép sâu|rút ra|đẩy vào/gi;
+const HOT_CLIMAX_RE = /xuất (?:tinh|ra|hết|vào)|phun (?:ra|tinh|vào)|tinh (?:trùng|dịch)|bắn (?:ra|vào|đầy)|lên đỉnh|cao trào|cực khoái|vỡ (?:ra|òa|tan)|đỉnh điểm|co thắt|run (?:lên|bần bật|rẩy)|trào ra|dư âm|thở (?:hổn hển|dốc)|gục (?:xuống|hẳn)|tan chảy|nuốt (?:xuống|hết|trọn)|lả (?:đi|người)|rũ (?:xuống|người)/i;
+function hotParaIsExplicit(p) { const t = String(p || ''); return HOT_CORE_RE.test(t) || ((t.match(HOT_ACT_RE) || []).length >= 2 && /\b(?:hắn|nàng|ả|cô|anh)\b/i.test(t) && /(?:môi|miệng|ngực|hông|đùi|lưng|cổ họng|da thịt)/i.test(t)); }
+function hotActOpen(text) {
+  const paras = String(text || '').split(/\n{2,}/); const ex = []; paras.forEach((p, i) => { if (hotParaIsExplicit(p)) ex.push(i); });
+  if (ex.length < 3) return false;                                   // không phải cảnh nóng thật sự (hoặc chỉ gợi) → không can thiệp
+  return !HOT_CLIMAX_RE.test(paras.slice(ex[0]).join('\n\n'));       // đã có cao trào/dư âm ở đâu đó từ lúc bắt đầu cảnh nóng → coi như đã khép
+}
+function isHotSceneDef(scene) { const s = scene || {}; return HOT_BEAT_RE.test([s.purpose, s.mustChange].concat(Array.isArray(s.beats) ? s.beats : []).join(' ')); }
+const HOT_SCENE_COMPLETION_RULE = 'CẢNH NÓNG PHẢI ĐI TRỌN MỘT VÒNG TRONG CHÍNH SCENE NÀY: tiếp diễn → leo thang → cao trào → dư âm ngay tại chỗ. Nếu có biến cố chen ngang (bước chân, điện thoại, người đi ngang) thì viết phản ứng TẠI CHỖ (nín thở, khựng lại), khi nguy cơ qua đi PHẢI viết tiếp hành vi đang dở tới cao trào. TUYỆT ĐỐI không nhảy giờ ("vài phút sau", "đã đi lên tầng…"), không đổi địa điểm, không tóm tắt, không bỏ ngang để sang việc khác trước khi cảnh này khép lại.';
+function buildHotFinishPrompt(o) {
+  const tail = String(o.text || '').slice(-2200), cast = Array.isArray(o.scene && o.scene.characters) ? o.scene.characters.join(', ') : '';
+  return ['CẢNH NÓNG ĐANG DỞ — chỉ viết PHẦN TIẾP THEO (300–600 từ) nối NGAY sau câu cuối của đoạn dưới, cùng địa điểm, cùng thời điểm, cùng nhịp và mức chi tiết giác quan.',
+    cast ? 'Nhân vật tại cảnh: ' + cast + '.' : '', HOT_SCENE_COMPLETION_RULE,
+    'Hành vi đang dở phải đi tiếp tới cao trào và dư âm. Kết ở dư âm (hơi thở, run rẩy, im lặng…), KHÔNG kết chương, KHÔNG kể scene sau, KHÔNG lặp lại đoạn đã có, tiếng Việt có dấu, câu độ dài vừa phải, không ghi chú ngoài văn xuôi.',
+    'ĐOẠN CUỐI HIỆN CÓ:\n' + tail, 'PHẦN TIẾP THEO (chỉ văn xuôi):'].filter(Boolean).join('\n\n');
+}
 function paraHasDrift(p) { return splitSentencesKeep(p).some(sn => isSparseLongSentence(sn) || DRIFT_CHATTER_RE.test(sn)); }
 function salvageBeforeDegeneration(raw) {
   const DIA = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
@@ -4579,6 +4622,16 @@ async function runAdaptiveChapterPipeline(o, deps) {
       pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 480), true);
     }
     if (accepted === null) { sceneMetric.status = 'rejected'; sceneMetric.errors = sceneMetric.errors.concat(lastErrors.map(x => String(x).slice(0, 240))).slice(0, 6); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric); return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') }; }
+    /* V14.7.53: cảnh nóng chưa tới cao trào/dư âm → MỘT lượt viết tiếp tại chỗ (không viết lại cả scene) thay vì để scene sau nhảy giờ. */
+    if (deps.hotSceneFinish !== false && accepted && (route.nsfw || isHotSceneDef(scene)) && hotActOpen(accepted) && timeLeft() > minSceneMs) {
+      try {
+        const fr = await callAI(buildHotFinishPrompt({ text: accepted, scene }), { maxTokens: 1700, temperature: 0.7, modelOverride: route.model, systemPrompt: SCENE_SYSTEM_PROMPT, frequency_penalty: 0.22, presence_penalty: 0.18, streaming: false });
+        let add = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(fr && fr.text || ''))))).trim();
+        if (add) add = dropRepeatedParagraphs(accepted, add).trim();
+        if (countWords(add) >= 120 && !degenerationCheck(add).bad && !isAssistantNotePara(add.split('\n')[0])) { accepted = accepted + '\n\n' + add; pushSceneWarn(scene.id + ': cảnh nóng đang dở → đã viết tiếp tới cao trào/dư âm (+' + countWords(add) + ' từ)'); sceneMetric.hotFinished = true; }
+        else pushSceneWarn(scene.id + ': cảnh nóng có vẻ chưa khép (chưa thấy cao trào/dư âm) nhưng lượt viết tiếp không đạt — nên đọc lại');
+      } catch (e) { pushSceneWarn(scene.id + ': cảnh nóng có vẻ chưa khép; lượt viết tiếp lỗi (' + String(e && e.message || '').slice(0, 80) + ')'); }
+    }
     pieces.push(accepted); pieceScene.push(i);
     sceneMetric.status = sceneKept.includes(scene.id) ? 'kept_with_warning' : (scenePatched.includes(scene.id) ? 'patched' : 'accepted');
     sceneMetric.patched = scenePatched.includes(scene.id); sceneMetric.outputWords = countWords(accepted); sceneMetric.errors = lastErrors.slice(0, 6).map(x => String(x).slice(0, 240)); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric);

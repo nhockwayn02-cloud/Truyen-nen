@@ -20,11 +20,11 @@ global.fetch = async (url, init) => {
   rec.status = r.status || 200;
   if (rec.status !== 200) return { ok: false, status: rec.status, statusText: 'ERR', headers: { get: h => (r.headers || {})[String(h).toLowerCase()] || null }, json: async () => ({ error: { message: r.message || ('lỗi ' + rec.status) } }), text: async () => r.message || 'err' };
   const content = r.content != null ? r.content : defaultContent(rec);
-  return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ choices: [{ message: { content }, finish_reason: r.finish || 'stop' }] }), text: async () => content };
+  return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ choices: [{ message: Object.assign({ content }, r.reasoning ? { reasoning: r.reasoning } : {}), finish_reason: r.finish || 'stop' }] }), text: async () => content };
 };
 let planScenes = 2, sceneWords = 900;
 function defaultContent(rec) {
-  if (rec.kind === 'plan') return JSON.stringify({ chapterGoal: 'g', endingAnchor: 'Lan khóa cửa.', scenes: Array.from({ length: harness.planScenes }, (_, i) => ({ id: 'S' + (i + 1), location: 'Văn phòng', time: 'Tối ' + (i + 1), characters: ['Lan', 'Mai'], purpose: 'p' + (i + 1), beats: ['b' + (i + 1)], mustChange: 'Lan biết ' + (i + 1), handoff: 'h' + (i + 1), targetWords: harness.sceneWords })) });
+  if (rec.kind === 'plan') return JSON.stringify({ chapterGoal: 'g', endingAnchor: 'Lan khóa cửa.', scenes: Array.from({ length: harness.planScenes }, (_, i) => ({ id: 'S' + (i + 1), location: 'Văn phòng', time: 'Tối ' + (i + 1), characters: ['Lan', 'Mai'], purpose: 'p' + (i + 1), beats: [(harness.hotScene === i + 1 ? 'cảnh nóng ' : '') + 'b' + (i + 1)], mustChange: 'Lan biết ' + (i + 1), handoff: 'h' + (i + 1), targetWords: harness.sceneWords })) });
   if (rec.kind === 'scene') return prose(harness.sceneWords, 'X');
   return '{"ok":true,"issues":[]}';
 }

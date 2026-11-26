@@ -1,5 +1,27 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.53] — Cảnh 18+ chưa xong đã nhảy sang cảnh khác
+- **Hiện tượng (file người dùng gửi):** đang bị bắt bú, nghe bước chân tuần tra, câu cuối cụt ("Nếu ai cửa này...") rồi đoạn sau nhảy "Một giờ mười tám phút… Lý Ái Vân đã đi lên B2 được mấy phút". Hành vi chưa tới cao trào/dư âm.
+- **Nguyên nhân:** mỗi scene chỉ làm các mục checklist rồi "dừng ở handoff"; hành vi tình dục đang diễn ra không phải một mục có điều kiện kết thúc, nên scene dừng khi hết beat/ngân sách rồi scene sau mở bằng câu chuyển cảnh nhảy giờ. Không có bước nào kiểm cảnh nóng đã khép chưa.
+- **Sửa:** (1) scene nóng nhận luật `HOT_SCENE_COMPLETION_RULE`: đi trọn tiếp diễn → leo thang → cao trào → dư âm tại chỗ; bị chen ngang thì phản ứng tại chỗ rồi viết tiếp, cấm nhảy giờ/đổi chỗ. (2) `hotActOpen` nhận ra cảnh nóng (≥3 đoạn tường minh) mà không có cao trào/dư âm → đúng MỘT lượt viết tiếp tại chỗ (300–600 từ), qua cổng văn suy biến, không viết lại cả scene; không đạt thì giữ bản cũ + cảnh báo.
+- **Test:** `v14_7_53_hot_scene_finish` (dùng đúng cảnh kho của người dùng nếu có: nhận ra là còn dở; cảnh chương 2 đã khép thì không bị đụng).
+- **Chưa kiểm:** model thật; bộ nhận diện dựa trên từ khóa nên cảnh dùng cách nói khác có thể lọt, và cảnh cố ý kết không cao trào mà không dùng từ cao trào nào sẽ bị viết tiếp. Cảnh đã được lưu từ trước vẫn phải sửa tay hoặc dùng Viết tiếp.
+
+## [V14.7.52] — Hậu kỳ với model thinking (GLM flash uncensored): chỉ rõ chỗ đổi
+- **Hiện tượng:** "Hậu kỳ chỉ cập nhật một phần (chưa cập nhật: Status) … JSON gộp bị cắt [finish=length, 0 ký tự, reasoning 28774]".
+- **Nguyên nhân:** model chính (`z-ai/glm-5.3-flash-uncensored`) là model thinking: nó dùng hết ~7.800 token đầu ra cho phần suy nghĩ (reasoning ~28.000 ký tự), phần trả lời JSON rỗng. Lệnh tắt thinking gửi kèm bị gateway/model bỏ qua nên thử lại vẫn cắt. Đây là giới hạn của model, không phải lỗi dữ liệu; dữ liệu cũ được giữ nguyên.
+- **Cách khắc phục sẵn có:** mục 10.3 «Model theo bước» → «Model Hậu kỳ» → nhập model không-thinking (vd. `deepseek/deepseek-v3.2`, `google/gemini-2.5-flash`). Viết cảnh vẫn dùng model chính.
+- **Sửa:** (1) thông báo lỗi nay nói rõ chỗ đổi này; (2) ở nhánh hậu kỳ thất bại hẳn, lý do bị cắt ở 220 ký tự làm mất đúng phần chỉ dẫn → nâng lên 700.
+- **Test:** `v14_7_52_thinking_post_model` (tái hiện model thinking ăn hết token; đặt Model Hậu kỳ thì hậu kỳ DONE và mọi lượt hậu kỳ dùng đúng model đó). Harness giả nay hỗ trợ trường `reasoning`.
+- **Chưa kiểm:** model thật; chưa biết AnonRouter có nhận tham số tắt thinking nào cho GLM (nên cách chắc chắn là đổi model Hậu kỳ).
+
+## [V14.7.51] — Chương 2 viết sau cảnh bỏ dở: dính dấu câu + rò từ tiếng Anh
+- **Hiện tượng (file chương 2 người dùng gửi):** cảnh nối từ chương 1 chỉ ~400 từ rồi nhảy sang việc khác; cảnh đồ chơi ở kho hồ sơ viết dính dấu câu ("đi tới,không thèm trả lời.Nàng") và rò từ Anh ("—but", "—he nói", "from nay", "or không—and", "one cái gật", "knuckle", "Aftercare", "old-file").
+- **Nguyên nhân:** (1) cảnh nối ngắn: chương trước dừng giữa cảnh nhưng chương sau không được báo (đã sửa ở V14.7.50 — nếu bạn viết bằng bản cũ hơn thì chưa có hiệu lực); (2) bộ làm sạch chỉ có danh sách rò từ Anh cố định (without, because…) và không sửa dấu câu dính chữ.
+- **Sửa:** `fixGluedPunctuation` (thêm khoảng trắng sau , ; : ! ? và dấu chấm trước chữ hoa, tách dấu — dính chữ) và `fixEnglishLeaks` (but/and/or/from/one/he/she/knuckle/aftercare/old-file → tiếng Việt, chỉ khi quanh đó là tiếng Việt; he/she lấy theo đại từ truyện đang dùng hắn/anh, nàng/cô). Không đụng giờ 10:30, số phiên bản, câu tiếng Anh cố ý trong lời thoại.
+- **Test:** `v14_7_51_glued_punct_leaks` (dùng chính chương 2 người dùng gửi); thêm kiểm ngân sách ≥1.500 từ cho scene mở đầu cảnh bỏ dở ở `v14_7_50`.
+- **Chưa kiểm:** độ dài cảnh nối do model thật sinh; lỗi đổi đại từ giữa chừng ("Cô đưa ra trước mặt nàng" thay vì "Hắn") chưa có bộ sửa tự động.
+
 ## [V14.7.50] — Nút "Viết tiếp" bị văn trôi; chương sau nối cảnh bỏ dở quá ngắn
 - **Hiện tượng (file người dùng gửi):** chương dừng ở "…lớp này tới lớp khác; rồi." → bấm Viết tiếp thì phần sau lê thê không dấu câu, chèn giọng chat/"bye bye"; xóa đi viết chương mới thì cảnh 18+ chốt trong vài trăm từ.
 - **Nguyên nhân 1:** `continueChapterBtn` không có cổng văn suy biến (đường viết chương thì có), chỉ gọi `stripForeign` rồi nối thẳng. Cũng `salvageBeforeDegeneration` không biết câu lê thê/giọng bản tin nên không cắt được.
