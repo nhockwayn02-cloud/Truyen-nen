@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.54] — Scene sụp giữa chừng bị mất nửa sau
+- **Hiện tượng (chương 3, mức 3500 từ):** S3 sụp giữa chừng, hệ thống cắt phần hỏng và giữ 1212 từ đầu; nửa sau cảnh (điểm gãy, lần vỡ thứ hai, aftercare, nhiệm vụ mới, nấc khuất phục 2) vắng hoàn toàn; AI rà báo MUST_CHANGE nhưng vá cục bộ không chèn nổi cả nửa cảnh.
+- **Nguyên nhân:** sau khi cắt, scene chỉ còn ~1/3 độ dài mà không có bước viết bù phần beat đã mất.
+- **Sửa:** khi scene được cắt cứu (`degenSalvaged`), còn dưới 80% `targetWords` và còn thời gian, chạy đúng MỘT lượt viết tiếp (model chính/fallback, nhiệt 0,55) chỉ cho phần beat chưa thể hiện, qua cổng văn suy biến; đạt ≥120 từ thì nối vào, không đạt thì ghi cảnh báo "nên đọc lại".
+- **Test:** `v14_7_54_salvage_continue` (scene sụp → đúng 1 lượt viết tiếp, nội dung nằm trong chương; scene bình thường → 0 lượt).
+- **Chưa sửa:** mâu thuẫn giờ ở S4 (contract 6h58 nhưng văn bản "Bảy giờ kém hai phút" rồi "Sáu giờ tám"). **Chưa kiểm:** model thật; lượt viết tiếp có thể vẫn lệch giọng nếu model chính tiếp tục sụp.
+
 ## [V14.7.53] — Cảnh 18+ chưa xong đã nhảy sang cảnh khác
 - **Hiện tượng (file người dùng gửi):** đang bị bắt bú, nghe bước chân tuần tra, câu cuối cụt ("Nếu ai cửa này...") rồi đoạn sau nhảy "Một giờ mười tám phút… Lý Ái Vân đã đi lên B2 được mấy phút". Hành vi chưa tới cao trào/dư âm.
 - **Nguyên nhân:** mỗi scene chỉ làm các mục checklist rồi "dừng ở handoff"; hành vi tình dục đang diễn ra không phải một mục có điều kiện kết thúc, nên scene dừng khi hết beat/ngân sách rồi scene sau mở bằng câu chuyển cảnh nhảy giờ. Không có bước nào kiểm cảnh nóng đã khép chưa.

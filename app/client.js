@@ -1983,6 +1983,17 @@ function hotActOpen(text) {
 }
 function isHotSceneDef(scene) { const s = scene || {}; return HOT_BEAT_RE.test([s.purpose, s.mustChange].concat(Array.isArray(s.beats) ? s.beats : []).join(' ')); }
 const HOT_SCENE_COMPLETION_RULE = 'CẢNH NÓNG PHẢI ĐI TRỌN MỘT VÒNG TRONG CHÍNH SCENE NÀY: tiếp diễn → leo thang → cao trào → dư âm ngay tại chỗ. Nếu có biến cố chen ngang (bước chân, điện thoại, người đi ngang) thì viết phản ứng TẠI CHỖ (nín thở, khựng lại), khi nguy cơ qua đi PHẢI viết tiếp hành vi đang dở tới cao trào. TUYỆT ĐỐI không nhảy giờ ("vài phút sau", "đã đi lên tầng…"), không đổi địa điểm, không tóm tắt, không bỏ ngang để sang việc khác trước khi cảnh này khép lại.';
+/* V14.7.54: scene SỤP GIỮA CHỪNG rồi bị cắt còn ~1/3 → các beat nửa sau (cao trào, dư âm, điểm gãy, nhiệm vụ mới) mất hẳn và vá cục bộ không chèn nổi. Viết tiếp đúng phần còn thiếu bằng MỘT lượt (model chính, nhiệt thấp). */
+function buildSalvageContinuePrompt(o) {
+  const sc = o.scene || {}, beats = [String(sc.mustChange || '')].concat(Array.isArray(sc.beats) ? sc.beats : []).map(x => String(x).replace(/\s+/g, ' ').trim().slice(0, 220)).filter(Boolean);
+  const hot = isHotSceneDef(sc);
+  return ['SCENE BỊ CẮT GIỮA CHỪNG VÌ LỖI SINH VĂN — viết tiếp PHẦN CÒN LẠI (khoảng ' + o.remaining + ' từ) nối NGAY sau câu cuối của đoạn dưới, cùng địa điểm, cùng thời điểm, cùng giọng văn.',
+    beats.length ? 'CÁC MỤC CỦA SCENE (đối chiếu với đoạn đã có; chỉ viết những mục CHƯA được thể hiện, theo đúng thứ tự):\n- ' + beats.join('\n- ') : '',
+    hot ? HOT_SCENE_COMPLETION_RULE : '',
+    sc.handoff ? 'Kết scene theo handoff: ' + String(sc.handoff).slice(0, 240) : '',
+    'Câu độ dài vừa phải, có đủ dấu câu, đoạn 2–4 câu, KHÔNG lan man, KHÔNG nói với người đọc, KHÔNG ghi chú, KHÔNG lặp lại đoạn đã có, KHÔNG kể scene sau, KHÔNG kết chương.',
+    'ĐOẠN CUỐI HIỆN CÓ:\n' + String(o.text || '').slice(-2200), 'PHẦN TIẾP THEO (chỉ văn xuôi):'].filter(Boolean).join('\n\n');
+}
 function buildHotFinishPrompt(o) {
   const tail = String(o.text || '').slice(-2200), cast = Array.isArray(o.scene && o.scene.characters) ? o.scene.characters.join(', ') : '';
   return ['CẢNH NÓNG ĐANG DỞ — chỉ viết PHẦN TIẾP THEO (300–600 từ) nối NGAY sau câu cuối của đoạn dưới, cùng địa điểm, cùng thời điểm, cùng nhịp và mức chi tiết giác quan.',
@@ -4737,6 +4748,18 @@ async function runAdaptiveChapterPipeline(o, deps) {
       pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 480), true);
     }
     if (accepted === null) { sceneMetric.status = 'rejected'; sceneMetric.errors = sceneMetric.errors.concat(lastErrors.map(x => String(x).slice(0, 240))).slice(0, 6); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric); return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') }; }
+    /* V14.7.54: scene đã bị cắt sau khi sụp và còn quá ngắn → viết tiếp phần còn thiếu (1 lượt, model chính, nhiệt thấp, qua cổng văn suy biến). */
+    if (deps.salvageContinue !== false && accepted && degenSalvaged && !skipScene && countWords(accepted) < (Number(scene.targetWords) || 0) * 0.8 && timeLeft() > minSceneMs) {
+      try {
+        const remaining = Math.max(300, Math.min(1300, Math.round((Number(scene.targetWords) || 900) - countWords(accepted))));
+        const sr = await callAI(buildSalvageContinuePrompt({ text: accepted, scene, remaining }), { maxTokens: Math.min(3200, Math.ceil(remaining * 2.2)), temperature: 0.55, modelOverride: deps.fallbackModel || route.model, systemPrompt: SCENE_SYSTEM_PROMPT, frequency_penalty: 0.08, presence_penalty: 0.04, streaming: false });
+        let add = formatParagraphs(stripForeign(stripSceneLeaks(stripThinkingOutput(String(sr && sr.text || ''))))).trim();
+        if (add) add = dropRepeatedParagraphs(accepted, add).trim();
+        if (add && degenerationCheck(add).bad) { const sv2 = salvageBeforeDegeneration(add); add = countWords(sv2) >= 120 && !degenerationCheck(sv2).bad ? sv2 : ''; }
+        if (countWords(add) >= 120 && !isAssistantNotePara(add.split('\n')[0])) { accepted = accepted + '\n\n' + add; pushSceneWarn(scene.id + ': scene bị cắt sau khi model sụp → đã viết tiếp phần còn thiếu (+' + countWords(add) + ' từ)'); sceneMetric.salvageContinued = true; }
+        else pushSceneWarn(scene.id + ': scene bị cắt sau khi model sụp và lượt viết tiếp không đạt — các mục nửa sau có thể thiếu, nên đọc lại');
+      } catch (e) { pushSceneWarn(scene.id + ': scene bị cắt sau khi model sụp; lượt viết tiếp lỗi (' + String(e && e.message || '').slice(0, 80) + ')'); }
+    }
     /* V14.7.53: cảnh nóng chưa tới cao trào/dư âm → MỘT lượt viết tiếp tại chỗ (không viết lại cả scene) thay vì để scene sau nhảy giờ. */
     if (deps.hotSceneFinish !== false && accepted && (route.nsfw || isHotSceneDef(scene)) && hotActOpen(accepted) && timeLeft() > minSceneMs) {
       try {
