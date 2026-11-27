@@ -1869,6 +1869,38 @@ function timeCodeDensity(text) {
   const codes = new Set((t.match(/\b[A-ZĐ]{1,5}(?:-[A-Z0-9]{1,5})*-\d{2,}[\w-]*|\b[A-Z]-\d{2,}\b|\b\d{2,}\/[A-ZĐ]{2,}(?:-[A-ZĐ]{2,})*\b/g) || [])).size;
   return { words, times, codes };
 }
+/* V14.7.56: (1) lặp đoạn nối scene: scene sau mở lại bằng đoạn kể lại cái scene trước vừa xảy ra; (2) thoại bị tách khỏi lời dẫn thành đoạn riêng ("— Hắn nói chậm…" đứng một mình giữa hai nửa câu thoại). */
+const SEAM_STOP = new Set('và là của có không một những cái các được đã rồi thì mà nhưng khi lại ra vào với cho từ để này đó ấy như lên xuống trong ngoài về nó hắn cô ả anh chị'.split(' '));
+function seamWords(t) { return new Set((String(t || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(w => w.length >= 2 && !SEAM_STOP.has(w))); }
+function seamParas(t) { return String(t || '').split(/\n+/).map(x => x.trim()).filter(Boolean); }
+const SEAM_TRANSITION_RE = /\b(?:giờ|phút|rời|bước theo|tan ca|sập tối|trở lại|quay lại|đi bộ|xuống|lên tới|về tới|mở đầu|sáng|chiều|tối|khuya)\b/i;
+/* Lặp đoạn nối: đoạn mở scene sau kể lại việc scene trước vừa làm (cùng nhân vật + cùng địa điểm + cùng hành động). Chỉ xét ĐOẠN MỞ (tối đa 2 đoạn đầu). */
+function seamOverlap(prevText, nextText) {
+  const pp = seamParas(prevText), np = seamParas(nextText); if (pp.length < 2 || np.length < 4) return { trim: 0, warn: false, score: 0 };
+  const tail = seamWords(pp.slice(-4).join(' ')); let trim = 0, best = 0, warn = false;
+  for (let i = 0; i < 2; i++) {
+    const bg = seamWords(np[i]); if (bg.size < 14 || (np[i].match(/\S+/g) || []).length < 22) break; let sh = 0; bg.forEach(w => { if (tail.has(w)) sh++; }); const ratio = sh / bg.size; best = Math.max(best, ratio);
+    if (ratio >= 0.4 && sh >= 10 && SEAM_TRANSITION_RE.test(np[i])) { if (i === trim) trim = i + 1; } else { if (ratio >= 0.2 && sh >= 6 && SEAM_TRANSITION_RE.test(np[i])) warn = true; break; }
+  }
+  return { trim, warn: warn || trim > 0, score: Math.round(best * 100) / 100 };
+}
+const TAG_SUBJ = '(?:(?:[Hh]ắn|[Ảả]|[Cc]ô|[Nn]àng|[Aa]nh|[Cc]hị|[Bb]à|[Ôô]ng|[Gg]ã|[Ll]ão|[Tt]hằng|[Yy])(?:\\s(?:ta|ấy|kia))?|[A-ZĐ][\\p{L}]+(?:\\s[A-ZĐ][\\p{L}]+){1,2})';
+const TAG_VERB = '(?:nói|hỏi|đáp|trả lời|cười|bật cười|nhếch|giãy|nấc|thốt|gắt|quát|thì thầm|lẩm bẩm|ngắt|sửa|hạ giọng|cất|rút|ngẩng|cúi|quay|liếc|nhìn|gật|lắc|thở|chống|xoay|nuốt|hít|kéo|đẩy|vuốt|mỉm|nhíu|nghiến|khựng|dừng|đặt|buông|siết|cầm|lùi|nhún|nghiêng|khẽ|chậm|rồi|bỗng|đột ngột|im lặng|ngừng|mở|đóng|gằn|rít|lên tiếng|tiếp lời|chen|ngập ngừng|vặn|chỉ|thả|chớp|nhắm|mím|cắn|hất|đưa|giơ|run|siết)';
+const TAG_START_RE = new RegExp('^—\\s*(?:' + TAG_SUBJ + '\\s+' + TAG_VERB + '\\b|giọng\\s+' + TAG_SUBJ + '|giọng\\s+\\p{Ll}+)', 'u');
+function isDialogueTagPara(p) { const t = String(p || '').trim(); if (!/^—\s/.test(t) || /["“”]/.test(t)) return false; if (!TAG_START_RE.test(t)) return false; if ((t.match(/\S+/g) || []).length > 26) return false; return !/[?!]\s*$/.test(t); }
+function isSpeechStartPara(p) { return /^(?:—\s|["“])/.test(String(p || '').trim()); }
+function isShortSpeechPara(p) { const t = String(p || '').trim(); const n = (t.match(/\S+/g) || []).length; return n > 0 && n <= 14 && !/^—/.test(t) && /^[\p{Lu}]/u.test(t) && /[.!?…]["”]?$/.test(t) && !/^(?:hắn|ả|cô|nàng|anh|chị|bà|ông|gã|lão|tiếng|cánh|ánh|trong|ngoài|bên|rồi|không|một|ba|hai)\b/i.test(t) && /[!?]\s*$/.test(t) || (n <= 8 && /^[\p{Lu}][^.!?…]*[!?]$/u.test(t) && !/^(?:hắn|ả|cô|nàng|anh|chị)\b/i.test(t)); }
+function joinSplitDialogue(text) {
+  const src = String(text || ''); if (!/\n\s*\n/.test(src) || src.indexOf('—') < 0) return src;
+  const paras = src.split(/\n{2,}/), out = []; let changed = false;
+  for (let i = 0; i < paras.length; i++) {
+    const p = paras[i], last = out.length ? out[out.length - 1] : '';
+    if (last && isSpeechStartPara(last) && isDialogueTagPara(p)) { out[out.length - 1] = last.replace(/\s+$/, '') + ' ' + p.trim(); changed = true; continue; }
+    if (last && isSpeechStartPara(last) && isShortSpeechPara(p) && i + 1 < paras.length && isDialogueTagPara(paras[i + 1])) { out[out.length - 1] = last.replace(/\s+$/, '') + ' ' + p.trim(); changed = true; continue; }
+    out.push(p);
+  }
+  return changed ? out.join('\n\n') : src;
+}
 const ASSISTANT_NOTE_START_RE = /^[\s*_#>\-•]*(?:\(?\s*)?(?:GHI CHÚ(?: KỸ THUẬT| BIÊN TẬP| CỦA (?:TÔI|MODEL|AI))?|LƯU Ý KỸ THUẬT|TECHNICAL NOTE|AUTHOR'?S NOTE)\b/;
 const ASSISTANT_NOTE_BODY_RE = /không thuộc phần văn xuôi|(?:nếu|neu) bạn muốn tôi|hãy xác nhận(?: hoặc| để)|yêu cầu điều chỉnh thêm|xuất bản phiên bản|phiên bản (?:sạch )?(?:đã )?sửa|theo yêu cầu S\d|lỗi drift|vượt quá phạm vi cho phép|lỗi tạo sinh|lỗi lai ngữ|ký tự Latinh|ngoài contract|\bhandoff\b\s*:|beat cuối cùng .{0,60}nên dành/i;
 const GLUED_LATIN_RE = /\p{Ll}\p{Lu}\p{Ll}|[a-z]{14,}/u;   // chữ hoa GIỮA từ (…fobBattery) hoặc ≥14 chữ Latin liền: tiếng Việt không có
@@ -1885,6 +1917,7 @@ function cleanModelArtifacts(text) {
   let t = String(text || ''); if (!t) return t;
   t = stripAssistantNotes(t);   // V14.7.49
   t = stripPlanningLeak(t);   // V14.7.55
+  t = joinSplitDialogue(t);   // V14.7.56
   t = fixGluedPunctuation(t); t = fixEnglishLeaks(t);   // V14.7.51
   EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
   t = t.replace(/Chi tiết dưới đây[^.\n]*\.\s*/g, '').replace(/(^|\n)\s*(?:Bản viết gọn|Viết lại(?: gọn| lần cuối)?)\s*:\s*/g, '$1');
@@ -4741,6 +4774,7 @@ async function runAdaptiveChapterPipeline(o, deps) {
         else pushSceneWarn(scene.id + ': cảnh nóng có vẻ chưa khép (chưa thấy cao trào/dư âm) nhưng lượt viết tiếp không đạt — nên đọc lại');
       } catch (e) { pushSceneWarn(scene.id + ': cảnh nóng có vẻ chưa khép; lượt viết tiếp lỗi (' + String(e && e.message || '').slice(0, 80) + ')'); }
     }
+    if (pieces.length && accepted) { const so = seamOverlap(pieces[pieces.length - 1], accepted); if (so.warn) pushSceneWarn(scene.id + ': đoạn mở có thể kể lại việc scene trước vừa xảy ra (độ trùng ' + so.score + ') — nên đọc lại chỗ nối'); }   // V14.7.56: chỉ cảnh báo, không tự cắt (thử trên văn thật thì cắt tự động sẽ làm mất cả đoạn hợp lệ)
     pieces.push(accepted); pieceScene.push(i);
     sceneMetric.status = sceneKept.includes(scene.id) ? 'kept_with_warning' : (scenePatched.includes(scene.id) ? 'patched' : 'accepted');
     sceneMetric.patched = scenePatched.includes(scene.id); sceneMetric.outputWords = countWords(accepted); sceneMetric.errors = lastErrors.slice(0, 6).map(x => String(x).slice(0, 240)); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric);

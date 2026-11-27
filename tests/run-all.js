@@ -56,6 +56,7 @@ const dir = __dirname; const suites = [
   ["V14.7.53 Cảnh nóng đang dở được viết tiếp tới cao trào/dư âm", process.execPath, ["v14_7_53_hot_scene_finish.test.js"]],
   ["V14.7.54 Scene sụp giữa chừng được viết tiếp phần còn thiếu", process.execPath, ["v14_7_54_salvage_continue.test.js"]],
   ["V14.7.55 Rò kế hoạch viết cảnh + giờ giấc/mã số", process.execPath, ["v14_7_55_plan_leak_time_code.test.js"]],
+  ["V14.7.56 Ghép thoại bị tách + cảnh báo lặp đoạn nối scene", process.execPath, ["v14_7_56_seam_dialogue.test.js"]],
   ["V14.7.45 Giới thiệu nhân vật giảm dần + hồ sơ vắng mặt", process.execPath, ["v14_7_45_intro_taper.test.js"]],
   ["V14.7.44 AI điền hồ sơ nhân vật còn trống", process.execPath, ["v14_7_44_char_fill.test.js"]],
   ["V14.7.43 Văn lan man (câu lê thê, giọng bản tin)", process.execPath, ["v14_7_43_runon_drift.test.js"]],
