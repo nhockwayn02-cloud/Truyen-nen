@@ -1,0 +1,18 @@
+// V14.7.57: gạch "–", thoại lắp bắp, đoạn không dấu câu cuối (model sụp).
+const assert = require('assert'), fs = require('fs'), path = require('path'), vm = require('vm');
+const ctx = {}; vm.createContext(ctx); vm.runInContext(fs.readFileSync(path.join(__dirname, '../shared/core.js'), 'utf8') + '\n;this.e={normalizeDialogueDash,fixDialogueStutter,cleanModelArtifacts,degenerationCheck,salvageBeforeDegeneration,unpunctRunMax};', ctx); const E = ctx.e;
+assert.strictEqual(E.normalizeDialogueDash('– Ai cho anh vào?\n\nGiờ 14:00 – 17:00 họp.'), '— Ai cho anh vào?\n\nGiờ 14:00 – 17:00 họp.', 'chỉ đổi gạch ở ĐẦU dòng');
+const st = E.fixDialogueStutter('— Anh. anh dám. ưm. dám làm càn thế.\n\n— Bùi Lạc. anh Bùi Lạc.!\n\nHắn nói. rồi đi.'); assert.ok(/^— Anh… anh dám… ưm… dám làm càn thế\./.test(st), st); assert.ok(/anh Bùi Lạc!/.test(st) && !/\.!/.test(st)); assert.ok(/Hắn nói\. rồi đi\./.test(st), 'văn kể không bị đụng');
+assert.strictEqual(E.fixDialogueStutter('— Không. Không được.'), '— Không. Không được.', 'hoa sau dấu chấm giữ nguyên');
+// ghép thoại sau khi đổi gạch
+const raw = ['– Chồng chị ở Đà Nẵng với người thứ ba suốt bốn tháng nay.', '– Hắn nói chậm rãi, đều đều như đọc giờ làm việc.', '– Còn chị ở đây ký những tờ giấy này.', '– Nhìn thẳng chứ chị Khuê?', '– Hắn chộp cằm cô ta xoay lại đối diện mình.', '– Anh chỉ là một thằng bảo vệ…'].join('\n\n');
+const cl = E.cleanModelArtifacts(raw).split('\n\n'); assert.ok(cl[0] === '— Chồng chị ở Đà Nẵng với người thứ ba suốt bốn tháng nay. — Hắn nói chậm rãi, đều đều như đọc giờ làm việc.', cl[0]); assert.ok(/^— Nhìn thẳng chứ chị Khuê\? — Hắn chộp cằm/.test(cl[2]), cl.join('|')); assert.ok(!/–/.test(cl.join('')));
+// đoạn suy biến không dấu câu cuối
+const good = ['Hắn quỳ xuống nhặt từng tờ giấy rơi trên nền gạch men vàng úa.', 'Ngón tay ráp vuốt mép giấy cho thẳng hàng như vuốt lá bài thuở nào.'];
+const bad = ['Hai mươi ba tuổi hay hai mươi tám tuổi hay hai mươi hai tuổi không quan trọng bằng việc các con số này quan hệ', 'Mắt hắn dừng lại ở trang cuối tập thanh toán dịch vụ vệ sinh định kỳ của toàn khối hành chính', 'Con số trên trang đó lớn gấp ba so với cùng kỳ năm ngoái', 'Như thể có ai đó muốn dạy cho hắn biết cách kiếm ba đồng hoa hồng từ một đồng dịch vụ'];
+const txt = good.concat(good, good, bad).join('\n\n'); assert.ok(E.unpunctRunMax(bad) >= 3); assert.ok(E.degenerationCheck(txt).bad, 'phải bị coi là suy biến');
+const sv = E.salvageBeforeDegeneration(txt); assert.ok(!/Hai mươi ba tuổi|Con số trên trang/.test(sv) && /nhặt từng tờ giấy/.test(sv), 'salvage bỏ cụm không dấu'); assert.ok(!E.degenerationCheck(sv).bad);
+assert.ok(!E.degenerationCheck(good.concat(good, good, ['Chương một', 'Một đoạn ngắn không dấu cuối nhưng chỉ một đoạn thôi nên không sao hết cả']).join('\n\n')).bad, 'một đoạn thiếu dấu câu không bị coi là suy biến');
+const real = '/mnt/user-data/attachments/2715c23c-f06e-5342-ab65-5b57b1080754/d03e8b53-attachment.txt';
+if (fs.existsSync(real)) { const t = fs.readFileSync(real, 'utf8').replace(/^\s*\d+\t/gm, ''); const seg = t.slice(t.indexOf('Hai mươi ba tuổi hay'), t.indexOf('Từ sảnh tầng làm việc')); assert.ok(E.unpunctRunMax(seg.split(/\n+/)) >= 3, 'file thật: nhận ra cụm suy biến'); const c = E.cleanModelArtifacts(t); assert.ok(!/^–/m.test(c) && c.split('\n\n').length < t.split(/\n{2,}/).length, 'file thật: gạch được chuẩn hóa và thoại được ghép'); console.log('PASS file thật của người dùng: nhận ra cụm suy biến, chuẩn hóa gạch, ghép thoại (' + t.split(/\n{2,}/).length + '→' + c.split('\n\n').length + ' đoạn)'); }
+console.log('PASS gạch "–", thoại lắp bắp, đoạn không dấu câu cuối'); process.exit(0);

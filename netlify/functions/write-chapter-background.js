@@ -1885,11 +1885,22 @@ function seamOverlap(prevText, nextText) {
   return { trim, warn: warn || trim > 0, score: Math.round(best * 100) / 100 };
 }
 const TAG_SUBJ = '(?:(?:[Hh]ắn|[Ảả]|[Cc]ô|[Nn]àng|[Aa]nh|[Cc]hị|[Bb]à|[Ôô]ng|[Gg]ã|[Ll]ão|[Tt]hằng|[Yy])(?:\\s(?:ta|ấy|kia))?|[A-ZĐ][\\p{L}]+(?:\\s[A-ZĐ][\\p{L}]+){1,2})';
-const TAG_VERB = '(?:nói|hỏi|đáp|trả lời|cười|bật cười|nhếch|giãy|nấc|thốt|gắt|quát|thì thầm|lẩm bẩm|ngắt|sửa|hạ giọng|cất|rút|ngẩng|cúi|quay|liếc|nhìn|gật|lắc|thở|chống|xoay|nuốt|hít|kéo|đẩy|vuốt|mỉm|nhíu|nghiến|khựng|dừng|đặt|buông|siết|cầm|lùi|nhún|nghiêng|khẽ|chậm|rồi|bỗng|đột ngột|im lặng|ngừng|mở|đóng|gằn|rít|lên tiếng|tiếp lời|chen|ngập ngừng|vặn|chỉ|thả|chớp|nhắm|mím|cắn|hất|đưa|giơ|run|siết)';
-const TAG_START_RE = new RegExp('^—\\s*(?:' + TAG_SUBJ + '\\s+' + TAG_VERB + '\\b|giọng\\s+' + TAG_SUBJ + '|giọng\\s+\\p{Ll}+)', 'u');
+const TAG_VERB = '(?:nói|hỏi|đáp|trả lời|cười|bật cười|nhếch|giãy|nấc|thốt|gắt|quát|thì thầm|lẩm bẩm|ngắt|sửa|hạ giọng|cất|rút|ngẩng|cúi|quay|liếc|nhìn|gật|lắc|thở|chống|xoay|nuốt|hít|kéo|đẩy|vuốt|mỉm|nhíu|nghiến|khựng|dừng|đặt|buông|siết|cầm|lùi|nhún|nghiêng|khẽ|chậm|rồi|bỗng|đột ngột|im lặng|ngừng|mở|đóng|gằn|rít|lên tiếng|tiếp lời|chen|ngập ngừng|vặn|chỉ|thả|chớp|nhắm|mím|cắn|hất|đưa|giơ|run|siết|chộp|nắm|bóp|gỡ|bước|đứng|ngồi|nhấc|kề|rướn|ghé|khoanh|tựa|gõ|bật)';
+const TAG_START_RE = new RegExp('^—\\s*(?:' + TAG_SUBJ + '\\s+' + TAG_VERB + '\\b|[Gg]iọng\\s+' + TAG_SUBJ + '|[Gg]iọng\\s+\\p{Ll}+)', 'u');
 function isDialogueTagPara(p) { const t = String(p || '').trim(); if (!/^—\s/.test(t) || /["“”]/.test(t)) return false; if (!TAG_START_RE.test(t)) return false; if ((t.match(/\S+/g) || []).length > 26) return false; return !/[?!]\s*$/.test(t); }
 function isSpeechStartPara(p) { return /^(?:—\s|["“])/.test(String(p || '').trim()); }
 function isShortSpeechPara(p) { const t = String(p || '').trim(); const n = (t.match(/\S+/g) || []).length; return n > 0 && n <= 14 && !/^—/.test(t) && /^[\p{Lu}]/u.test(t) && /[.!?…]["”]?$/.test(t) && !/^(?:hắn|ả|cô|nàng|anh|chị|bà|ông|gã|lão|tiếng|cánh|ánh|trong|ngoài|bên|rồi|không|một|ba|hai)\b/i.test(t) && /[!?]\s*$/.test(t) || (n <= 8 && /^[\p{Lu}][^.!?…]*[!?]$/u.test(t) && !/^(?:hắn|ả|cô|nàng|anh|chị)\b/i.test(t)); }
+/* V14.7.57: gạch ngang ngắn "–" đầu dòng thoại → "—"; thoại lắp bắp bị biến thành "Anh. anh dám. ưm." → "Anh… anh dám… ưm."; dấu lạ ".!" ".?". */
+function normalizeDialogueDash(text) { return String(text || '').replace(/(^|\n)([ \t]*)–\s+(?=\S)/g, '$1$2— '); }
+function fixDialogueStutter(text) {
+  return String(text || '').split('\n').map(l => {
+    const t = l.trim(); if (!/^(?:—\s|["“])/.test(t) || (t.match(/\S+/g) || []).length > 70) return l;
+    return l.replace(/(\p{L}{1,10})\.\s+(?=\p{Ll})/gu, '$1… ').replace(/\.([!?])/g, '$1').replace(/([!?])\.(?=\s|$)/g, '$1');
+  }).join('\n');
+}
+/* ≥3 đoạn liên tiếp (≥7 từ) không có dấu câu cuối = model đang sụp (không phải thơ/tiêu đề). */
+function noEndPara(p) { const t = String(p || '').trim(); if (/^(?:[•·*\-–]|\d+[.)])\s/.test(t)) return false; return (t.match(/\S+/g) || []).length >= 7 && !/[.!?…"”’:;)\]—]$/.test(t); }
+function unpunctRunMax(paras) { let r = 0, m = 0; for (const p of paras) { if (noEndPara(p)) { r++; m = Math.max(m, r); } else r = 0; } return m; }
 function joinSplitDialogue(text) {
   const src = String(text || ''); if (!/\n\s*\n/.test(src) || src.indexOf('—') < 0) return src;
   const paras = src.split(/\n{2,}/), out = []; let changed = false;
@@ -1917,6 +1928,7 @@ function cleanModelArtifacts(text) {
   let t = String(text || ''); if (!t) return t;
   t = stripAssistantNotes(t);   // V14.7.49
   t = stripPlanningLeak(t);   // V14.7.55
+  t = normalizeDialogueDash(t); t = fixDialogueStutter(t);   // V14.7.57
   t = joinSplitDialogue(t);   // V14.7.56
   t = fixGluedPunctuation(t); t = fixEnglishLeaks(t);   // V14.7.51
   EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
@@ -2006,7 +2018,7 @@ function paraHasDrift(p) { return splitSentencesKeep(p).some(sn => isSparseLongS
 function salvageBeforeDegeneration(raw) {
   const DIA = /[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/i;
   const paras = String(raw || '').split(/\n+/).map(x => x.trim()).filter(Boolean), keep = [];
-  const seen = new Set();
+  const seen = new Set(); let noEndRun = 0;
   for (const p of paras) {
     const w = p.split(/\s+/);
     let run = 1, runMax = 1; for (let i = 1; i < w.length; i++) { if (w[i].toLowerCase() === w[i - 1].toLowerCase() && /\p{L}/u.test(w[i])) { run++; runMax = Math.max(runMax, run); } else run = 1; }
@@ -2016,6 +2028,7 @@ function salvageBeforeDegeneration(raw) {
     const dup = p.length >= 80 && seen.has(p.toLowerCase());
     const noteOrGlue = isAssistantNotePara(p) || isPlanningLeakPara(p) || w.some(hasGluedLatin) || paraHasDrift(p);   // V14.7.49/50: cả câu lê thê/giọng bản tin
     if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup || noteOrGlue) break;
+    if (noEndPara(p)) { noEndRun++; if (noEndRun >= 3) { keep.pop(); keep.pop(); break; } } else noEndRun = 0;   // V14.7.57
     seen.add(p.toLowerCase()); keep.push(p);
   }
   return keep.join('\n\n');
@@ -2048,6 +2061,7 @@ function degenerationCheck(text) {
   { const rd = countRunOnDrift(t); // V14.7.46
     if (rd.chatter >= 1) reasons.push('văn lạc sang giọng bản tin/quảng cáo (' + rd.chatter + ' chỗ)');
     if (rd.sparse >= 2) reasons.push(rd.sparse + ' câu dài lê thê gần như không dấu câu (model lan man)'); }
+  if (unpunctRunMax(lines) >= 3) reasons.push('nhiều đoạn liên tiếp không có dấu câu cuối (model bắt đầu sụp)');   // V14.7.57
   if (planningLeakIndex(t) >= 0) reasons.push('model rò kế hoạch/lời tự nhắc viết cảnh vào văn ("Viết cảnh S…", "Hmm —", "Giải pháp:")');   // V14.7.55
   { const notes = t.split(/\n+/).filter(isAssistantNotePara).length; if (notes) reasons.push('model chèn ghi chú kỹ thuật/lời trợ lý vào giữa văn (' + notes + ' đoạn)');   // V14.7.49
     const glued = words.filter(hasGluedLatin).length; if (glued) reasons.push('chữ Latin dính liền lẫn trong câu Việt (' + glued + ' chỗ)'); }
