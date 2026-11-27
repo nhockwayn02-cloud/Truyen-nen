@@ -1,5 +1,12 @@
 # CHANGELOG — Xưởng Truyện AI
 
+## [V14.7.55] — Rò kế hoạch viết cảnh vào chương; giờ giấc và mã số dày
+- **Hiện tượng (file 7 chương người dùng gửi):** (1) cuối chương 4 (~70 dòng) là LỜI TỰ NHẮC của model, không phải văn: "Viết cảnh S4, khoảng 600 từ…", "Hmm — … hợp lý?", "Giải pháp: …", "Tốt. Viết theo trình tự đó." — scene S4 thật gần như không được viết; (2) giờ giấc dày (chương 4 có ~13 mốc giờ, ch.3 ~6, ch.1–2 ~4–5, đếm bằng bộ lọc từ khóa nên có thể sót), (3) mã/số hiệu tài liệu nhiều (KT-07, TF-H-1109, M-04, P-1908, 114/ĐK-TK… lặp cả chương; "khu kỹ thuật số bảy" 17 lần, "tập hồ sơ đỏ bọc đen" 12 lần), (4) cảm giác máy móc.
+- **Nguyên nhân:** bộ lọc cũ chỉ bắt "GHI CHÚ KỸ THUẬT", "Final rewrite", văn không dấu, lặp; không bắt kiểu model viết nháp kế hoạch ngay trong phần trả lời (thường do model thinking đổ suy nghĩ ra content). Không có luật nào hạn chế giờ/mã số, nên model (và cả bước lập scene) tự gắn giờ và mã vào hầu hết đoạn.
+- **Sửa:** (1) `isPlanningLeakPara`/`planningLeakIndex`/`stripPlanningLeak`: nhận ra cụm kế hoạch (≥2 đoạn tự nhắc, hoặc "Viết cảnh S<số>"); `degenerationCheck` báo hỏng → scene bị cắt phần rò, viết lại, và (V14.7.54) viết tiếp phần thiếu; `cleanModelArtifacts` cắt cả chỗ rò khi lọc cuối; (2) `TIME_CODE_RULE` trong prompt viết scene: tối đa 2 mốc giờ/scene, không mở đoạn bằng giờ, không tự đặt mã/số hiệu mới, mỗi mã nhắc tối đa 1 lần; bước lập scene được dặn không gán giờ/mã cho mọi scene; (3) cảnh báo (không retry) khi scene có quá nhiều mốc giờ hoặc >3 mã.
+- **Test:** `v14_7_55_plan_leak_time_code` (đoạn rò dựng lại; văn thường, thoại "Hmm"/"Tốt." không bị báo nhầm; dùng đúng file chương 4 của người dùng nếu có: nhận ra và cắt sạch, 6 chương còn lại nguyên vẹn).
+- **Không sửa / chưa kiểm:** "máy móc" là cảm nhận văn phong — các luật này chỉ giảm giờ/mã/lặp, không thay được chất lượng model; chưa kiểm với model thật. Chương 4 của bạn đã lưu vẫn còn đoạn rò (cần xoá tay hoặc viết lại chương). Lặp cụm tên cơ quan chưa có luật riêng.
+
 ## [V14.7.54] — Scene sụp giữa chừng bị mất nửa sau
 - **Hiện tượng (chương 3, mức 3500 từ):** S3 sụp giữa chừng, hệ thống cắt phần hỏng và giữ 1212 từ đầu; nửa sau cảnh (điểm gãy, lần vỡ thứ hai, aftercare, nhiệm vụ mới, nấc khuất phục 2) vắng hoàn toàn; AI rà báo MUST_CHANGE nhưng vá cục bộ không chèn nổi cả nửa cảnh.
 - **Nguyên nhân:** sau khi cắt, scene chỉ còn ~1/3 độ dài mà không có bước viết bù phần beat đã mất.

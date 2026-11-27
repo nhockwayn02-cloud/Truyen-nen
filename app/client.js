@@ -498,6 +498,7 @@ function buildAdaptiveScenePlanPrompt(o) {
     'Lập Scene Graph cho chương khoảng ' + limits.target + ' từ; chấp nhận ' + limits.minAccept + '–' + limits.maxAccept + ' từ.',
     'Số scene, chức năng và độ dài scene phải LINH HOẠT theo diễn biến; không dùng khuôn Scene 1 mở đầu, Scene 2 xung đột, Scene 3 cảnh nóng.',
     'Có thể gom nhiều beat vào một scene hoặc tách một beat thành nhiều scene nếu nhịp truyện cần.',
+    'Không gán giờ cụ thể cho mọi scene và không tự đặt mã/số hiệu tài liệu mới trong beats/time; chỉ ghi giờ khi cốt truyện cần (hạn chót, cuộc hẹn).',
     'Mỗi scene phải nối tự nhiên với scene trước và tạo thay đổi thật về thông tin, cảm xúc, quan hệ, mục tiêu hoặc hậu quả.',
     (o.matureBlock ? o.matureBlock : 'Nếu có cảnh trưởng thành, chỉ đặt khi mạch truyện cần; cảnh đó phải có nhân vật trưởng thành, nhất quán thiết lập và hậu quả rõ.'),
     'Không thêm biến cố lớn ngoài brief/canon. Không tự biến nhân vật phụ/nhân vật mới thành tuyến chính nếu Outline/Arc không giao việc đó. Không đổi nghề, tài nguyên, địa vị hoặc mục tiêu sinh tồn của nhân vật chính.',
@@ -1063,6 +1064,7 @@ function buildAdaptiveSceneWritePrompt(o) {
     sceneProfileWithAnchor(o.state, s, String(o.allowedCast || '').split(/\s*,\s*/)),
     dossierBlock(o.state, s),
     NAMING_RULE,
+    TIME_CODE_RULE,
     o.isOpeningScene ? chapterOpeningVariationBlock(o.state) : '',
     SENTENCE_RHYTHM_RULE,
     compactOverusedGuide(o.state),
@@ -1902,6 +1904,23 @@ const EN_LEAK_MAP = [
   [/\bsuddenly\b/gi, 'đột nhiên'], [/\bslowly\b/gi, 'chậm rãi'], [/\bquietly\b/gi, 'lặng lẽ'], [/\bsilently\b/gi, 'lặng lẽ'], [/(?<=\p{L})Warm\b/gu, ' ấm'], [/\bwarm\b/gi, 'ấm']
 ];
 /* V14.7.49: model (GLM/uncensored) chèn GHI CHÚ KỸ THUẬT / lời chào trợ lý ("Nếu bạn muốn tôi xuất bản phiên bản sạch… hãy xác nhận") GIỮA văn xuôi, kèm chữ Latin dính liền ("lánhanymorefromkeyfobBattery"). */
+/* V14.7.55: (1) model lẩm bẩm KẾ HOẠCH viết cảnh ("Viết cảnh S4, khoảng 600 từ…", "Hmm — hợp lý?", "Giải pháp:", "Tốt. Viết theo trình tự đó") rò vào chương; (2) giờ giấc và mã/số hiệu tài liệu dày đặc. */
+const PLAN_LEAK_RE = /^\s*(?:Viết cảnh S\d|Vậy (?:thì )?cảnh S\d|Giải pháp\s*:|Cần khoảng \d+ từ|Kết bằng (?:móc|hình ảnh)|Viết tự nhiên\b|Viết\s*[.:]\s*$|Bắt đầu\s*:\s*$|Tốt\.\s*Viết\b|Được\.\s*Rồi sau đó|Tránh dùng\b|Đơn giản nhất\s*:|Cách khác\s*:|Nhưng để tránh|Có thể gộp\b|Có thể tả\b|Chuyển cảnh mở\s*:|Hmm\b|Chi tiết tuần tra\s*:|Giọng \S+(?: \S+){0,3} (?:trầm|ít nói)[^\n]{0,30}\.\s*$)/i;
+const PLAN_LEAK_ANY_RE = /\bHmm\s*[—–-]|\?\)\s*$|\bhợp lý\?|khoảng \d+ từ,? tiếng Việt|\bscene S\d\b[^\n]{0,60}\b(?:phải|cần)\s+(?:tiếp|mở|nối)/i;
+function isPlanningLeakPara(p) { const t = String(p || '').trim(); if (!t || /^["“'‘—-]/.test(t) && !/^[—-]\s*Hmm/.test(t) && !PLAN_LEAK_RE.test(t.replace(/^["“'‘—-]\s*/, ''))) return false; return PLAN_LEAK_RE.test(t) || PLAN_LEAK_ANY_RE.test(t); }
+function planningLeakIndex(text) {
+  const paras = String(text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+  for (let i = 0; i < paras.length; i++) { if (!isPlanningLeakPara(paras[i])) continue; let n = 0; for (let j = i; j < Math.min(paras.length, i + 8); j++) if (isPlanningLeakPara(paras[j])) n++; if (n >= 2 || /^\s*Viết cảnh S\d/i.test(paras[i])) return i; }
+  return -1;
+}
+function stripPlanningLeak(text) { const src = String(text || ''); const paras = src.split(/\n{2,}/); const flat = paras.join('\n'); if (planningLeakIndex(flat) < 0) return src; const keep = []; for (const p of paras) { const lines = p.split('\n'); if (lines.some(l => isPlanningLeakPara(l)) && planningLeakIndex(p + '\n' + paras.slice(paras.indexOf(p) + 1, paras.indexOf(p) + 6).join('\n')) >= 0) break; keep.push(p); } return keep.join('\n\n'); }
+const TIME_CODE_RULE = 'GIỜ GIẤC VÀ MÃ SỐ: cả scene chỉ nêu tối đa 2 mốc giờ cụ thể (chỉ khi cốt truyện cần, ví dụ hạn chót); các chỗ khác dùng cách nói tự nhiên (khuya, gần sáng, sau bữa trưa, lúc tan ca). KHÔNG mở đoạn bằng giờ, KHÔNG ghi giờ vào từng tin nhắn/báo cáo, KHÔNG đồng hồ điểm giờ liên tục. Tài liệu/vật phẩm gọi bằng tên thường ("tập hồ sơ đỏ", "khu kỹ thuật"); KHÔNG tự đặt mã/số hiệu/ký hiệu mới (KT-07, P-1908, 114/ĐK-TK…) — chỉ dùng mã đã có trong bộ nhớ, và mỗi mã nhắc tối đa MỘT lần trong cả scene.';
+function timeCodeDensity(text) {
+  const t = String(text || ''), words = (t.match(/\S+/g) || []).length;
+  const times = (t.match(/\b\d{1,2}\s?[:h]\s?\d{2}\b|\b(?:[a-zà-ỹ]+|\d{1,2}) giờ(?: (?:[a-zà-ỹ]+|\d{1,2}) phút| rưỡi| kém(?: [a-zà-ỹ]+)?| (?:sáng|chiều|tối|đêm))?\b/gi) || []).length;
+  const codes = new Set((t.match(/\b[A-ZĐ]{1,5}(?:-[A-Z0-9]{1,5})*-\d{2,}[\w-]*|\b[A-Z]-\d{2,}\b|\b\d{2,}\/[A-ZĐ]{2,}(?:-[A-ZĐ]{2,})*\b/g) || [])).size;
+  return { words, times, codes };
+}
 const ASSISTANT_NOTE_START_RE = /^[\s*_#>\-•]*(?:\(?\s*)?(?:GHI CHÚ(?: KỸ THUẬT| BIÊN TẬP| CỦA (?:TÔI|MODEL|AI))?|LƯU Ý KỸ THUẬT|TECHNICAL NOTE|AUTHOR'?S NOTE)\b/;
 const ASSISTANT_NOTE_BODY_RE = /không thuộc phần văn xuôi|(?:nếu|neu) bạn muốn tôi|hãy xác nhận(?: hoặc| để)|yêu cầu điều chỉnh thêm|xuất bản phiên bản|phiên bản (?:sạch )?(?:đã )?sửa|theo yêu cầu S\d|lỗi drift|vượt quá phạm vi cho phép|lỗi tạo sinh|lỗi lai ngữ|ký tự Latinh|ngoài contract|\bhandoff\b\s*:|beat cuối cùng .{0,60}nên dành/i;
 const GLUED_LATIN_RE = /\p{Ll}\p{Lu}\p{Ll}|[a-z]{14,}/u;   // chữ hoa GIỮA từ (…fobBattery) hoặc ≥14 chữ Latin liền: tiếng Việt không có
@@ -1917,6 +1936,7 @@ function stripAssistantNotes(text) {
 function cleanModelArtifacts(text) {
   let t = String(text || ''); if (!t) return t;
   t = stripAssistantNotes(t);   // V14.7.49
+  t = stripPlanningLeak(t);   // V14.7.55
   t = fixGluedPunctuation(t); t = fixEnglishLeaks(t);   // V14.7.51
   EN_LEAK_MAP.forEach(([re, vi]) => { t = t.replace(re, (m, off) => { const cap = /^[A-Z]/.test(m) && (off === 0 || /[.!?…"\n]\s*$/.test(t.slice(Math.max(0, off - 3), off))); return cap ? vi.charAt(0).toUpperCase() + vi.slice(1) : vi; }); });
   t = t.replace(/Chi tiết dưới đây[^.\n]*\.\s*/g, '').replace(/(^|\n)\s*(?:Bản viết gọn|Viết lại(?: gọn| lần cuối)?)\s*:\s*/g, '$1');
@@ -2013,7 +2033,7 @@ function salvageBeforeDegeneration(raw) {
     const g = new Map(); let rep = 0; for (let i = 0; i + 3 <= w.length; i++) { const k = w.slice(i, i + 3).join(' ').toLowerCase(); const n = (g.get(k) || 0) + 1; g.set(k, n); if (n >= 3) rep++; }
     const noDia = w.length >= 15 && !DIA.test(p);
     const dup = p.length >= 80 && seen.has(p.toLowerCase());
-    const noteOrGlue = isAssistantNotePara(p) || w.some(hasGluedLatin) || paraHasDrift(p);   // V14.7.49/50: cả câu lê thê/giọng bản tin
+    const noteOrGlue = isAssistantNotePara(p) || isPlanningLeakPara(p) || w.some(hasGluedLatin) || paraHasDrift(p);   // V14.7.49/50: cả câu lê thê/giọng bản tin
     if (runMax >= 4 || longW >= 1 || rep >= 2 || noDia || dup || noteOrGlue) break;
     seen.add(p.toLowerCase()); keep.push(p);
   }
@@ -2047,6 +2067,7 @@ function degenerationCheck(text) {
   { const rd = countRunOnDrift(t); // V14.7.46
     if (rd.chatter >= 1) reasons.push('văn lạc sang giọng bản tin/quảng cáo (' + rd.chatter + ' chỗ)');
     if (rd.sparse >= 2) reasons.push(rd.sparse + ' câu dài lê thê gần như không dấu câu (model lan man)'); }
+  if (planningLeakIndex(t) >= 0) reasons.push('model rò kế hoạch/lời tự nhắc viết cảnh vào văn ("Viết cảnh S…", "Hmm —", "Giải pháp:")');   // V14.7.55
   { const notes = t.split(/\n+/).filter(isAssistantNotePara).length; if (notes) reasons.push('model chèn ghi chú kỹ thuật/lời trợ lý vào giữa văn (' + notes + ' đoạn)');   // V14.7.49
     const glued = words.filter(hasGluedLatin).length; if (glued) reasons.push('chữ Latin dính liền lẫn trong câu Việt (' + glued + ' chỗ)'); }
   const FILLER = (t.match(/(?:^|[\s"“])(?:á đúng|ờ nhỉ|ừ nhỉ|đúng vậy đó|ok luôn|oke|nhỉ nhỉ)(?=[\s,.!?"”]|$)/gi) || []).length;
@@ -4748,6 +4769,8 @@ async function runAdaptiveChapterPipeline(o, deps) {
       pushSceneWarn(scene.id + ': GIỮ BẢN CUỐI dù AI rà báo (' + sceneTries + ' lượt' + ([patchNote, rollbackNote].filter(Boolean).length ? ', ' + [patchNote, rollbackNote].filter(Boolean).join('; ') : '') + '): ' + (lastErrors.join(' | ') || 'scene không đạt rà AI').slice(0, 480), true);
     }
     if (accepted === null) { sceneMetric.status = 'rejected'; sceneMetric.errors = sceneMetric.errors.concat(lastErrors.map(x => String(x).slice(0, 240))).slice(0, 6); sceneMetric.durationMs = Date.now() - sceneT0; sceneTelemetry.push(sceneMetric); return { rejected: true, reason: 'SCENE_REJECTED ' + scene.id + (sceneTries > 1 ? ' (sau ' + sceneTries + ' lượt viết)' : '') + ': ' + (lastErrors.join(' | ') || 'scene không đạt kiểm tra') }; }
+    /* V14.7.55: cảnh báo (không retry) khi giờ giấc/mã số dày đặc trong scene. */
+    if (accepted) { const dn = timeCodeDensity(accepted); if (dn.times > Math.max(3, Math.ceil(dn.words / 350)) || dn.codes > 3) pushSceneWarn(scene.id + ': giờ giấc/mã số dày (' + dn.times + ' mốc giờ, ' + dn.codes + ' mã) — nên bớt khi đọc lại'); }
     /* V14.7.54: scene đã bị cắt sau khi sụp và còn quá ngắn → viết tiếp phần còn thiếu (1 lượt, model chính, nhiệt thấp, qua cổng văn suy biến). */
     if (deps.salvageContinue !== false && accepted && degenSalvaged && !skipScene && countWords(accepted) < (Number(scene.targetWords) || 0) * 0.8 && timeLeft() > minSceneMs) {
       try {
